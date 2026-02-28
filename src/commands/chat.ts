@@ -6,6 +6,7 @@ import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
+import { extractFileParts, sendResponseFiles } from "../utils/files.js";
 import { InputFile } from "grammy";
 
 const MAX_INPUT_LENGTH = 32_000;
@@ -59,6 +60,12 @@ export function registerChat(bot: Bot): void {
           return;
         }
         await sendResponse(ctx, result.text);
+
+        // Send any file attachments from the response
+        const files = extractFileParts(result.parts ?? []);
+        if (files.length > 0) {
+          await sendResponseFiles(ctx, files);
+        }
       } finally {
         clearInterval(typingInterval);
       }

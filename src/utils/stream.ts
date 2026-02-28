@@ -3,6 +3,7 @@ import { InputFile } from "grammy";
 import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
+import { sendResponseFiles, type ResponseFile } from "./files.js";
 
 const EDIT_INTERVAL = Number(process.env.STREAM_EDIT_INTERVAL_MS) || 2000;
 
@@ -52,6 +53,7 @@ export async function streamPrompt({
   let toolStatus = "";
   let lastEditTime = 0;
   let errorMsg: string | null = null;
+  const collectedFiles: ResponseFile[] = [];
 
   try {
     const stream = provider.promptStream(sessionId, parts[0]?.type === "text" ? (parts[0] as any).text : "", {
@@ -65,6 +67,8 @@ export async function streamPrompt({
         accumulated += chunk.content;
       } else if (chunk.type === "tool_use") {
         toolStatus = chunk.content;
+      } else if (chunk.type === "file" && chunk.file) {
+        collectedFiles.push(chunk.file);
       } else if (chunk.type === "done") {
         break;
       }
@@ -95,6 +99,11 @@ export async function streamPrompt({
   }
 
   await sendFinalResponse(ctx, chatId, messageId, accumulated);
+
+  // Send any collected file attachments
+  if (collectedFiles.length > 0) {
+    await sendResponseFiles(ctx, collectedFiles);
+  }
 }
 
 function buildDisplayText(text: string, toolStatus: string): string {

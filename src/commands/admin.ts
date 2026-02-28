@@ -25,11 +25,25 @@ export function registerAdminCommands(bot: Bot): void {
         ? `${model.providerID}/${model.modelID}`
         : health.model ?? "Server default";
 
+      // Check reasoning capability for current model
+      let reasoningBadge = "";
+      try {
+        const models = await provider.listModels();
+        const activeModel = model
+          ? models.find(m => m.id === model.modelID && m.provider === model.providerID)
+          : models.find(m => m.active);
+        if (activeModel?.reasoning) {
+          reasoningBadge = "  [reasoning]";
+        }
+      } catch {
+        // Ignore — optional info
+      }
+
       let text =
         `<b>Server Status</b>\n\n` +
         `<b>Provider:</b>  <code>${health.provider}</code>\n` +
         `<b>Status:</b>  ${health.status}\n` +
-        `<b>Model:</b>  <code>${modelStr}</code>\n` +
+        `<b>Model:</b>  <code>${modelStr}</code>${reasoningBadge}\n` +
         `<b>Streaming:</b>  ${streaming}\n` +
         `<b>Voice STT:</b>  ${stt}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
@@ -196,38 +210,143 @@ export function registerAdminCommands(bot: Bot): void {
     }
   });
 
+  bot.command("models", async (ctx) => {
+    try {
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      if (models.length === 0) {
+        await ctx.reply("No models available.");
+        return;
+      }
+
+      // Mark the active model
+      for (const m of models) {
+        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
+          m.active = true;
+        }
+      }
+
+      // Group by provider
+      const grouped = new Map<string, typeof models>();
+      for (const m of models) {
+        const list = grouped.get(m.provider) ?? [];
+        list.push(m);
+        grouped.set(m.provider, list);
+      }
+
+      let text = `<b>Available Models</b>\n`;
+
+      for (const [provId, provModels] of grouped) {
+        text += `\n<b>${escapeHtml(provId)}</b>\n`;
+        for (const m of provModels) {
+          const badges: string[] = [];
+          if (m.reasoning) badges.push("reasoning");
+          if (m.attachment) badges.push("vision");
+          if (m.active) badges.push("active");
+
+          const badgeStr = badges.length > 0 ? "  " + badges.map(b => `[${b}]`).join(" ") : "";
+          text += `  <code>${escapeHtml(m.id)}</code>${badgeStr}\n`;
+        }
+      }
+
+      text += `\n<i>Use /model provider/model to switch</i>`;
+
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "listing models"), { parse_mode: "HTML" });
+    }
+  });
+
   bot.command("model", async (ctx) => {
     const input = ctx.match?.trim();
     if (!input) {
       const current = getSelectedModel();
       if (current) {
+        // Try to show capabilities for the current model
+        let capStr = "";
+        try {
+          const provider = getProvider();
+          const models = await provider.listModels();
+          const match = models.find(m => m.id === current.modelID && m.provider === current.providerID);
+          if (match) {
+            const caps: string[] = [];
+            if (match.reasoning) caps.push("reasoning");
+            if (match.attachment) caps.push("vision");
+            capStr = caps.length > 0 ? `\n<b>Capabilities:</b>  ${caps.join(", ")}` : "";
+          }
+        } catch {
+          // Ignore — capabilities are optional info
+        }
         await ctx.reply(
-          `<b>Current model:</b>  <code>${current.providerID}/${current.modelID}</code>`,
+          `<b>Current model:</b>  <code>${current.providerID}/${current.modelID}</code>${capStr}\n\n<i>Use /models to list available models</i>`,
           { parse_mode: "HTML" }
         );
       } else {
         await ctx.reply(
-          `No model set — using server default.\n\n<b>Usage:</b>  <code>/model provider/model</code>`,
+          `No model set — using server default.\n\n<b>Usage:</b>  <code>/model provider/model</code>\n<i>Use /models to list available models</i>`,
           { parse_mode: "HTML" }
         );
       }
       return;
     }
 
-    const parts = input.split("/");
-    if (parts.length < 2) {
+    // Try partial match if no "/" in input
+    if (!input.includes("/")) {
+      try {
+        const provider = getProvider();
+        const models = await provider.listModels();
+        const match = models.find(m => m.id === input || m.id.includes(input) || m.name.toLowerCase().includes(input.toLowerCase()));
+        if (match) {
+          setSelectedModel(match.provider, match.id);
+          const caps: string[] = [];
+          if (match.reasoning) caps.push("reasoning");
+          if (match.attachment) caps.push("vision");
+          const capStr = caps.length > 0 ? `\n<b>Capabilities:</b>  ${caps.join(", ")}` : "";
+          await ctx.reply(
+            `Model set to <code>${match.provider}/${match.id}</code>${capStr}`,
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+      } catch {
+        // Fall through to usage message
+      }
+
       await ctx.reply(
-        `<b>Usage:</b>  <code>/model provider/model</code>\n<b>Example:</b>  <code>/model anthropic/claude-sonnet-4-20250514</code>`,
+        `<b>Usage:</b>  <code>/model provider/model</code>\n<b>Example:</b>  <code>/model anthropic/claude-sonnet-4-20250514</code>\n\n<i>Use /models to list available models</i>`,
         { parse_mode: "HTML" }
       );
       return;
     }
 
+    const parts = input.split("/");
     const providerID = parts[0];
     const modelID = parts.slice(1).join("/");
     setSelectedModel(providerID, modelID);
+
+    // Show capabilities if available
+    let capStr = "";
+    try {
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const match = models.find(m => m.id === modelID && m.provider === providerID);
+      if (match) {
+        const caps: string[] = [];
+        if (match.reasoning) caps.push("reasoning");
+        if (match.attachment) caps.push("vision");
+        capStr = caps.length > 0 ? `\n<b>Capabilities:</b>  ${caps.join(", ")}` : "";
+      }
+    } catch {
+      // Ignore
+    }
+
     await ctx.reply(
-      `Model set to <code>${providerID}/${modelID}</code>`,
+      `Model set to <code>${providerID}/${modelID}</code>${capStr}`,
       { parse_mode: "HTML" }
     );
   });
@@ -318,9 +437,21 @@ export function registerAdminCommands(bot: Bot): void {
       text += `\n`;
     }
 
+    const provider = getProvider();
+
+    if (provider.capabilities.mcp) {
+      text +=
+        `<b>MCP</b>\n` +
+        `/mcp  —  MCP server status\n` +
+        `/mcp add <code>name</code> local <code>cmd</code>  —  Add local MCP\n` +
+        `/mcp add <code>name</code> remote <code>url</code>  —  Add remote MCP\n` +
+        `/mcp remove <code>name</code>  —  Remove MCP server\n\n`;
+    }
+
     text +=
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
+      `/models  —  List available models\n` +
       `/system  —  View system prompt\n` +
       `/system reload  —  Reload prompt\n` +
       `/health  —  Server status\n` +

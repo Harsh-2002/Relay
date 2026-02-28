@@ -7,6 +7,7 @@ import { registerAdminCommands } from "./admin.js";
 import { registerHistoryCommands } from "./history.js";
 import { registerMediaHandlers } from "./media.js";
 import { registerChat } from "./chat.js";
+import { registerMcpCommands } from "./mcp.js";
 
 export function registerCommands(bot: Bot): void {
   registerAdminCommands(bot);
@@ -15,6 +16,7 @@ export function registerCommands(bot: Bot): void {
   registerFileCommands(bot);
   registerShellCommands(bot);
   registerHistoryCommands(bot);
+  registerMcpCommands(bot);
   registerMediaHandlers(bot);
   registerChat(bot);
 }

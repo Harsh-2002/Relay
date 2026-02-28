@@ -18,6 +18,9 @@ import type {
   ProjectInfo,
   CommandInfo,
   HealthInfo,
+  ModelDetail,
+  McpServerConfig,
+  McpServerStatus,
 } from "./types.js";
 import type { Event as OcEvent } from "@opencode-ai/sdk";
 
@@ -38,6 +41,8 @@ export class OpenCodeProvider implements Provider {
     fileOps: true,
     shell: true,
     commands: true,
+    fileOutput: true,
+    mcp: true,
   };
 
   async init(): Promise<void> {
@@ -171,6 +176,12 @@ export class OpenCodeProvider implements Provider {
           if (delta) {
             yield { type: "text", content: delta };
           }
+        } else if (part.type === "file") {
+          yield {
+            type: "file" as const,
+            content: part.filename ?? "file",
+            file: { mime: part.mime, filename: part.filename ?? "file", url: part.url },
+          };
         } else if (part.type === "tool") {
           const toolName = part.tool;
           if (part.state.status === "running") {
@@ -431,6 +442,77 @@ export class OpenCodeProvider implements Provider {
     if (result.error) throw sdkError(result.error);
     const agents = result.data ?? [];
     return Array.isArray(agents) ? agents : [];
+  }
+
+  // --- Models ---
+
+  async listModels(): Promise<ModelDetail[]> {
+    const result = await client.config.providers();
+    if (result.error) throw sdkError(result.error);
+
+    const data = result.data as any;
+    const providers: any[] = data?.all ?? data?.providers ?? [];
+    const models: ModelDetail[] = [];
+
+    for (const prov of providers) {
+      if (!prov.models) continue;
+      for (const [key, m] of Object.entries(prov.models) as [string, any][]) {
+        models.push({
+          id: m.id ?? key,
+          name: m.name ?? key,
+          provider: prov.id ?? prov.name ?? "unknown",
+          reasoning: m.reasoning ?? m.capabilities?.reasoning ?? false,
+          attachment: m.attachment ?? m.capabilities?.attachment ?? false,
+          modalities: m.modalities,
+          active: false, // Caller checks against selected model
+        });
+      }
+    }
+
+    return models;
+  }
+
+  // --- MCP ---
+
+  async getMcpStatus(): Promise<McpServerStatus[] | null> {
+    const result = await client.mcp.status();
+    if (result.error) throw sdkError(result.error);
+
+    const data = result.data as Record<string, any> | undefined;
+    if (!data) return [];
+
+    return Object.entries(data).map(([name, status]) => {
+      let statusStr: McpServerStatus["status"] = "unknown";
+      if (status?.status === "connected") statusStr = "connected";
+      else if (status?.status === "disabled") statusStr = "disabled";
+      else if (status?.status === "failed") statusStr = "failed";
+      else if (status?.status === "needs_auth") statusStr = "needs_auth";
+
+      return {
+        name,
+        status: statusStr,
+        error: status?.error,
+      };
+    });
+  }
+
+  async addMcpServer(name: string, config: McpServerConfig): Promise<boolean> {
+    const sdkConfig: any = config.type === "local"
+      ? { type: "local", command: config.command ?? [], environment: config.environment, enabled: config.enabled ?? true, timeout: config.timeout }
+      : { type: "remote", url: config.url ?? "", headers: config.headers, enabled: config.enabled ?? true, timeout: config.timeout };
+
+    const result = await client.mcp.add({ body: { name, config: sdkConfig } });
+    if (result.error) throw sdkError(result.error);
+    return true;
+  }
+
+  async removeMcpServer(name: string): Promise<boolean> {
+    try {
+      await client.mcp.disconnect({ path: { name } });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

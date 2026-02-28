@@ -13,6 +13,9 @@ import type {
   ProjectInfo,
   CommandInfo,
   HealthInfo,
+  ModelDetail,
+  McpServerConfig,
+  McpServerStatus,
 } from "./types.js";
 
 // Dynamic import — only loads when PROVIDER=codex
@@ -40,6 +43,8 @@ export class CodexProvider implements Provider {
     fileOps: false,
     shell: true,
     commands: false,
+    fileOutput: false,
+    mcp: false,
   };
   private model: string;
   private cwd: string;
@@ -352,5 +357,28 @@ export class CodexProvider implements Provider {
 
   async getAgents(): Promise<unknown[] | null> {
     return null;
+  }
+
+  // --- Models ---
+
+  async listModels(): Promise<ModelDetail[]> {
+    return [
+      { id: "o3", name: "o3", provider: "openai", reasoning: true, attachment: false, active: this.model === "o3" },
+      { id: "o4-mini", name: "o4 Mini", provider: "openai", reasoning: true, attachment: false, active: this.model === "o4-mini" },
+    ];
+  }
+
+  // --- MCP (not supported) ---
+
+  async getMcpStatus(): Promise<McpServerStatus[] | null> {
+    return null;
+  }
+
+  async addMcpServer(): Promise<boolean> {
+    return false;
+  }
+
+  async removeMcpServer(): Promise<boolean> {
+    return false;
   }
 }

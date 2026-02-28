@@ -8,6 +8,7 @@ import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
+import { extractFileParts, sendResponseFiles } from "../utils/files.js";
 import { readFileSync } from "fs";
 
 const botToken = process.env.BOT_TOKEN ?? "";
@@ -53,14 +54,8 @@ export function registerMediaHandlers(bot: Bot): void {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
         return;
       }
-      const chunks = chunkMessage(result.text);
-      for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
-      }
+      await sendTextChunks(ctx, result.text);
+      await sendFiles(ctx, result.parts);
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling file"), { parse_mode: "HTML" });
     }
@@ -117,14 +112,8 @@ export function registerMediaHandlers(bot: Bot): void {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
           return;
         }
-        const chunks = chunkMessage(result.text);
-        for (const chunk of chunks) {
-          try {
-            await ctx.reply(chunk, { parse_mode: "Markdown" });
-          } catch {
-            await ctx.reply(chunk);
-          }
-        }
+        await sendTextChunks(ctx, result.text);
+        await sendFiles(ctx, result.parts);
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling photo"), { parse_mode: "HTML" });
@@ -178,14 +167,8 @@ export function registerMediaHandlers(bot: Bot): void {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
           return;
         }
-        const chunks = chunkMessage(promptResult.text);
-        for (const chunk of chunks) {
-          try {
-            await ctx.reply(chunk, { parse_mode: "Markdown" });
-          } catch {
-            await ctx.reply(chunk);
-          }
-        }
+        await sendTextChunks(ctx, promptResult.text);
+        await sendFiles(ctx, promptResult.parts);
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" });
@@ -226,14 +209,8 @@ export function registerMediaHandlers(bot: Bot): void {
             await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
             return;
           }
-          const chunks = chunkMessage(promptResult.text);
-          for (const chunk of chunks) {
-            try {
-              await ctx.reply(chunk, { parse_mode: "Markdown" });
-            } catch {
-              await ctx.reply(chunk);
-            }
-          }
+          await sendTextChunks(ctx, promptResult.text);
+          await sendFiles(ctx, promptResult.parts);
           return;
         }
       }
@@ -266,14 +243,8 @@ export function registerMediaHandlers(bot: Bot): void {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
         return;
       }
-      const chunks = chunkMessage(promptResult.text);
-      for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
-      }
+      await sendTextChunks(ctx, promptResult.text);
+      await sendFiles(ctx, promptResult.parts);
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" });
     }
@@ -291,6 +262,25 @@ function isTextMime(mime?: string): boolean {
     mime === "application/yaml" ||
     mime === "application/x-yaml"
   );
+}
+
+async function sendTextChunks(ctx: any, text: string): Promise<void> {
+  const chunks = chunkMessage(text);
+  for (const chunk of chunks) {
+    try {
+      await ctx.reply(chunk, { parse_mode: "Markdown" });
+    } catch {
+      await ctx.reply(chunk);
+    }
+  }
+}
+
+async function sendFiles(ctx: any, parts?: unknown[]): Promise<void> {
+  if (!parts) return;
+  const files = extractFileParts(parts);
+  if (files.length > 0) {
+    await sendResponseFiles(ctx, files);
+  }
 }
 
 function isTextExtension(name: string): boolean {

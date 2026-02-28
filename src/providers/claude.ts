@@ -13,6 +13,9 @@ import type {
   ProjectInfo,
   CommandInfo,
   HealthInfo,
+  ModelDetail,
+  McpServerConfig,
+  McpServerStatus,
 } from "./types.js";
 
 // Dynamic import — only loads when PROVIDER=claude
@@ -35,10 +38,13 @@ export class ClaudeProvider implements Provider {
     fileOps: false,
     shell: true,
     commands: false,
+    fileOutput: false,
+    mcp: true,
   };
   private model: string;
   private permissionMode: string;
   private cwd: string;
+  private mcpServers = new Map<string, any>();
 
   constructor() {
     this.model = process.env.CLAUDE_MODEL ?? "sonnet";
@@ -96,28 +102,18 @@ export class ClaudeProvider implements Provider {
   }
 
   async getSession(id: string): Promise<Session | null> {
-    // Claude doesn't have a direct "get session" API.
-    // Check if it exists in the sessions list.
     const sessions = await this.listSessions();
     const found = sessions.find((s) => s.id === id);
     return found ? { id: found.id, title: found.title } : null;
   }
 
   async deleteSession(): Promise<boolean> {
-    // Claude doesn't support session deletion
     return false;
   }
 
   // --- Messaging ---
 
-  async prompt(
-    sessionId: string,
-    text: string,
-    options?: PromptOptions
-  ): Promise<PromptResult> {
-    let resultText = "";
-    const toolResults: any[] = [];
-
+  private buildQueryOpts(sessionId: string, options?: PromptOptions): any {
     const queryOpts: any = {
       model: options?.model?.modelID ?? this.model,
       permissionMode: this.permissionMode,
@@ -127,6 +123,20 @@ export class ClaudeProvider implements Provider {
     if (options?.system) {
       queryOpts.systemPrompt = options.system;
     }
+    if (this.mcpServers.size > 0) {
+      queryOpts.mcpServers = Object.fromEntries(this.mcpServers);
+    }
+    return queryOpts;
+  }
+
+  async prompt(
+    sessionId: string,
+    text: string,
+    options?: PromptOptions
+  ): Promise<PromptResult> {
+    let resultText = "";
+
+    const queryOpts = this.buildQueryOpts(sessionId, options);
 
     const messages = queryFn({
       prompt: text,
@@ -159,15 +169,7 @@ export class ClaudeProvider implements Provider {
     text: string,
     options?: PromptOptions
   ): AsyncGenerator<StreamChunk> {
-    const queryOpts: any = {
-      model: options?.model?.modelID ?? this.model,
-      permissionMode: this.permissionMode,
-      cwd: this.cwd,
-      resume: sessionId,
-    };
-    if (options?.system) {
-      queryOpts.systemPrompt = options.system;
-    }
+    const queryOpts = this.buildQueryOpts(sessionId, options);
 
     const messages = queryFn({
       prompt: text,
@@ -212,17 +214,16 @@ export class ClaudeProvider implements Provider {
   // --- Session features (limited support) ---
 
   async getTodos(): Promise<Todo[] | null> {
-    return null; // Not supported
+    return null;
   }
 
   async getDiff(): Promise<FileDiff[] | null> {
-    return null; // Not supported
+    return null;
   }
 
   async forkSession(
     sessionId: string,
   ): Promise<Session | null> {
-    // Claude supports forking via forkSession option
     try {
       let newSessionId: string | undefined;
 
@@ -254,53 +255,50 @@ export class ClaudeProvider implements Provider {
   }
 
   async revert(): Promise<boolean> {
-    return false; // Not directly supported via simple API
+    return false;
   }
 
   async unrevert(): Promise<boolean> {
-    return false; // Not supported
+    return false;
   }
 
   async share(): Promise<string | null> {
-    return null; // Not supported
+    return null;
   }
 
   async summarize(): Promise<boolean> {
-    return false; // Not supported
+    return false;
   }
 
   async getHistory(): Promise<unknown[] | null> {
-    return null; // Not directly supported
+    return null;
   }
 
-  // --- File operations (routed through prompt) ---
+  // --- File operations ---
 
-  async readFile(path: string): Promise<string | null> {
-    // Ask Claude to read the file using its built-in Read tool
-    // This works because Claude has access to file system tools
-    return null; // Not directly supported — commands handle this via prompt
+  async readFile(): Promise<string | null> {
+    return null;
   }
 
   async findFiles(): Promise<string[] | null> {
-    return null; // Not directly supported
+    return null;
   }
 
   async searchText(): Promise<SearchResult[] | null> {
-    return null; // Not directly supported
+    return null;
   }
 
   async findSymbols(): Promise<unknown[] | null> {
-    return null; // Not directly supported
+    return null;
   }
 
   async getFileStatus(): Promise<FileStatus[] | null> {
-    return null; // Not directly supported
+    return null;
   }
 
   // --- Shell ---
 
   async shell(sessionId: string, command: string): Promise<string | null> {
-    // Route through prompt — Claude will use its Bash tool
     const result = await this.prompt(
       sessionId,
       `Run this shell command and show the output: ${command}`
@@ -309,7 +307,7 @@ export class ClaudeProvider implements Provider {
   }
 
   async runCommand(): Promise<PromptResult | null> {
-    return null; // Not supported (OpenCode-specific)
+    return null;
   }
 
   // --- Info ---
@@ -328,7 +326,7 @@ export class ClaudeProvider implements Provider {
   }
 
   async getCommands(): Promise<CommandInfo[] | null> {
-    return null; // Not directly accessible
+    return null;
   }
 
   async getHealth(): Promise<HealthInfo> {
@@ -358,5 +356,44 @@ export class ClaudeProvider implements Provider {
 
   async getAgents(): Promise<unknown[] | null> {
     return null;
+  }
+
+  // --- Models ---
+
+  async listModels(): Promise<ModelDetail[]> {
+    return [
+      { id: "sonnet", name: "Claude Sonnet", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "sonnet" },
+      { id: "opus", name: "Claude Opus", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "opus" },
+      { id: "haiku", name: "Claude Haiku", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "haiku" },
+    ];
+  }
+
+  // --- MCP ---
+
+  async getMcpStatus(): Promise<McpServerStatus[] | null> {
+    return Array.from(this.mcpServers.entries()).map(([name]) => ({
+      name,
+      status: "connected" as const,
+    }));
+  }
+
+  async addMcpServer(name: string, config: McpServerConfig): Promise<boolean> {
+    if (config.type === "local") {
+      this.mcpServers.set(name, {
+        command: config.command?.[0] ?? "",
+        args: config.command?.slice(1) ?? [],
+        env: config.environment ?? {},
+      });
+    } else {
+      this.mcpServers.set(name, {
+        url: config.url ?? "",
+        headers: config.headers ?? {},
+      });
+    }
+    return true;
+  }
+
+  async removeMcpServer(name: string): Promise<boolean> {
+    return this.mcpServers.delete(name);
   }
 }

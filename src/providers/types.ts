@@ -33,8 +33,9 @@ export interface PromptResult {
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_use" | "status" | "done";
+  type: "text" | "tool_use" | "status" | "done" | "file";
   content: string;
+  file?: { mime: string; filename: string; url: string };
 }
 
 export interface Todo {
@@ -82,6 +83,16 @@ export interface ModelInfo {
   provider?: string;
 }
 
+export interface ModelDetail {
+  id: string;
+  name: string;
+  provider: string;
+  reasoning: boolean;
+  attachment: boolean;
+  modalities?: { input: string[]; output: string[] };
+  active: boolean;
+}
+
 export interface HealthInfo {
   status: string;
   provider: string;
@@ -89,6 +100,24 @@ export interface HealthInfo {
   project?: string;
   branch?: string;
   extra?: Record<string, string>;
+}
+
+// --- MCP types ---
+
+export interface McpServerConfig {
+  type: "local" | "remote";
+  command?: string[];
+  environment?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  enabled?: boolean;
+  timeout?: number;
+}
+
+export interface McpServerStatus {
+  name: string;
+  status: "connected" | "disabled" | "failed" | "needs_auth" | "unknown";
+  error?: string;
 }
 
 // --- Provider capabilities ---
@@ -105,6 +134,8 @@ export interface ProviderCapabilities {
   fileOps: boolean;
   shell: boolean;
   commands: boolean;
+  fileOutput: boolean;
+  mcp: boolean;
 }
 
 // --- Provider interface ---
@@ -170,6 +201,14 @@ export interface Provider {
   getConfig(): Promise<unknown>;
   getProviders(): Promise<unknown>;
   getAgents(): Promise<unknown[] | null>;
+
+  // Models
+  listModels(): Promise<ModelDetail[]>;
+
+  // MCP (return null if not supported)
+  getMcpStatus(): Promise<McpServerStatus[] | null>;
+  addMcpServer(name: string, config: McpServerConfig): Promise<boolean>;
+  removeMcpServer(name: string): Promise<boolean>;
 }
 
 export type ProviderName = Provider["name"];

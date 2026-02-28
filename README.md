@@ -6,8 +6,11 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 
 - **Multi-provider** -- switch between OpenCode, Claude Code, and Codex with a single env var
 - **Text, voice, photo, and file input** -- send messages in any format
+- **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments (OpenCode)
 - **Streaming responses** -- progressive message editing for real-time output
 - **Session management** -- create, switch, fork, delete, and list sessions
+- **Model selection** -- list available models with capability badges and switch interactively
+- **MCP servers** -- add, remove, and monitor MCP (Model Context Protocol) servers at runtime
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from file, hot-reload on change
@@ -69,7 +72,7 @@ CODEX_MODEL=o3                # o3 | o4-mini
 ## Commands
 
 ### Chat
-Send any text message, voice note, photo, or file to chat with the AI.
+Send any text message, voice note, photo, or file to chat with the AI. File attachments from the AI (screenshots, generated files) are automatically sent back as Telegram documents or photos.
 
 ### Sessions
 | Command | Description |
@@ -113,13 +116,31 @@ Send any text message, voice note, photo, or file to chat with the AI.
 | `/cmd <command>` | Run an OpenCode command |
 | `/commands` | List available commands |
 
+### Models
+| Command | Description |
+|---------|-------------|
+| `/models` | List available models with capabilities |
+| `/model <provider/model>` | Set the AI model |
+| `/model <name>` | Set model by partial match |
+
+Models show capability badges: `[reasoning]` for thinking/reasoning support, `[vision]` for image input, and `[active]` for the currently selected model.
+
+### MCP (OpenCode, Claude)
+| Command | Description |
+|---------|-------------|
+| `/mcp` | Show MCP server status |
+| `/mcp add <name> local <command...>` | Add a local MCP server |
+| `/mcp add <name> remote <url>` | Add a remote MCP server |
+| `/mcp remove <name>` | Remove an MCP server |
+
+MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). OpenCode supports full runtime management; Claude stores MCP config in memory and passes it on each query.
+
 ### Settings
 | Command | Description |
 |---------|-------------|
-| `/model <provider/model>` | Set the AI model |
 | `/system` | View system prompt |
 | `/system reload` | Reload system prompt |
-| `/health` | Server status |
+| `/health` | Server status (with reasoning badge) |
 | `/config` | Show configuration |
 | `/providers` | List available providers |
 | `/agents` | List available agents |
@@ -147,7 +168,7 @@ The bot loads a system prompt from `skill.md` in the project root (or the path s
 ```
 src/
   providers/
-    types.ts       -- Provider interface and shared types
+    types.ts       -- Provider interface, capabilities, MCP/model types
     index.ts       -- Provider factory (selects based on PROVIDER env var)
     opencode.ts    -- OpenCode SDK provider
     claude.ts      -- Claude Code / Agent SDK provider
@@ -156,13 +177,15 @@ src/
     chat.ts        -- Text message handler
     session.ts     -- Session management commands
     media.ts       -- Photo, voice, audio, file handlers
-    admin.ts       -- Health, config, model, help commands
+    admin.ts       -- Health, config, model, models, help commands
     monitor.ts     -- Todo, diff, fork commands
     files.ts       -- File read, find, search commands
     history.ts     -- History, revert, share commands
     shell.ts       -- Shell and command execution
+    mcp.ts         -- MCP server management
   utils/
     stream.ts      -- Streaming response handler
+    files.ts       -- Outbound file attachment handling
     chunker.ts     -- Telegram message chunking
     errors.ts      -- Error formatting
     html.ts        -- HTML escaping for Telegram
@@ -173,6 +196,17 @@ src/
 ```
 
 Each provider implements the `Provider` interface with a `capabilities` object declaring which features it supports. Commands check capabilities and show appropriate messages when a feature isn't available.
+
+### Provider Capabilities
+
+| Capability | OpenCode | Claude | Codex |
+|-----------|----------|--------|-------|
+| Streaming | yes | yes | yes |
+| File output | yes | no | no |
+| MCP management | yes | yes | no |
+| Model listing | dynamic | static | static |
+| Session management | full | limited | limited |
+| File operations | yes | no | no |
 
 ## License
 

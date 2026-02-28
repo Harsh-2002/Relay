@@ -16,13 +16,21 @@ export function registerAdminCommands(bot: Bot): void {
         await ctx.reply("Server responded with error.");
         return;
       }
-      const streaming = isStreamingEnabled() ? "enabled" : "disabled";
+      const streaming = isStreamingEnabled() ? "Enabled" : "Disabled";
       const sttProvider = getSttProvider();
-      const stt = sttProvider ? `configured (${sttProvider})` : "not configured";
+      const stt = sttProvider ? `${sttProvider}` : "Not configured";
       const prompt = getSystemPrompt();
-      const promptSource = isUsingCustomPrompt() ? "custom" : "default";
+      const promptSource = isUsingCustomPrompt() ? "Custom" : "Default";
+      const model = getSelectedModel();
+      const modelStr = model ? `${model.providerID}/${model.modelID}` : "Server default";
       await ctx.reply(
-        `OpenCode server is healthy.\nStreaming: ${streaming}\nVoice STT: ${stt}\nSystem prompt: ${promptSource} (${prompt.length} chars)`
+        `<b>Server Status</b>\n\n` +
+        `<b>Status:</b>  Healthy\n` +
+        `<b>Model:</b>  <code>${modelStr}</code>\n` +
+        `<b>Streaming:</b>  ${streaming}\n` +
+        `<b>Voice STT:</b>  ${stt}\n` +
+        `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`,
+        { parse_mode: "HTML" }
       );
     } catch (err: any) {
       await ctx.reply(`Server unreachable: ${err.message}`);
@@ -88,12 +96,14 @@ export function registerAdminCommands(bot: Bot): void {
     if (!input) {
       const current = getSelectedModel();
       if (current) {
-        await ctx.reply(`Current model: \`${current.providerID}/${current.modelID}\``, {
-          parse_mode: "Markdown",
-        });
+        await ctx.reply(
+          `<b>Current model:</b>  <code>${current.providerID}/${current.modelID}</code>`,
+          { parse_mode: "HTML" }
+        );
       } else {
         await ctx.reply(
-          "No model set (using server default).\nUsage: /model <providerID/modelID>"
+          `No model set — using server default.\n\n<b>Usage:</b>  <code>/model provider/model</code>`,
+          { parse_mode: "HTML" }
         );
       }
       return;
@@ -101,14 +111,20 @@ export function registerAdminCommands(bot: Bot): void {
 
     const parts = input.split("/");
     if (parts.length < 2) {
-      await ctx.reply("Usage: /model <providerID/modelID>\nExample: /model anthropic/claude-3-5-sonnet-20241022");
+      await ctx.reply(
+        `<b>Usage:</b>  <code>/model provider/model</code>\n<b>Example:</b>  <code>/model anthropic/claude-sonnet-4-20250514</code>`,
+        { parse_mode: "HTML" }
+      );
       return;
     }
 
     const providerID = parts[0];
     const modelID = parts.slice(1).join("/");
     setSelectedModel(providerID, modelID);
-    await ctx.reply(`Model set to \`${providerID}/${modelID}\``, { parse_mode: "Markdown" });
+    await ctx.reply(
+      `Model set to <code>${providerID}/${modelID}</code>`,
+      { parse_mode: "HTML" }
+    );
   });
 
   bot.command("system", async (ctx) => {
@@ -116,69 +132,81 @@ export function registerAdminCommands(bot: Bot): void {
 
     if (action === "reload") {
       const prompt = reloadSystemPrompt();
-      const source = isUsingCustomPrompt() ? "custom file" : "default";
-      await ctx.reply(`System prompt reloaded (${source}, ${prompt.length} chars).`);
+      const source = isUsingCustomPrompt() ? "Custom file" : "Default";
+      await ctx.reply(
+        `System prompt reloaded.\n<b>Source:</b>  ${source}  |  <b>Length:</b>  ${prompt.length} chars`,
+        { parse_mode: "HTML" }
+      );
       return;
     }
 
     const prompt = getSystemPrompt();
-    const source = isUsingCustomPrompt() ? "custom (skill.md)" : "default (built-in)";
-    const preview = prompt.length > 500 ? prompt.slice(0, 500) + "\n\n...(truncated)" : prompt;
-    await ctx.reply(`System prompt [${source}, ${prompt.length} chars]:\n\n${preview}`);
+    const source = isUsingCustomPrompt() ? "Custom (skill.md)" : "Default (built-in)";
+    const escaped = escapeHtml(prompt.length > 500 ? prompt.slice(0, 500) + "\n\n...(truncated)" : prompt);
+    await ctx.reply(
+      `<b>System Prompt</b>\n` +
+      `<b>Source:</b>  ${source}  |  <b>Length:</b>  ${prompt.length} chars\n\n` +
+      `<pre>${escaped}</pre>`,
+      { parse_mode: "HTML" }
+    );
   });
 
   bot.command("start", async (ctx) => {
     await ctx.reply(
-      "Welcome to **OCBot** — OpenCode from Telegram!\n\n" +
-        "Just send a message to chat with the AI, or use commands:\n\n" +
-        "/help — Show all commands\n" +
-        "/new — Create a new session\n" +
-        "/sessions — List sessions\n" +
-        "/health — Check server status",
-      { parse_mode: "Markdown" }
+      `Hey! Send me a message and I'll pass it to the AI.\n\n` +
+      `You can also send voice notes, photos, or files.\n\n` +
+      `Type /help to see all commands.`,
     );
   });
 
   bot.command("help", async (ctx) => {
     await ctx.reply(
-      "**OCBot Commands**\n\n" +
-        "**Chat:**\n" +
-        "Send any text message to chat with AI\n\n" +
-        "**Sessions:**\n" +
-        "/new [title] — Create new session\n" +
-        "/sessions — List all sessions\n" +
-        "/switch <id> — Switch active session\n" +
-        "/delete <id> — Delete a session\n" +
-        "/current — Show active session\n\n" +
-        "**Files:**\n" +
-        "/read <path> — Read a file\n" +
-        "/search <pattern> — Search text in files\n" +
-        "/find <query> — Find files by name\n" +
-        "/symbols <query> — Find code symbols\n" +
-        "/status — Git file status\n\n" +
-        "**Voice:**\n" +
-        "Send a voice message — auto-transcribed and sent to AI\n" +
-        "Send an audio file — transcribed if STT configured\n\n" +
-        "**Shell:**\n" +
-        "/shell <cmd> — Run shell command\n" +
-        "/cmd <command> — Run OpenCode command\n\n" +
-        "**History:**\n" +
-        "/history — Show conversation history\n" +
-        "/abort — Cancel current operation\n" +
-        "/share — Share session\n" +
-        "/revert — Revert last change\n" +
-        "/summarize — Summarize session\n\n" +
-        "**Admin:**\n" +
-        "/health — Check server health\n" +
-        "/config — Show config\n" +
-        "/providers — List AI providers\n" +
-        "/agents — List agents\n" +
-        "/model <provider/model> — Change model\n" +
-        "/system — View system prompt\n" +
-        "/system reload — Reload prompt from file",
-      { parse_mode: "Markdown" }
+      `<b>Chat</b>\n` +
+      `Just send any text, voice, photo, or file\n\n` +
+
+      `<b>Sessions</b>\n` +
+      `/new  —  New session\n` +
+      `/sessions  —  List sessions\n` +
+      `/switch <code>id</code>  —  Switch session\n` +
+      `/delete <code>id</code>  —  Delete session\n` +
+      `/current  —  Active session\n\n` +
+
+      `<b>Files</b>\n` +
+      `/read <code>path</code>  —  Read file\n` +
+      `/find <code>query</code>  —  Find files\n` +
+      `/search <code>pattern</code>  —  Search in files\n` +
+      `/symbols <code>query</code>  —  Find symbols\n` +
+      `/status  —  Git status\n\n` +
+
+      `<b>History</b>\n` +
+      `/history  —  Conversation history\n` +
+      `/summarize  —  Summarize session\n` +
+      `/revert  —  Undo last change\n` +
+      `/abort  —  Cancel operation\n` +
+      `/share  —  Share session\n\n` +
+
+      `<b>Shell</b>\n` +
+      `/shell <code>cmd</code>  —  Run command\n` +
+      `/cmd <code>command</code>  —  OpenCode command\n\n` +
+
+      `<b>Settings</b>\n` +
+      `/model <code>provider/model</code>  —  Change model\n` +
+      `/system  —  View system prompt\n` +
+      `/system reload  —  Reload prompt\n` +
+      `/health  —  Server status\n` +
+      `/config  —  Show config\n` +
+      `/providers  —  List providers\n` +
+      `/agents  —  List agents`,
+      { parse_mode: "HTML" }
     );
   });
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 async function sendJsonResponse(ctx: any, data: any, filename: string): Promise<void> {

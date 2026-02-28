@@ -17,6 +17,17 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 - **File operations** -- read, find, search, and browse project files (OpenCode)
 - **Monitoring** -- todo lists, diffs, and session history (OpenCode)
 
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](docs/getting-started.md) | Installation, prerequisites, first steps |
+| [Configuration](docs/configuration.md) | All environment variables and options |
+| [Providers](docs/providers.md) | Detailed setup for each provider |
+| [Commands](docs/commands.md) | Full command reference with examples |
+| [Features](docs/features.md) | Streaming, file attachments, voice, MCP, models |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
+
 ## Quick Start
 
 ```bash

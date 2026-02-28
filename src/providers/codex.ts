@@ -1,5 +1,6 @@
 import type {
   Provider,
+  ProviderCapabilities,
   Session,
   SessionInfo,
   PromptOptions,
@@ -17,13 +18,29 @@ import type {
 // Dynamic import — only loads when PROVIDER=codex
 let CodexClass: any;
 let codexInstance: any;
-let activeAbortController: AbortController | null = null;
 
-// Map session IDs to thread objects
+// Per-session abort controllers (keyed by session ID)
+const abortControllers = new Map<string, AbortController>();
+
+// Map session IDs to thread objects (bounded to prevent memory leaks)
 const threads = new Map<string, any>();
+const MAX_THREADS = 100;
 
 export class CodexProvider implements Provider {
   readonly name = "codex" as const;
+  readonly capabilities: ProviderCapabilities = {
+    streaming: true,
+    todos: false,
+    diff: false,
+    fork: false,
+    revert: false,
+    share: false,
+    summarize: false,
+    history: false,
+    fileOps: false,
+    shell: true,
+    commands: false,
+  };
   private model: string;
   private cwd: string;
 
@@ -52,8 +69,10 @@ export class CodexProvider implements Provider {
   }
 
   shutdown(): void {
-    activeAbortController?.abort();
-    activeAbortController = null;
+    for (const controller of abortControllers.values()) {
+      controller.abort();
+    }
+    abortControllers.clear();
     threads.clear();
   }
 
@@ -65,6 +84,12 @@ export class CodexProvider implements Provider {
     });
 
     const threadId = thread.id ?? thread.threadId ?? `codex-${Date.now()}`;
+
+    // Evict oldest entries if map exceeds limit
+    if (threads.size >= MAX_THREADS) {
+      const oldest = threads.keys().next().value;
+      if (oldest) threads.delete(oldest);
+    }
     threads.set(threadId, thread);
 
     return { id: threadId, title: title ?? "Codex Thread" };
@@ -139,11 +164,12 @@ export class CodexProvider implements Provider {
   ): Promise<PromptResult> {
     const thread = await this.getOrResumeThread(sessionId);
 
-    activeAbortController = new AbortController();
+    const controller = new AbortController();
+    abortControllers.set(sessionId, controller);
 
     try {
       const result = await thread.run(text, {
-        signal: activeAbortController.signal,
+        signal: controller.signal,
         model: options?.model?.modelID ?? this.model,
       });
 
@@ -158,7 +184,7 @@ export class CodexProvider implements Provider {
 
       return { text: responseText, raw: result };
     } finally {
-      activeAbortController = null;
+      abortControllers.delete(sessionId);
     }
   }
 
@@ -169,7 +195,8 @@ export class CodexProvider implements Provider {
   ): AsyncGenerator<StreamChunk> {
     const thread = await this.getOrResumeThread(sessionId);
 
-    activeAbortController = new AbortController();
+    const controller = new AbortController();
+    abortControllers.set(sessionId, controller);
 
     try {
       if (!thread.runStreamed) {
@@ -181,7 +208,7 @@ export class CodexProvider implements Provider {
       }
 
       const { events } = await thread.runStreamed(text, {
-        signal: activeAbortController.signal,
+        signal: controller.signal,
         model: options?.model?.modelID ?? this.model,
       });
 
@@ -201,13 +228,16 @@ export class CodexProvider implements Provider {
         }
       }
     } finally {
-      activeAbortController = null;
+      abortControllers.delete(sessionId);
     }
   }
 
-  async abort(): Promise<void> {
-    activeAbortController?.abort();
-    activeAbortController = null;
+  async abort(sessionId: string): Promise<void> {
+    const controller = abortControllers.get(sessionId);
+    if (controller) {
+      controller.abort();
+      abortControllers.delete(sessionId);
+    }
   }
 
   // --- Session features (minimal support) ---
@@ -240,7 +270,7 @@ export class CodexProvider implements Provider {
     return false; // Not supported
   }
 
-  async getHistory(): Promise<any[] | null> {
+  async getHistory(): Promise<unknown[] | null> {
     return null; // Not directly accessible
   }
 
@@ -258,7 +288,7 @@ export class CodexProvider implements Provider {
     return null;
   }
 
-  async findSymbols(): Promise<any[] | null> {
+  async findSymbols(): Promise<unknown[] | null> {
     return null;
   }
 
@@ -308,7 +338,7 @@ export class CodexProvider implements Provider {
     };
   }
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<unknown> {
     return {
       provider: "codex",
       model: this.model,
@@ -316,11 +346,11 @@ export class CodexProvider implements Provider {
     };
   }
 
-  async getProviders(): Promise<any> {
+  async getProviders(): Promise<unknown> {
     return { openai: { models: [this.model] } };
   }
 
-  async getAgents(): Promise<any[] | null> {
+  async getAgents(): Promise<unknown[] | null> {
     return null;
   }
 }

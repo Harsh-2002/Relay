@@ -7,6 +7,7 @@ import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
+import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { readFileSync } from "fs";
 
 const botToken = process.env.BOT_TOKEN ?? "";
@@ -38,11 +39,15 @@ export function registerMediaHandlers(bot: Bot): void {
       const model = getSelectedModel();
       const system = getSystemPrompt();
 
-      const result = await provider.prompt(sessionId, promptText, {
-        parts: [{ type: "text", text: promptText }],
-        ...(model && { model }),
-        system,
-      });
+      const result = await withTimeout(
+        provider.prompt(sessionId, promptText, {
+          parts: [{ type: "text", text: promptText }],
+          ...(model && { model }),
+          system,
+        }),
+        getPromptTimeout(),
+        "Prompt"
+      );
 
       if (!result.text.trim() || result.text === "(empty response)") {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
@@ -95,15 +100,18 @@ export function registerMediaHandlers(bot: Bot): void {
       const system = getSystemPrompt();
       const provider = getProvider();
 
-      // Streaming only available for OpenCode (SSE-based)
-      if (isStreamingEnabled() && provider.name === "opencode") {
+      if (isStreamingEnabled() && provider.promptStream) {
         await streamPrompt({ ctx, sessionId, parts, model, system });
       } else {
-        const result = await provider.prompt(sessionId, caption, {
-          parts,
-          ...(model && { model }),
-          system,
-        });
+        const result = await withTimeout(
+          provider.prompt(sessionId, caption, {
+            parts,
+            ...(model && { model }),
+            system,
+          }),
+          getPromptTimeout(),
+          "Prompt"
+        );
 
         if (!result.text.trim() || result.text === "(empty response)") {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
@@ -151,17 +159,20 @@ export function registerMediaHandlers(bot: Bot): void {
       const provider = getProvider();
       const promptParts = [{ type: "text" as const, text: result.text }];
 
-      // Streaming only available for OpenCode (SSE-based)
-      if (isStreamingEnabled() && provider.name === "opencode") {
+      if (isStreamingEnabled() && provider.promptStream) {
         await streamPrompt({ ctx, sessionId, parts: promptParts, model, system });
       } else {
         await ctx.replyWithChatAction("typing");
 
-        const promptResult = await provider.prompt(sessionId, result.text, {
-          parts: promptParts,
-          ...(model && { model }),
-          system,
-        });
+        const promptResult = await withTimeout(
+          provider.prompt(sessionId, result.text, {
+            parts: promptParts,
+            ...(model && { model }),
+            system,
+          }),
+          getPromptTimeout(),
+          "Prompt"
+        );
 
         if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
@@ -201,11 +212,15 @@ export function registerMediaHandlers(bot: Bot): void {
           const model = getSelectedModel();
           const system = getSystemPrompt();
 
-          const promptResult = await provider.prompt(sessionId, result.text, {
-            parts: [{ type: "text", text: result.text }],
-            ...(model && { model }),
-            system,
-          });
+          const promptResult = await withTimeout(
+            provider.prompt(sessionId, result.text, {
+              parts: [{ type: "text", text: result.text }],
+              ...(model && { model }),
+              system,
+            }),
+            getPromptTimeout(),
+            "Prompt"
+          );
 
           if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
             await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
@@ -232,16 +247,20 @@ export function registerMediaHandlers(bot: Bot): void {
       const model = getSelectedModel();
       const system = getSystemPrompt();
 
-      const promptResult = await provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
-        parts: [
-          {
-            type: "text",
-            text: `${caption}\n\n(Audio file: ${fileName})`,
-          },
-        ],
-        ...(model && { model }),
-        system,
-      });
+      const promptResult = await withTimeout(
+        provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
+          parts: [
+            {
+              type: "text",
+              text: `${caption}\n\n(Audio file: ${fileName})`,
+            },
+          ],
+          ...(model && { model }),
+          system,
+        }),
+        getPromptTimeout(),
+        "Prompt"
+      );
 
       if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });

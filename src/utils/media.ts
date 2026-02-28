@@ -106,10 +106,22 @@ export function cleanupUploads(maxAgeMs = CLEANUP_MAX_AGE_MS): void {
   }
 }
 
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
 /**
  * Start periodic upload cleanup (call once at startup).
  */
 export function startUploadCleanup(): void {
   cleanupUploads();
-  setInterval(() => cleanupUploads(), CLEANUP_INTERVAL_MS);
+  cleanupInterval = setInterval(() => cleanupUploads(), CLEANUP_INTERVAL_MS);
+}
+
+/**
+ * Stop the periodic upload cleanup (call on shutdown).
+ */
+export function stopUploadCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
 }

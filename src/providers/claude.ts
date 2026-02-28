@@ -1,5 +1,6 @@
 import type {
   Provider,
+  ProviderCapabilities,
   Session,
   SessionInfo,
   PromptOptions,
@@ -17,10 +18,24 @@ import type {
 // Dynamic import — only loads when PROVIDER=claude
 let queryFn: any;
 let listSessionsFn: any;
-let activeQuery: any = null;
+// Per-session active query tracking (keyed by session ID)
+const activeQueries = new Map<string, any>();
 
 export class ClaudeProvider implements Provider {
   readonly name = "claude" as const;
+  readonly capabilities: ProviderCapabilities = {
+    streaming: true,
+    todos: false,
+    diff: false,
+    fork: true,
+    revert: false,
+    share: false,
+    summarize: false,
+    history: false,
+    fileOps: false,
+    shell: true,
+    commands: false,
+  };
   private model: string;
   private permissionMode: string;
   private cwd: string;
@@ -51,45 +66,18 @@ export class ClaudeProvider implements Provider {
   }
 
   shutdown(): void {
-    if (activeQuery) {
-      try {
-        activeQuery.abort?.();
-      } catch {
-        // ignore
-      }
-      activeQuery = null;
+    for (const query of activeQueries.values()) {
+      try { query.abort?.(); } catch {}
     }
+    activeQueries.clear();
   }
 
   // --- Sessions ---
 
   async createSession(title?: string): Promise<Session> {
-    // Claude creates sessions implicitly on first query.
-    // We send a minimal prompt to get a session_id back.
-    let sessionId: string | undefined;
-
-    const messages = queryFn({
-      prompt: title
-        ? `Session started: ${title}. Acknowledge briefly.`
-        : "New session started. Acknowledge briefly.",
-      options: {
-        model: this.model,
-        permissionMode: this.permissionMode,
-        cwd: this.cwd,
-        maxTurns: 1,
-      },
-    });
-
-    for await (const msg of messages) {
-      if (msg.type === "system" && msg.session_id) {
-        sessionId = msg.session_id;
-      }
-    }
-
-    if (!sessionId) {
-      throw new Error("Failed to create Claude session (no session_id received)");
-    }
-
+    // Generate a local ID. Claude will create the actual session
+    // implicitly on the first prompt() call via the resume option.
+    const sessionId = `claude-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return { id: sessionId, title: title ?? "Claude Session" };
   }
 
@@ -145,7 +133,7 @@ export class ClaudeProvider implements Provider {
       options: queryOpts,
     });
 
-    activeQuery = messages;
+    activeQueries.set(sessionId, messages);
 
     try {
       for await (const msg of messages) {
@@ -160,7 +148,7 @@ export class ClaudeProvider implements Provider {
         }
       }
     } finally {
-      activeQuery = null;
+      activeQueries.delete(sessionId);
     }
 
     return { text: resultText || "(empty response)" };
@@ -186,7 +174,7 @@ export class ClaudeProvider implements Provider {
       options: queryOpts,
     });
 
-    activeQuery = messages;
+    activeQueries.set(sessionId, messages);
 
     try {
       for await (const msg of messages) {
@@ -209,18 +197,15 @@ export class ClaudeProvider implements Provider {
         }
       }
     } finally {
-      activeQuery = null;
+      activeQueries.delete(sessionId);
     }
   }
 
-  async abort(): Promise<void> {
-    if (activeQuery) {
-      try {
-        activeQuery.abort?.();
-      } catch {
-        // ignore
-      }
-      activeQuery = null;
+  async abort(sessionId: string): Promise<void> {
+    const query = activeQueries.get(sessionId);
+    if (query) {
+      try { query.abort?.(); } catch {}
+      activeQueries.delete(sessionId);
     }
   }
 
@@ -284,7 +269,7 @@ export class ClaudeProvider implements Provider {
     return false; // Not supported
   }
 
-  async getHistory(): Promise<any[] | null> {
+  async getHistory(): Promise<unknown[] | null> {
     return null; // Not directly supported
   }
 
@@ -304,7 +289,7 @@ export class ClaudeProvider implements Provider {
     return null; // Not directly supported
   }
 
-  async findSymbols(): Promise<any[] | null> {
+  async findSymbols(): Promise<unknown[] | null> {
     return null; // Not directly supported
   }
 
@@ -358,7 +343,7 @@ export class ClaudeProvider implements Provider {
     };
   }
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<unknown> {
     return {
       provider: "claude",
       model: this.model,
@@ -367,11 +352,11 @@ export class ClaudeProvider implements Provider {
     };
   }
 
-  async getProviders(): Promise<any> {
+  async getProviders(): Promise<unknown> {
     return { anthropic: { models: [this.model] } };
   }
 
-  async getAgents(): Promise<any[] | null> {
+  async getAgents(): Promise<unknown[] | null> {
     return null;
   }
 }

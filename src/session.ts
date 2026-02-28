@@ -10,13 +10,27 @@ let selectedModel: { providerID: string; modelID: string } | null = (() => {
   return null;
 })();
 
+// Mutex to prevent double-create race when concurrent messages arrive
+let createSessionPromise: Promise<string> | null = null;
+
 export async function getOrCreateSession(): Promise<string> {
   if (activeSessionId) return activeSessionId;
 
-  const provider = getProvider();
-  const session = await provider.createSession("Telegram Session");
-  activeSessionId = session.id;
-  return activeSessionId;
+  // If another call is already creating a session, wait for it
+  if (createSessionPromise) return createSessionPromise;
+
+  createSessionPromise = (async () => {
+    try {
+      const provider = getProvider();
+      const session = await provider.createSession("Telegram Session");
+      activeSessionId = session.id;
+      return activeSessionId;
+    } finally {
+      createSessionPromise = null;
+    }
+  })();
+
+  return createSessionPromise;
 }
 
 export function getActiveSessionId(): string | null {

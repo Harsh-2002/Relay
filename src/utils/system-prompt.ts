@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, watchFile, unwatchFile } from "fs";
 import { resolve } from "path";
 
-const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant accessed through a Telegram bot that bridges to the OpenCode AI agent. Your responses are delivered as Telegram messages, so keep them concise and under 4000 characters when possible — use Markdown formatting (bold, inline code, code blocks) for readability. Focus on actionable, practical answers: provide code, commands, or direct solutions rather than lengthy explanations. Messages may originate from voice transcriptions, so interpret the user's intent generously even if the wording is imprecise or contains transcription artifacts.`;
+const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant accessed through a Telegram bot. Your responses are delivered as Telegram messages, so keep them concise and under 4000 characters when possible — use Markdown formatting (bold, inline code, code blocks) for readability. Focus on actionable, practical answers: provide code, commands, or direct solutions rather than lengthy explanations. Messages may originate from voice transcriptions, so interpret the user's intent generously even if the wording is imprecise or contains transcription artifacts.`;
 
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;
@@ -48,6 +48,13 @@ export function isUsingCustomPrompt(): boolean {
     return content.length > 0;
   } catch {
     return false;
+  }
+}
+
+export function unwatchSystemPrompt(): void {
+  if (watchedPath) {
+    unwatchFile(watchedPath);
+    watchedPath = null;
   }
 }
 

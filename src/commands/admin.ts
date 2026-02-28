@@ -7,6 +7,7 @@ import { isSttAvailable, getSttProvider } from "../utils/stt.js";
 import { isStreamingEnabled } from "../utils/stream.js";
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
@@ -332,13 +333,6 @@ export function registerAdminCommands(bot: Bot): void {
 
     await ctx.reply(text, { parse_mode: "HTML" });
   });
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 async function sendJsonResponse(ctx: any, data: any, filename: string): Promise<void> {

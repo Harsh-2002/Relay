@@ -4,6 +4,7 @@ import { getProvider } from "../providers/index.js";
 import { getActiveSessionId, setActiveSessionId } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerMonitorCommands(bot: Bot): void {
   bot.command("todo", async (ctx) => {
@@ -168,9 +169,3 @@ function statusIcon(status: string): string {
   }
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}

@@ -1,13 +1,10 @@
 import type { Context } from "grammy";
 import { InputFile } from "grammy";
 import { getProvider } from "../providers/index.js";
-import { formatParts } from "./formatter.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
-import type { Event as OcEvent } from "@opencode-ai/sdk";
 
 const EDIT_INTERVAL = Number(process.env.STREAM_EDIT_INTERVAL_MS) || 2000;
-const STREAM_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export function isStreamingEnabled(): boolean {
   return process.env.STREAMING_ENABLED === "true";
@@ -28,13 +25,18 @@ export async function streamPrompt({
   model,
   system,
 }: StreamPromptOptions): Promise<void> {
-  // Streaming uses OpenCode-specific SSE — get the raw client
   const provider = getProvider();
-  if (provider.name !== "opencode") {
-    throw new Error("Streaming is only supported with the OpenCode provider.");
+
+  if (!provider.promptStream) {
+    // Fallback to non-streaming prompt
+    const result = await provider.prompt(sessionId, parts[0]?.type === "text" ? (parts[0] as any).text : "", {
+      parts: parts as any,
+      ...(model && { model }),
+      ...(system && { system }),
+    });
+    await sendFinalText(ctx, result.text);
+    return;
   }
-  const { OpenCodeProvider } = await import("../providers/opencode.js");
-  const client = (provider as InstanceType<typeof OpenCodeProvider>).getClient();
 
   // Send placeholder
   const placeholder = await ctx.reply("Thinking...");
@@ -52,69 +54,28 @@ export async function streamPrompt({
   let errorMsg: string | null = null;
 
   try {
-    // Fire async prompt
-    await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: parts as any,
-        ...(model && { model }),
-        ...(system && { system }),
-      },
+    const stream = provider.promptStream(sessionId, parts[0]?.type === "text" ? (parts[0] as any).text : "", {
+      parts: parts as any,
+      ...(model && { model }),
+      ...(system && { system }),
     });
 
-    // Subscribe to SSE events
-    const sseResult = await client.event.subscribe();
-    const stream = sseResult.stream;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
-
-    try {
-      for await (const event of stream) {
-        if (controller.signal.aborted) break;
-
-        const evt = event as OcEvent;
-
-        // Filter by session ID
-        if (!matchesSession(evt, sessionId)) continue;
-
-        if (evt.type === "message.part.updated") {
-          const { part, delta } = evt.properties;
-          if (part.type === "text") {
-            if (delta) {
-              accumulated += delta;
-            } else if (part.text && !accumulated.endsWith(part.text)) {
-              // Fallback: use full text if no delta provided
-              accumulated = part.text;
-            }
-          } else if (part.type === "tool") {
-            const toolName = part.tool;
-            if (part.state.status === "running") {
-              toolStatus = `[${part.state.title || toolName}...]`;
-            } else if (part.state.status === "completed") {
-              toolStatus = `[${part.state.title || toolName} done]`;
-            } else if (part.state.status === "error") {
-              toolStatus = `[${toolName} error]`;
-            }
-          }
-
-          // Throttled edit
-          const now = Date.now();
-          if (now - lastEditTime >= EDIT_INTERVAL) {
-            const display = buildDisplayText(accumulated, toolStatus);
-            await safeEditMessage(ctx, chatId, messageId, display);
-            lastEditTime = now;
-          }
-        } else if (evt.type === "session.idle") {
-          break;
-        } else if (evt.type === "session.error") {
-          const rawError = (evt.properties as any).error ?? "Unknown session error";
-          errorMsg = formatCatchError(rawError, "processing request");
-          break;
-        }
+    for await (const chunk of stream) {
+      if (chunk.type === "text") {
+        accumulated += chunk.content;
+      } else if (chunk.type === "tool_use") {
+        toolStatus = chunk.content;
+      } else if (chunk.type === "done") {
+        break;
       }
-    } finally {
-      clearTimeout(timeout);
+
+      // Throttled edit
+      const now = Date.now();
+      if (now - lastEditTime >= EDIT_INTERVAL) {
+        const display = buildDisplayText(accumulated, toolStatus);
+        await safeEditMessage(ctx, chatId, messageId, display);
+        lastEditTime = now;
+      }
     }
   } catch (err: any) {
     errorMsg = formatCatchError(err, "streaming response");
@@ -124,40 +85,16 @@ export async function streamPrompt({
 
   // Final response
   if (errorMsg) {
-    // errorMsg is already HTML-formatted from formatCatchError, or raw from session.error
     await safeEditMessage(ctx, chatId, messageId, errorMsg, true);
     return;
   }
 
   if (!accumulated.trim()) {
-    // No text accumulated — try fetching the full response via messages API
-    try {
-      const msgs = await client.session.messages({ path: { id: sessionId } });
-      const messages = msgs.data ?? [];
-      const lastAssistant = [...messages]
-        .reverse()
-        .find((m: any) => m.info?.role === "assistant");
-      if (lastAssistant) {
-        const response = formatParts((lastAssistant as any).parts ?? []);
-        await sendFinalResponse(ctx, chatId, messageId, response);
-        return;
-      }
-    } catch {
-      // Fallback
-    }
     await safeEditMessage(ctx, chatId, messageId, EMPTY_RESPONSE_MSG, true);
     return;
   }
 
   await sendFinalResponse(ctx, chatId, messageId, accumulated);
-}
-
-function matchesSession(event: OcEvent, sessionId: string): boolean {
-  if (!("properties" in event)) return false;
-  const props = event.properties as any;
-  if (props.sessionID && props.sessionID !== sessionId) return false;
-  if (props.part?.sessionID && props.part.sessionID !== sessionId) return false;
-  return true;
 }
 
 function buildDisplayText(text: string, toolStatus: string): string {
@@ -191,7 +128,6 @@ async function safeEditMessage(
       return;
     }
     if (desc.includes("Too Many Requests") || desc.includes("retry_after")) {
-      // Wait and retry once
       const retryAfter = err?.parameters?.retry_after ?? 3;
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       try {
@@ -216,10 +152,17 @@ async function sendFinalResponse(
     // May fail if message was already deleted
   }
 
+  await sendFinalText(ctx, text, chatId);
+}
+
+async function sendFinalText(ctx: Context, text: string, chatId?: number): Promise<void> {
+  const targetChatId = chatId ?? ctx.chat?.id;
+  if (!targetChatId) return;
+
   // Send as file if very large
   if (text.length > 20000) {
     const buffer = Buffer.from(text, "utf-8");
-    await ctx.api.sendDocument(chatId, new InputFile(buffer, "response.txt"));
+    await ctx.api.sendDocument(targetChatId, new InputFile(buffer, "response.txt"));
     return;
   }
 
@@ -227,9 +170,9 @@ async function sendFinalResponse(
   const chunks = chunkMessage(text);
   for (const chunk of chunks) {
     try {
-      await ctx.api.sendMessage(chatId, chunk, { parse_mode: "Markdown" });
+      await ctx.api.sendMessage(targetChatId, chunk, { parse_mode: "Markdown" });
     } catch {
-      await ctx.api.sendMessage(chatId, chunk);
+      await ctx.api.sendMessage(targetChatId, chunk);
     }
   }
 }

@@ -1,7 +1,8 @@
 import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
 import { isAuthConfigured } from "./auth.js";
-import { startUploadCleanup } from "./utils/media.js";
+import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
+import { unwatchSystemPrompt } from "./utils/system-prompt.js";
 
 async function main() {
   const botToken = process.env.BOT_TOKEN;
@@ -25,18 +26,17 @@ async function main() {
 
   const bot = createBot(botToken);
 
-  process.on("SIGINT", () => {
-    console.log("\nShutting down...");
+  async function gracefulShutdown(signal: string) {
+    console.log(`\n${signal} received. Shutting down...`);
     bot.stop();
     shutdownProvider();
+    stopUploadCleanup();
+    unwatchSystemPrompt();
     process.exit(0);
-  });
+  }
 
-  process.on("SIGTERM", () => {
-    bot.stop();
-    shutdownProvider();
-    process.exit(0);
-  });
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
   console.log("Starting Telegram bot (long polling)...");
   await bot.start({

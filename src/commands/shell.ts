@@ -3,6 +3,7 @@ import { getProvider } from "../providers/index.js";
 import { getOrCreateSession } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
@@ -105,11 +106,4 @@ export function registerShellCommands(bot: Bot): void {
       await ctx.reply(formatCatchError(err, "listing commands"), { parse_mode: "HTML" });
     }
   });
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }

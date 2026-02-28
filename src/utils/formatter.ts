@@ -42,15 +42,3 @@ function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "\n... (truncated)";
 }
-
-export function formatSessionList(sessions: Array<{ id: string; title: string; time: { updated: number } }>): string {
-  if (sessions.length === 0) return "No sessions found.";
-
-  return sessions
-    .sort((a, b) => b.time.updated - a.time.updated)
-    .map((s, i) => {
-      const date = new Date(s.time.updated).toLocaleDateString();
-      return `${i + 1}. **${s.title || "Untitled"}**\n   ID: \`${s.id}\` | ${date}`;
-    })
-    .join("\n\n");
-}

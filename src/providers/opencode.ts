@@ -5,10 +5,12 @@ import {
 } from "@opencode-ai/sdk";
 import type {
   Provider,
+  ProviderCapabilities,
   Session,
   SessionInfo,
   PromptOptions,
   PromptResult,
+  StreamChunk,
   Todo,
   FileDiff,
   SearchResult,
@@ -17,12 +19,26 @@ import type {
   CommandInfo,
   HealthInfo,
 } from "./types.js";
+import type { Event as OcEvent } from "@opencode-ai/sdk";
 
 let client: OpencodeClient;
 let serverClose: (() => void) | undefined;
 
 export class OpenCodeProvider implements Provider {
   readonly name = "opencode" as const;
+  readonly capabilities: ProviderCapabilities = {
+    streaming: true,
+    todos: true,
+    diff: true,
+    fork: true,
+    revert: true,
+    share: true,
+    summarize: true,
+    history: true,
+    fileOps: true,
+    shell: true,
+    commands: true,
+  };
 
   async init(): Promise<void> {
     const mode = process.env.OPENCODE_MODE ?? "start";
@@ -54,12 +70,6 @@ export class OpenCodeProvider implements Provider {
 
   shutdown(): void {
     serverClose?.();
-  }
-
-  /** Expose the raw OpenCode client for streaming (used by stream.ts) */
-  getClient(): OpencodeClient {
-    if (!client) throw new Error("OpenCode client not initialized.");
-    return client;
   }
 
   // --- Sessions ---
@@ -129,6 +139,58 @@ export class OpenCodeProvider implements Provider {
 
   async abort(sessionId: string): Promise<void> {
     await client.session.abort({ path: { id: sessionId } });
+  }
+
+  // --- Streaming ---
+
+  async *promptStream(
+    sessionId: string,
+    text: string,
+    options?: PromptOptions
+  ): AsyncGenerator<StreamChunk> {
+    const body: any = {
+      parts: options?.parts ?? [{ type: "text", text }],
+    };
+    if (options?.model) body.model = options.model;
+    if (options?.system) body.system = options.system;
+
+    await client.session.promptAsync({
+      path: { id: sessionId },
+      body,
+    });
+
+    const sseResult = await client.event.subscribe();
+
+    for await (const event of sseResult.stream) {
+      const evt = event as OcEvent;
+      if (!matchesSession(evt, sessionId)) continue;
+
+      if (evt.type === "message.part.updated") {
+        const { part, delta } = evt.properties;
+        if (part.type === "text") {
+          if (delta) {
+            yield { type: "text", content: delta };
+          }
+        } else if (part.type === "tool") {
+          const toolName = part.tool;
+          if (part.state.status === "running") {
+            yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
+          } else if (part.state.status === "completed") {
+            yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
+          } else if (part.state.status === "error") {
+            yield { type: "tool_use", content: `[${toolName} error]` };
+          }
+        }
+      } else if (evt.type === "session.idle") {
+        yield { type: "done", content: "" };
+        break;
+      } else if (evt.type === "session.error") {
+        const rawError = (evt.properties as any).error ?? "Unknown session error";
+        yield { type: "text", content: `Error: ${rawError}` };
+        yield { type: "done", content: "" };
+        break;
+      }
+    }
   }
 
   // --- Session features ---
@@ -217,7 +279,7 @@ export class OpenCodeProvider implements Provider {
     }
   }
 
-  async getHistory(sessionId: string): Promise<any[] | null> {
+  async getHistory(sessionId: string): Promise<unknown[] | null> {
     const result = await client.session.messages({
       path: { id: sessionId },
     });
@@ -250,7 +312,7 @@ export class OpenCodeProvider implements Provider {
     }));
   }
 
-  async findSymbols(query: string): Promise<any[] | null> {
+  async findSymbols(query: string): Promise<unknown[] | null> {
     const result = await client.find.symbols({ query: { query } });
     if (result.error) throw sdkError(result.error);
     return result.data ?? [];
@@ -352,19 +414,19 @@ export class OpenCodeProvider implements Provider {
     };
   }
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<unknown> {
     const result = await client.config.get();
     if (result.error) throw sdkError(result.error);
     return result.data;
   }
 
-  async getProviders(): Promise<any> {
+  async getProviders(): Promise<unknown> {
     const result = await client.config.providers();
     if (result.error) throw sdkError(result.error);
     return result.data;
   }
 
-  async getAgents(): Promise<any[] | null> {
+  async getAgents(): Promise<unknown[] | null> {
     const result = await client.app.agents();
     if (result.error) throw sdkError(result.error);
     const agents = result.data ?? [];
@@ -378,6 +440,11 @@ function sdkError(error: any): Error {
   if (typeof error === "string") return new Error(error);
   if (error?.message) return new Error(error.message);
   return new Error(JSON.stringify(error));
+}
+
+function matchesSession(evt: OcEvent, sessionId: string): boolean {
+  const props = evt.properties as any;
+  return props?.sessionID === sessionId || props?.session_id === sessionId;
 }
 
 function formatPartsToText(parts: any[]): string {

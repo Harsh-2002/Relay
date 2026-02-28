@@ -27,5 +27,8 @@ Thumbs.db
 *.log
 *.pid
 
+# Test files
+test-*.ts
+
 # Skill file (user-specific system prompt)
 skill.md

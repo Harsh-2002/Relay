@@ -3,52 +3,9 @@
  * All output is HTML-formatted for parse_mode: "HTML".
  */
 
+import { escapeHtml } from "./html.js";
+
 const MAX_ERROR_LENGTH = 200;
-
-/**
- * Format an SDK result.error into a user-friendly HTML message.
- */
-export function formatSdkError(error: unknown): string {
-  const msg = extractMessage(error);
-
-  // Rate limit / token limit
-  if (matchesAny(msg, ["rate limit", "too many requests", "429", "413", "tokens per minute", "tpm"])) {
-    return (
-      `<b>Rate limit exceeded</b>\n\n` +
-      `The AI provider is throttling requests. This usually means the model's token limit was exceeded.\n\n` +
-      `<i>${escapeHtml(truncate(msg))}</i>`
-    );
-  }
-
-  // Model not found
-  if (matchesAny(msg, ["model not found", "ProviderModelNotFoundError", "model_not_found", "does not exist"])) {
-    return (
-      `<b>Model not found</b>\n\n` +
-      `The selected model isn't available. Use /model to check or /providers to see what's available.\n\n` +
-      `<i>${escapeHtml(truncate(msg))}</i>`
-    );
-  }
-
-  // Session not found
-  if (matchesAny(msg, ["session not found", "session_not_found", "invalid session"])) {
-    return (
-      `<b>Session not found</b>\n\n` +
-      `The session may have expired. Use /new to start a fresh one.`
-    );
-  }
-
-  // Authentication
-  if (matchesAny(msg, ["unauthorized", "401", "403", "forbidden", "authentication", "api key"])) {
-    return (
-      `<b>Authentication error</b>\n\n` +
-      `The AI provider rejected the request. Check your API keys and provider configuration.\n\n` +
-      `<i>${escapeHtml(truncate(msg))}</i>`
-    );
-  }
-
-  // Generic — show truncated error (don't leak full internals)
-  return `<b>Error</b>\n\n<i>${escapeHtml(truncate(msg))}</i>`;
-}
 
 /**
  * Format a caught exception into a user-friendly HTML message with context.
@@ -60,7 +17,7 @@ export function formatCatchError(err: unknown, context: string): string {
   if (matchesAny(msg, ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "fetch failed", "network", "socket"])) {
     return (
       `<b>Server unreachable</b>\n\n` +
-      `Cannot reach the AI server. Make sure OpenCode is running.`
+      `Cannot reach the AI server. Make sure the coding agent is running and accessible.`
     );
   }
 
@@ -142,11 +99,4 @@ function matchesAny(text: string, patterns: string[]): boolean {
 function truncate(text: string): string {
   if (text.length <= MAX_ERROR_LENGTH) return text;
   return text.slice(0, MAX_ERROR_LENGTH) + "...";
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }

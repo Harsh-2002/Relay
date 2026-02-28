@@ -16,16 +16,20 @@ export interface SessionInfo {
   lastModified?: number;
 }
 
+export type MessagePart =
+  | { type: "text"; text: string }
+  | { type: "file"; mime: string; filename?: string; url: string };
+
 export interface PromptOptions {
   model?: { providerID: string; modelID: string };
   system?: string;
-  parts?: any[];
+  parts?: MessagePart[];
 }
 
 export interface PromptResult {
   text: string;
-  parts?: any[];
-  raw?: any;
+  parts?: unknown[];
+  raw?: unknown;
 }
 
 export interface StreamChunk {
@@ -87,11 +91,30 @@ export interface HealthInfo {
   extra?: Record<string, string>;
 }
 
+// --- Provider capabilities ---
+
+export interface ProviderCapabilities {
+  streaming: boolean;
+  todos: boolean;
+  diff: boolean;
+  fork: boolean;
+  revert: boolean;
+  share: boolean;
+  summarize: boolean;
+  history: boolean;
+  fileOps: boolean;
+  shell: boolean;
+  commands: boolean;
+}
+
 // --- Provider interface ---
 
 export interface Provider {
   /** Provider identifier */
   readonly name: "opencode" | "claude" | "codex";
+
+  /** Declared capabilities for this provider */
+  readonly capabilities: ProviderCapabilities;
 
   // Lifecycle
   init(): Promise<void>;
@@ -122,13 +145,13 @@ export interface Provider {
   unrevert(sessionId: string): Promise<boolean>;
   share(sessionId: string): Promise<string | null>;
   summarize(sessionId: string): Promise<boolean>;
-  getHistory(sessionId: string, limit?: number): Promise<any[] | null>;
+  getHistory(sessionId: string, limit?: number): Promise<unknown[] | null>;
 
   // File operations (return null if not supported)
   readFile(path: string): Promise<string | null>;
   findFiles(query: string): Promise<string[] | null>;
   searchText(pattern: string): Promise<SearchResult[] | null>;
-  findSymbols(query: string): Promise<any[] | null>;
+  findSymbols(query: string): Promise<unknown[] | null>;
   getFileStatus(): Promise<FileStatus[] | null>;
 
   // Shell
@@ -144,9 +167,9 @@ export interface Provider {
   getTools(): Promise<string[] | null>;
   getCommands(): Promise<CommandInfo[] | null>;
   getHealth(): Promise<HealthInfo>;
-  getConfig(): Promise<any>;
-  getProviders(): Promise<any>;
-  getAgents(): Promise<any[] | null>;
+  getConfig(): Promise<unknown>;
+  getProviders(): Promise<unknown>;
+  getAgents(): Promise<unknown[] | null>;
 }
 
 export type ProviderName = Provider["name"];

@@ -29,7 +29,7 @@ Each provider has its own set of required and optional variables. See [Providers
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | -- | Anthropic API key |
-| `CLAUDE_MODEL` | No | `sonnet` | Model name: `sonnet`, `opus`, or `haiku` |
+| `CLAUDE_MODEL` | No | `sonnet` | Model name or ID (use `/models` to see all available) |
 | `CLAUDE_PERMISSION_MODE` | No | `acceptEdits` | How Claude handles file edits |
 | `CLAUDE_CWD` | No | Current directory | Working directory for Claude |
 
@@ -38,7 +38,7 @@ Each provider has its own set of required and optional variables. See [Providers
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `CODEX_API_KEY` | Yes* | -- | OpenAI API key (*or use `OPENAI_API_KEY`) |
-| `CODEX_MODEL` | No | `o3` | Model name: `o3`, `o4-mini`, etc. |
+| `CODEX_MODEL` | No | `o3` | Model name or ID (use `/models` to see all available) |
 | `CODEX_CWD` | No | Current directory | Working directory for Codex |
 
 ## Bot Mode

@@ -68,9 +68,9 @@ The forked session becomes the active session. Supported by OpenCode and Claude.
 
 ---
 
-## Monitor (OpenCode)
+## Monitor
 
-### `/todo`
+### `/todo` (OpenCode)
 
 View the AI's task checklist. Shows each task with a status icon:
 
@@ -81,7 +81,7 @@ View the AI's task checklist. Shows each task with a status icon:
 
 ### `/diff`
 
-Show a summary of code changes in the current session. Lists changed files with the number of additions and deletions.
+Show a summary of code changes in the current session. OpenCode shows structured file-level changes; Claude and Codex delegate to `git diff`.
 
 ### `/diff full`
 
@@ -89,7 +89,7 @@ Download the full diff as a text file, including before/after content for each c
 
 ---
 
-## File Operations (OpenCode)
+## File Operations
 
 ### `/read <path>`
 
@@ -222,7 +222,7 @@ openrouter
   deepseek/deepseek-r1  [reasoning]
 ```
 
-OpenCode shows all configured models dynamically. Claude and Codex show a static list.
+All providers fetch models dynamically from their respective APIs.
 
 ### `/model [provider/model]`
 
@@ -299,7 +299,7 @@ Remove and disconnect an MCP server.
 
 **Provider differences:**
 - **OpenCode:** Full runtime management. Servers persist in the OpenCode configuration.
-- **Claude:** Stored in memory. Servers are lost when the bot restarts.
+- **Claude:** Persisted to `.ocbot/claude-mcp.json`. Servers are restored on restart.
 - **Codex:** Not supported.
 
 ---

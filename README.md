@@ -9,13 +9,16 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments (OpenCode)
 - **Streaming responses** -- progressive message editing for real-time output
 - **Session management** -- create, switch, fork, delete, and list sessions
-- **Model selection** -- list available models with capability badges and switch interactively
-- **MCP servers** -- add, remove, and monitor MCP (Model Context Protocol) servers at runtime
+- **Dynamic model selection** -- models fetched from provider APIs, always up to date
+- **MCP servers** -- add, remove, and monitor MCP servers at runtime (OpenCode, Claude)
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from file, hot-reload on change
-- **File operations** -- read, find, search, and browse project files (OpenCode)
-- **Monitoring** -- todo lists, diffs, and session history (OpenCode)
+- **File operations** -- read, find, search, and browse project files (all providers)
+- **Code diffs** -- view git diffs from sessions (all providers)
+- **State persistence** -- sessions, model selection, and MCP configs survive restarts
+- **Webhook mode** -- deploy with webhooks for lower latency in production
+- **Large file support** -- text files up to 500KB fully included, larger files chunked
 
 ## Documentation
 
@@ -91,7 +94,7 @@ OPENCODE_URL=http://localhost:4096
 ```env
 PROVIDER=claude
 ANTHROPIC_API_KEY=sk-ant-...
-CLAUDE_MODEL=sonnet           # sonnet | opus | haiku
+CLAUDE_MODEL=sonnet           # use /models to see all available
 CLAUDE_PERMISSION_MODE=acceptEdits
 ```
 
@@ -100,7 +103,7 @@ CLAUDE_PERMISSION_MODE=acceptEdits
 ```env
 PROVIDER=codex
 CODEX_API_KEY=sk-...
-CODEX_MODEL=o3                # o3 | o4-mini
+CODEX_MODEL=o3                # use /models to see all available
 ```
 
 ## Commands
@@ -118,20 +121,20 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 | `/current` | Show active session |
 | `/fork [messageId]` | Fork the current session |
 
-### Monitor (OpenCode only)
+### Monitor
 | Command | Description |
 |---------|-------------|
-| `/todo` | View AI task checklist |
+| `/todo` | View AI task checklist (OpenCode) |
 | `/diff` | Session code changes summary |
 | `/diff full` | Download full diff |
 
-### Files (OpenCode only)
+### Files
 | Command | Description |
 |---------|-------------|
 | `/read <path>` | Read a file |
 | `/find <query>` | Find files by name |
 | `/search <pattern>` | Search file contents |
-| `/symbols <query>` | Find code symbols |
+| `/symbols <query>` | Find code symbols (OpenCode) |
 | `/status` | Git file status |
 
 ### History
@@ -167,7 +170,7 @@ Models show capability badges: `[reasoning]` for thinking/reasoning support, `[v
 | `/mcp add <name> remote <url>` | Add a remote MCP server |
 | `/mcp remove <name>` | Remove an MCP server |
 
-MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). OpenCode supports full runtime management; Claude stores MCP config in memory and passes it on each query.
+MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). OpenCode supports full runtime management; Claude persists MCP config to disk and restores it on restart.
 
 ### Settings
 | Command | Description |
@@ -218,6 +221,7 @@ src/
     shell.ts       -- Shell and command execution
     mcp.ts         -- MCP server management
   utils/
+    store.ts       -- JSON file-backed persistence (.ocbot/)
     stream.ts      -- Streaming response handler
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- Telegram message chunking
@@ -238,9 +242,11 @@ Each provider implements the `Provider` interface with a `capabilities` object d
 | Streaming | yes | yes | yes |
 | File output | yes | no | no |
 | MCP management | yes | yes | no |
-| Model listing | dynamic | static | static |
+| Model listing | dynamic | dynamic | dynamic |
 | Session management | full | limited | limited |
-| File operations | yes | no | no |
+| File operations | yes | yes | yes |
+| Code diffs | yes | yes | yes |
+| State persistence | yes | yes | yes |
 
 ## License
 

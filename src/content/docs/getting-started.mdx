@@ -4,18 +4,16 @@ description: "Installation, prerequisites, and first steps with Relay"
 order: 1
 ---
 
-This guide walks you through setting up Relay from scratch.
-
 ## Prerequisites
 
-- **[Node.js](https://nodejs.org/)** >= 18 (or **[Bun](https://bun.sh/)**)
-- A **Telegram bot token** from [@BotFather](https://t.me/BotFather)
-- Your **Telegram user ID** (get it from [@userinfobot](https://t.me/userinfobot))
+- [Node.js](https://nodejs.org/) >= 18 (or [Bun](https://bun.sh/))
+- A Telegram bot token from [@BotFather](https://t.me/BotFather)
+- Your Telegram user ID (get it from [@userinfobot](https://t.me/userinfobot))
 - Credentials for at least one coding agent provider (see [Providers](/docs/providers))
 
 ## Installation
 
-### From npm (recommended)
+### From npm
 
 ```bash
 npm install -g relay
@@ -24,83 +22,50 @@ npm install -g relay
 ### From source
 
 ```bash
-git clone https://github.com/Harsh-2002/relay.git
-cd relay
+git clone https://github.com/Harsh-2002/Relay.git
+cd Relay
 npm install
 npm run build
 ```
 
 ## Configuration
 
-Copy the example environment file and edit it:
+Copy the example environment file and fill in your values:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set the required values:
-
 ```env
-# Required for all providers
 BOT_TOKEN=your-telegram-bot-token
 ALLOWED_USER_ID=your-telegram-user-id
-
-# Select your provider
 PROVIDER=opencode
 ```
 
-Then configure your chosen provider. See [Providers](/docs/providers) for detailed setup instructions.
+- `BOT_TOKEN` — from [@BotFather](https://t.me/BotFather)
+- `ALLOWED_USER_ID` — your Telegram user ID
+- `PROVIDER` — `opencode`, `claude`, or `codex`
 
-## Running the Bot
+Then configure your chosen provider. See [Providers](/docs/providers) for details.
 
-Start the bot:
+## Run
 
 ```bash
-# If installed globally
 relay
+```
 
-# If running from source
+Or from source:
+
+```bash
 npm start
 ```
 
-You should see output like:
-
-```
-Initializing opencode provider...
-opencode provider ready.
-Starting Telegram bot (long polling)...
-Bot @YourBotName is running!
-```
-
-## First Steps
-
-1. Open your bot in Telegram
-2. Send `/start` to verify the connection
-3. Send any text message to chat with the AI
-4. Use `/help` to see all available commands
-5. Use `/health` to check the server status
-
-## Project Structure
-
-```
-relay/
-  .env.example       -- Template for environment variables
-  package.json        -- Dependencies and scripts
-  src/
-    index.ts          -- Entry point
-    bot.ts            -- Bot setup and middleware
-    auth.ts           -- User authentication
-    session.ts        -- Session state management
-    providers/        -- Provider implementations
-    commands/         -- Telegram command handlers
-    utils/            -- Shared utilities
-  docs/               -- This documentation
-```
+Open your bot in Telegram and send `/start` to verify the connection. Use `/help` to see all available commands.
 
 ## Next Steps
 
-- [Configuration Reference](/docs/configuration) — All environment variables
-- [Provider Setup](/docs/providers) — Detailed provider configuration
+- [Configuration](/docs/configuration) — All environment variables
+- [Providers](/docs/providers) — Provider setup
 - [Commands](/docs/commands) — Full command reference
-- [Features](/docs/features) — File attachments, streaming, MCP, voice
-- [Troubleshooting](/docs/troubleshooting) — Common issues and fixes
+- [Features](/docs/features) — Streaming, voice, MCP, file attachments
+- [Troubleshooting](/docs/troubleshooting) — Common issues

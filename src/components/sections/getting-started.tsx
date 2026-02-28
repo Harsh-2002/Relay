@@ -1,7 +1,6 @@
 "use client";
 
 import { Section, SectionHeader } from "@/components/ui/section";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AnimateIn } from "@/components/ui/animate-in";
 import { CopyButton } from "@/components/copy-button";
@@ -11,19 +10,17 @@ const steps = [
   {
     step: 1,
     title: "Install",
-    description: "Install Relay globally via npm",
     code: "npm install -g relay",
   },
   {
     step: 2,
     title: "Configure",
-    description: "Set your Telegram bot token and provider",
-    code: "cp .env.example .env\n# Set BOT_TOKEN, ALLOWED_USER_ID, PROVIDER",
+    code: "cp .env.example .env",
+    note: "Set BOT_TOKEN, ALLOWED_USER_ID, and PROVIDER",
   },
   {
     step: 3,
     title: "Run",
-    description: "Start the bot and open Telegram",
     code: "relay",
   },
 ];
@@ -36,24 +33,26 @@ export function GettingStarted() {
         subtitle="Three steps to control your AI coding agent from Telegram"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="max-w-2xl mx-auto space-y-3">
         {steps.map((s, i) => (
           <AnimateIn key={s.step} delay={i * 0.1}>
-            <Card className="h-full" hover={false}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-black text-sm font-bold">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-text-primary pl-11">{s.title}</p>
+              <div className="flex items-center gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20 text-accent text-xs font-bold">
                   {s.step}
                 </span>
-                <h3 className="text-lg font-semibold text-text-primary">{s.title}</h3>
+                <div className="flex-1 min-w-0 flex items-center rounded-lg border border-border-primary bg-bg-code">
+                  <pre className="flex-1 px-4 py-3 text-sm font-mono text-text-secondary overflow-x-auto">
+                    <code><span className="select-none text-text-tertiary">$ </span>{s.code}</code>
+                  </pre>
+                  <CopyButton text={s.code} className="shrink-0 mr-2" />
+                </div>
               </div>
-              <p className="text-sm text-text-secondary mb-4">{s.description}</p>
-              <div className="relative rounded-lg border border-border-primary bg-bg-code p-3">
-                <pre className="text-sm font-mono text-text-secondary pr-8">
-                  <code>{s.code}</code>
-                </pre>
-                <CopyButton text={s.code} className="absolute top-2 right-2" />
-              </div>
-            </Card>
+              {s.note && (
+                <p className="text-xs text-text-tertiary pl-11">{s.note}</p>
+              )}
+            </div>
           </AnimateIn>
         ))}
       </div>

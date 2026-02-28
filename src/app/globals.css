@@ -24,6 +24,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-y: scroll;
 }
 
 body {
@@ -32,7 +33,11 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Custom scrollbar */
+:focus-visible {
+  outline: 2px solid #22C55E;
+  outline-offset: 2px;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -61,8 +66,6 @@ body {
   --tw-prose-counters: #71717A;
   --tw-prose-bullets: #71717A;
   --tw-prose-hr: #1F1F1F;
-  --tw-prose-th-borders: #1F1F1F;
-  --tw-prose-td-borders: #1F1F1F;
   --tw-prose-captions: #71717A;
 }
 
@@ -77,6 +80,7 @@ body {
 .prose pre {
   border: 1px solid #1F1F1F;
   border-radius: 0.5rem;
+  line-height: 1.7;
 }
 
 .prose code:not(pre code) {
@@ -90,23 +94,4 @@ body {
 .prose code:not(pre code)::before,
 .prose code:not(pre code)::after {
   content: '';
-}
-
-.prose table {
-  width: 100%;
-}
-
-.prose th {
-  text-align: left;
-  font-weight: 600;
-  color: #FAFAFA;
-}
-
-.prose td, .prose th {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #1F1F1F;
-}
-
-.prose tr:last-child td {
-  border-bottom: none;
 }

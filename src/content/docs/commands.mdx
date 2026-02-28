@@ -4,19 +4,13 @@ description: "Complete reference for all Relay Telegram commands"
 order: 4
 ---
 
-Complete reference for all Relay Telegram commands. Commands marked with a provider name are only available when using that provider.
+Complete reference for all Relay commands. Commands marked with a provider name are only available with that provider.
 
 ## Chat
 
-No command needed — just send a message.
+No command needed — just send a message. Supports text, voice notes (requires STT config), photos (vision models), and file attachments.
 
-**Supported input types:**
-- Text messages
-- Voice notes (requires STT configuration)
-- Photos (sent to vision-capable models)
-- File attachments (text files are embedded, binary files referenced)
-
-**Input limit:** 32,000 characters for text messages. Send longer content as a file.
+Input limit: 32,000 characters. Send longer content as a file.
 
 ---
 
@@ -24,107 +18,79 @@ No command needed — just send a message.
 
 ### /new [title]
 
-Create a new session.
+Create a new session. The new session becomes active immediately.
 
-```
-/new
-/new Refactoring auth module
-```
-
-The new session becomes the active session. All subsequent messages go to this session.
+Examples: `/new` or `/new Refactoring auth module`
 
 ### /sessions
 
-List all sessions, sorted by last modified date. Shows the session ID, title, and a marker for the active session.
+List all sessions sorted by last modified date.
 
-### /switch
+### /switch \<id\>
 
-Switch to an existing session by its ID.
+Switch to an existing session. Example: `/switch abc123`
 
-```
-/switch abc123
-```
+### /delete \<id\>
 
-### /delete
-
-Delete a session. If you delete the active session, it is cleared.
-
-```
-/delete abc123
-```
+Delete a session. Example: `/delete abc123`
 
 ### /current
 
-Show the currently active session's ID and title.
+Show the active session's ID and title.
 
 ### /fork [messageId]
 
-Fork the current session, creating a copy. Optionally specify a message ID to fork from a specific point. Supported by OpenCode and Claude.
+Fork the current session. Optionally fork from a specific message. OpenCode and Claude only.
 
-```
-/fork
-/fork msg_abc123
-```
+Examples: `/fork` or `/fork msg_abc123`
 
 ---
 
 ## Monitor
 
-### /todo (OpenCode)
+### /todo
 
-View the AI's task checklist with status icons: completed, in progress, pending, and cancelled.
+View the AI's task checklist with status icons. OpenCode only.
 
 ### /diff
 
-Show a summary of code changes in the current session. OpenCode shows structured file-level changes; Claude and Codex delegate to `git diff`.
+Show a summary of code changes in the current session.
 
 ### /diff full
 
-Download the full diff as a text file, including before/after content for each changed file.
+Download the full diff as a text file.
 
 ---
 
 ## File Operations
 
-### /read
+### /read \<path\>
 
-Read a file and display its contents. Files larger than 15KB are sent as a downloadable attachment.
+Read a file's contents. Files larger than 15KB are sent as attachments.
 
-```
-/read src/index.ts
-/read package.json
-```
+Example: `/read src/index.ts`
 
-### /find
+### /find \<query\>
 
-Find files by name pattern. Shows up to 50 matching files.
+Find files by name pattern. Shows up to 50 matches.
 
-```
-/find index.ts
-/find *.json
-```
+Example: `/find *.json`
 
-### /search
+### /search \<pattern\>
 
-Search file contents with a text pattern (regex supported). Shows up to 20 matching lines with file paths and line numbers.
+Search file contents (regex supported). Shows up to 20 matches with file paths and line numbers.
 
-```
-/search TODO
-/search function.*auth
-```
+Examples: `/search TODO` or `/search function.*auth`
 
-### /symbols
+### /symbols \<query\>
 
-Find code symbols (functions, classes, variables) by name. Shows up to 30 matching symbols with their locations.
+Find code symbols by name. Shows up to 30 matches.
 
-```
-/symbols authenticate
-/symbols UserService
-```
+Example: `/symbols authenticate`
 
 ### /status
 
-Show git file status (modified, added, deleted files).
+Show git file status.
 
 ---
 
@@ -136,7 +102,7 @@ View the last 10 messages in the current session.
 
 ### /summarize
 
-Generate a summary of the current session. OpenCode only.
+Generate a session summary. OpenCode only.
 
 ### /revert
 
@@ -144,11 +110,11 @@ Undo the last AI change. OpenCode only.
 
 ### /unrevert
 
-Redo a previously reverted change. OpenCode only.
+Redo a reverted change. OpenCode only.
 
 ### /abort
 
-Cancel the currently running operation. Stops streaming or processing.
+Cancel the currently running operation.
 
 ### /share
 
@@ -158,30 +124,21 @@ Get a shareable URL for the current session. OpenCode only.
 
 ## Shell
 
-### /shell
+### /shell \<cmd\>
 
-Run a shell command on the coding agent's machine.
+Run a shell command. On OpenCode, runs natively. On Claude and Codex, the command is sent as a prompt.
 
-```
-/shell ls -la
-/shell git log --oneline -5
-/shell npm test
-```
+Examples: `/shell ls -la` or `/shell npm test`
 
-On OpenCode, this runs natively. On Claude and Codex, the command is sent as a prompt asking the AI to execute it.
+### /cmd \<command\>
 
-### /cmd (OpenCode)
+Run an OpenCode-specific command. OpenCode only.
 
-Run an OpenCode-specific command.
+Example: `/cmd compact`
 
-```
-/cmd compact
-/cmd agent_cycle
-```
+### /commands
 
-### /commands (OpenCode)
-
-List all available OpenCode commands that can be used with `/cmd`.
+List available OpenCode commands. OpenCode only.
 
 ---
 
@@ -189,49 +146,39 @@ List all available OpenCode commands that can be used with `/cmd`.
 
 ### /models
 
-List all available models grouped by provider. Each model shows capability badges:
+List all available models with capability badges: `[reasoning]`, `[vision]`, `[active]`.
 
-- `[reasoning]` — Extended thinking/reasoning support
-- `[vision]` — Image input support
-- `[active]` — Currently selected model
-
-### /model [provider/model]
+### /model [id]
 
 View or change the current model.
 
-```
-/model                                        -- View current
-/model anthropic/claude-sonnet-4-20250514     -- Set by full path
-/model sonnet                                  -- Set by partial match
-```
+Examples: `/model` to view current, `/model sonnet` to switch by partial match
 
 ---
 
-## MCP (Model Context Protocol)
+## MCP
 
-MCP servers extend the AI's capabilities with additional tools. Supported by OpenCode and Claude.
+MCP servers extend the AI with additional tools. OpenCode and Claude only.
 
 ### /mcp
 
-Show the status of all configured MCP servers.
+Show MCP server status.
 
-### /mcp add
+### /mcp add \<name\> local \<cmd\>
 
-Add an MCP server:
+Add a local MCP server.
 
-```
-/mcp add memory local npx -y @modelcontextprotocol/server-memory
-/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
-/mcp add api remote https://mcp.example.com/sse
-```
+Example: `/mcp add memory local npx -y @modelcontextprotocol/server-memory`
 
-### /mcp remove
+### /mcp add \<name\> remote \<url\>
 
-Remove and disconnect an MCP server.
+Add a remote MCP server.
 
-```
-/mcp remove browser
-```
+Example: `/mcp add api remote https://mcp.example.com/sse`
+
+### /mcp remove \<name\>
+
+Remove and disconnect a server.
 
 ---
 
@@ -239,16 +186,16 @@ Remove and disconnect an MCP server.
 
 ### /health
 
-Show a dashboard with server status, current model, streaming status, voice provider, and project details.
+Server status dashboard: provider, model, streaming, voice, uptime.
 
 ### /config
 
-Show the full provider configuration as JSON.
+Show the full provider configuration.
 
 ### /system
 
-View the current system prompt info. Use `/system reload` to force-reload from file.
+View the current system prompt. Use `/system reload` to force-reload from file.
 
 ### /help
 
-Show a compact reference of all available commands.
+Compact command reference.

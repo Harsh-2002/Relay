@@ -1,7 +1,6 @@
 import { Section, SectionHeader } from "@/components/ui/section";
 import { AnimateIn } from "@/components/ui/animate-in";
 import { MessageSquare, ArrowRight, Cpu } from "lucide-react";
-import { Logo } from "@/components/logo";
 
 const codeSnippet = `interface Provider {
   // Core messaging
@@ -40,9 +39,8 @@ export function Architecture() {
           <ArrowRight size={24} className="text-text-tertiary rotate-90 lg:rotate-0 shrink-0" />
 
           {/* Step 2: Relay */}
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 p-6 w-full lg:w-64">
-            <Logo size="sm" showText={false} />
-            <h3 className="font-semibold text-accent">Relay</h3>
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 p-6 w-full lg:w-64 shadow-[0_0_30px_rgba(34,197,94,0.06)]">
+            <span className="text-2xl font-bold tracking-tight text-accent">Relay</span>
             <p className="text-xs text-text-tertiary text-center">
               Routes to the active provider, handles formatting
             </p>

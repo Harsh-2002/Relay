@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +98,10 @@ export function Providers() {
               {comparison.map((row, i) => (
                 <tr
                   key={row.feature}
-                  className={i < comparison.length - 1 ? "border-b border-border-primary" : ""}
+                  className={clsx(
+                    i < comparison.length - 1 && "border-b border-border-primary",
+                    i % 2 === 1 && "bg-white/[0.02]"
+                  )}
                 >
                   <td className="px-6 py-3 text-text-secondary">{row.feature}</td>
                   <td className="px-6 py-3 text-center">

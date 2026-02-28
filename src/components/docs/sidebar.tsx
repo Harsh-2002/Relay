@@ -13,8 +13,8 @@ export function Sidebar({ docs }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="space-y-1">
-      <h3 className="px-3 mb-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+    <nav className="space-y-0.5">
+      <h3 className="px-3 mb-3 text-[11px] font-semibold text-text-tertiary uppercase tracking-widest">
         Documentation
       </h3>
       {docs.map((doc) => {
@@ -26,12 +26,18 @@ export function Sidebar({ docs }: SidebarProps) {
             key={doc.slug}
             href={href}
             className={clsx(
-              "block px-3 py-2 text-sm rounded-lg transition-colors",
+              "flex items-center gap-2.5 px-3 py-1.5 text-[13px] rounded-lg transition-colors",
               active
-                ? "text-accent bg-accent/10 border-l-2 border-accent"
-                : "text-text-secondary hover:text-text-primary hover:bg-bg-card"
+                ? "text-accent bg-accent/[0.08] font-medium"
+                : "text-text-secondary hover:text-text-primary hover:bg-white/[0.03]"
             )}
           >
+            <span
+              className={clsx(
+                "h-1.5 w-1.5 rounded-full shrink-0",
+                active ? "bg-accent" : "bg-text-tertiary/50"
+              )}
+            />
             {doc.frontmatter.title}
           </Link>
         );

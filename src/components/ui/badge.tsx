@@ -7,7 +7,7 @@ interface BadgeProps {
 }
 
 const variants = {
-  default: "bg-white/5 text-text-secondary",
+  default: "bg-white/5 text-text-secondary border border-white/10",
   accent: "bg-accent-muted text-accent",
   muted: "bg-white/5 text-text-tertiary",
 };

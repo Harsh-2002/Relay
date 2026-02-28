@@ -3,29 +3,68 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { siteConfig } from "@/lib/metadata";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: "Relay \u2014 Telegram bot for AI coding agents",
+    default: "Relay — Telegram bot for AI coding agents",
     template: "%s | Relay",
   },
   description:
     "Control OpenCode, Claude Code, and OpenAI Codex from Telegram. Streaming responses, voice input, session management, and 30+ commands.",
+  keywords: [
+    "Telegram bot",
+    "AI coding agent",
+    "Claude Code",
+    "OpenCode",
+    "OpenAI Codex",
+    "developer tools",
+    "coding assistant",
+    "Telegram",
+    "open source",
+  ],
+  authors: [{ name: "Harsh-2002", url: siteConfig.github }],
+  creator: "Harsh-2002",
   openGraph: {
-    title: "Relay \u2014 Telegram bot for AI coding agents",
+    title: "Relay — Telegram bot for AI coding agents",
     description:
-      "Control OpenCode, Claude Code, and OpenAI Codex from Telegram.",
+      "Control OpenCode, Claude Code, and OpenAI Codex from Telegram. Streaming responses, voice input, session management, and 30+ commands.",
+    url: siteConfig.url,
     siteName: "Relay",
     type: "website",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Relay \u2014 Telegram bot for AI coding agents",
+    title: "Relay — Telegram bot for AI coding agents",
     description:
       "Control OpenCode, Claude Code, and OpenAI Codex from Telegram.",
   },
   robots: { index: true, follow: true },
+  alternates: {
+    canonical: siteConfig.url,
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Relay",
+  description: siteConfig.description,
+  url: siteConfig.url,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Cross-platform",
+  license: `${siteConfig.github}/blob/main/LICENSE`,
+  isAccessibleForFree: true,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  codeRepository: siteConfig.github,
+  programmingLanguage: "TypeScript",
 };
 
 export default function RootLayout({
@@ -35,6 +74,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="dns-prefetch" href="https://github.com" />
+        <link rel="preconnect" href="https://github.com" crossOrigin="anonymous" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased bg-bg-primary text-text-primary`}
       >

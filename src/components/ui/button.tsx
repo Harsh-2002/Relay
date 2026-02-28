@@ -16,7 +16,7 @@ type Props = ButtonProps | AnchorProps;
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-black font-medium hover:bg-accent-hover",
+    "bg-accent text-black font-medium hover:bg-accent-hover shadow-[0_0_20px_rgba(34,197,94,0.15)]",
   secondary:
     "bg-bg-card border border-border-primary text-text-primary hover:bg-bg-card-hover hover:border-border-hover",
   ghost:

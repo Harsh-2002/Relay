@@ -9,7 +9,7 @@ interface Command {
   description: string;
 }
 
-const categories: { id: string; label: string; commands: Command[]; example: string }[] = [
+const categories: { id: string; label: string; commands: Command[] }[] = [
   {
     id: "chat",
     label: "Chat",
@@ -19,7 +19,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "Photo", description: "Analyzed by vision-capable models" },
       { name: "File", description: "Text files embedded, binary referenced" },
     ],
-    example: "Just type your message and send it!\n\n> Refactor the auth module to use JWT\n\nThe AI will process and respond inline.",
   },
   {
     id: "sessions",
@@ -32,7 +31,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/current", description: "Show active session info" },
       { name: "/fork [msgId]", description: "Fork current session" },
     ],
-    example: "/new Refactoring auth module\n\n\u2705 Session created: abc123\n   Title: Refactoring auth module\n   Now active.",
   },
   {
     id: "monitor",
@@ -42,7 +40,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/diff", description: "Show code changes summary" },
       { name: "/diff full", description: "Download full diff file" },
     ],
-    example: "/diff\n\n\ud83d\udcc4 Changes Summary\n   3 files changed\n   +47 insertions\n   -23 deletions",
   },
   {
     id: "files",
@@ -54,7 +51,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/symbols <query>", description: "Find code symbols" },
       { name: "/status", description: "Git file status" },
     ],
-    example: "/find *.ts\n\n\ud83d\udcc2 Found 12 files:\n   src/index.ts\n   src/bot.ts\n   src/auth.ts\n   src/session.ts\n   ...",
   },
   {
     id: "history",
@@ -67,7 +63,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/abort", description: "Cancel running operation" },
       { name: "/share", description: "Share session URL" },
     ],
-    example: "/revert\n\n\u21a9\ufe0f Changes reverted successfully.\n   Use /unrevert to restore.",
   },
   {
     id: "shell",
@@ -77,7 +72,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/cmd <command>", description: "Run OpenCode command" },
       { name: "/commands", description: "List available commands" },
     ],
-    example: "/shell npm test\n\n\ud83d\udcbb Output:\n   PASS src/auth.test.ts\n   PASS src/session.test.ts\n   All tests passed.",
   },
   {
     id: "models",
@@ -86,7 +80,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/models", description: "List all available models" },
       { name: "/model [id]", description: "View or change current model" },
     ],
-    example: "/models\n\nanthropic\n  claude-sonnet-4 [reasoning] [active]\n  claude-opus-4 [reasoning]\n  claude-haiku-4",
   },
   {
     id: "mcp",
@@ -97,7 +90,6 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/mcp add <name> remote <url>", description: "Add remote server" },
       { name: "/mcp remove <name>", description: "Remove a server" },
     ],
-    example: "/mcp\n\nMCP Servers (2)\n  memory   \u2705 ok\n  browser  \u2705 ok",
   },
   {
     id: "admin",
@@ -108,35 +100,23 @@ const categories: { id: string; label: string; commands: Command[]; example: str
       { name: "/system", description: "View system prompt" },
       { name: "/help", description: "Command reference" },
     ],
-    example: "/health\n\n\ud83d\udfe2 System Status\n   Provider: opencode\n   Model: claude-sonnet-4\n   Uptime: 2h 34m\n   Sessions: 5",
   },
 ];
 
-function CommandContent({ commands, example }: { commands: Command[]; example: string }) {
+function CommandContent({ commands }: { commands: Command[] }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="space-y-2">
-        {commands.map((cmd) => (
-          <div
-            key={cmd.name}
-            className="flex items-start gap-3 rounded-lg border border-border-primary bg-bg-card px-4 py-3"
-          >
-            <code className="text-sm font-mono text-accent whitespace-nowrap shrink-0">
-              {cmd.name}
-            </code>
-            <span className="text-sm text-text-secondary">{cmd.description}</span>
-          </div>
-        ))}
-      </div>
-      <div className="rounded-xl border border-border-primary bg-bg-code p-4">
-        <div className="flex items-center gap-2 mb-3 text-xs text-text-tertiary">
-          <div className="w-2 h-2 rounded-full bg-accent" />
-          Telegram
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {commands.map((cmd) => (
+        <div
+          key={cmd.name}
+          className="flex items-start gap-3 rounded-lg border border-border-primary bg-bg-card px-4 py-3 transition-colors duration-200 hover:border-border-hover hover:bg-bg-card-hover"
+        >
+          <code className="text-sm font-mono text-accent whitespace-nowrap shrink-0">
+            {cmd.name}
+          </code>
+          <span className="text-sm text-text-secondary">{cmd.description}</span>
         </div>
-        <pre className="text-sm font-mono text-text-secondary whitespace-pre-wrap leading-relaxed">
-          {example}
-        </pre>
-      </div>
+      ))}
     </div>
   );
 }
@@ -145,7 +125,7 @@ export function Commands() {
   const tabs = categories.map((cat) => ({
     id: cat.id,
     label: cat.label,
-    content: <CommandContent commands={cat.commands} example={cat.example} />,
+    content: <CommandContent commands={cat.commands} />,
   }));
 
   return (

@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import remarkGfm from "remark-gfm";
 import { getDocBySlug, getDocSlugs, extractToc } from "@/lib/mdx";
 import { mdxComponents } from "@/components/docs/mdx-components";
 import { Toc } from "@/components/docs/toc";
+import { siteConfig } from "@/lib/metadata";
 import type { Metadata } from "next";
 
 interface Props {
@@ -18,9 +20,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const doc = getDocBySlug(slug);
   if (!doc) return {};
 
+  const title = doc.frontmatter.title;
+  const description = doc.frontmatter.description;
+  const url = `${siteConfig.url}/docs/${slug}`;
+
   return {
-    title: doc.frontmatter.title,
-    description: doc.frontmatter.description,
+    title,
+    description,
+    openGraph: {
+      title: `${title} | Relay Docs`,
+      description,
+      url,
+      type: "article",
+    },
+    twitter: {
+      card: "summary",
+      title: `${title} | Relay Docs`,
+      description,
+    },
+    alternates: {
+      canonical: url,
+    },
   };
 }
 
@@ -46,7 +66,7 @@ export default async function DocPage({ params }: Props) {
         </header>
 
         <div className="prose prose-invert max-w-none">
-          <MDXRemote source={doc.content} components={mdxComponents} />
+          <MDXRemote source={doc.content} components={mdxComponents} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
         </div>
       </article>
 

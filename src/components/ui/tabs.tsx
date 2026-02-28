@@ -21,7 +21,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
 
   return (
     <div className={className}>
-      <div className="flex gap-1 overflow-x-auto border-b border-border-primary pb-px scrollbar-none">
+      <div className="flex justify-center gap-1 overflow-x-auto border-b border-border-primary pb-px scrollbar-none">
         {tabs.map((tab) => (
           <button
             key={tab.id}

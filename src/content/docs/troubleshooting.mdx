@@ -4,41 +4,29 @@ description: "Common issues and solutions when running Relay"
 order: 6
 ---
 
-Common issues and solutions when running Relay.
-
----
-
 ## Bot won't start
 
 ### "BOT_TOKEN is required"
 
-You haven't set the Telegram bot token. Add it to your `.env` file:
+Add your Telegram bot token to `.env`:
 
 ```env
 BOT_TOKEN=123456:ABC-DEF...
 ```
 
-Get a token from [@BotFather](https://t.me/BotFather) on Telegram.
+Get a token from [@BotFather](https://t.me/BotFather).
 
 ### "Unknown provider: xyz"
 
-The `PROVIDER` value in `.env` is not one of `opencode`, `claude`, or `codex`. Check for typos:
-
-```env
-PROVIDER=opencode
-```
+Check `PROVIDER` in `.env` for typos. Must be `opencode`, `claude`, or `codex`.
 
 ### "Cannot find package '@anthropic-ai/claude-code'"
-
-The Claude Code SDK is not installed:
 
 ```bash
 npm install @anthropic-ai/claude-code
 ```
 
 ### "Cannot find package '@openai/codex'"
-
-The Codex SDK is not installed:
 
 ```bash
 npm install @openai/codex
@@ -50,17 +38,9 @@ npm install @openai/codex
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Check your `ALLOWED_USER_ID`:
+Relay only responds to authorized users. Verify `ALLOWED_USER_ID` in `.env`. Get your ID from [@userinfobot](https://t.me/userinfobot).
 
-```env
-ALLOWED_USER_ID=123456789
-```
-
-To find your Telegram user ID, send a message to [@userinfobot](https://t.me/userinfobot).
-
-### Multiple users
-
-Separate multiple user IDs with commas:
+For multiple users, separate IDs with commas:
 
 ```env
 ALLOWED_USER_ID=123456789,987654321
@@ -70,26 +50,16 @@ ALLOWED_USER_ID=123456789,987654321
 
 ## OpenCode Issues
 
-### "Connection refused" when using connect mode
+### "Connection refused" in connect mode
 
-The OpenCode server isn't running or isn't reachable at the configured URL:
+The OpenCode server isn't running or isn't reachable. Check:
+1. The server is running
+2. `OPENCODE_URL` is correct in `.env`
+3. If remote, the port is open
 
-1. Check that the OpenCode server is running
-2. Verify the URL in your `.env`:
-   ```env
-   OPENCODE_URL=http://localhost:4096
-   ```
-3. If the server is on a different machine, ensure the port is open
+### "Failed to start OpenCode server"
 
-### "Failed to start OpenCode server" in start mode
-
-Relay couldn't spawn the OpenCode server. Check:
-
-1. OpenCode is installed and in your PATH
-2. The port isn't already in use:
-   ```bash
-   lsof -i :4096
-   ```
+Check that OpenCode is installed and the port isn't already in use.
 
 ---
 
@@ -97,21 +67,11 @@ Relay couldn't spawn the OpenCode server. Check:
 
 ### "Invalid API key"
 
-Your Anthropic API key is invalid or expired:
-
-1. Check the key in `.env`
-2. Verify the key at [console.anthropic.com](https://console.anthropic.com/)
-3. Ensure the key has Claude Code API access
+Verify your key at [console.anthropic.com](https://console.anthropic.com/) and ensure it has Claude Code API access.
 
 ### Claude doesn't modify files
 
-Claude Code requires the `acceptEdits` permission mode:
-
-```env
-CLAUDE_PERMISSION_MODE=acceptEdits
-```
-
-Without this, Claude may prompt for interactive approval, which doesn't work in a Telegram bot.
+Set `CLAUDE_PERMISSION_MODE=acceptEdits` in `.env`. Without this, Claude prompts for interactive approval which doesn't work in a bot.
 
 ---
 
@@ -119,13 +79,7 @@ Without this, Claude may prompt for interactive approval, which doesn't work in 
 
 ### "Invalid API key"
 
-Check your OpenAI API key:
-
-```env
-CODEX_API_KEY=sk-...
-```
-
-You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_API_KEY` takes priority.
+Check your OpenAI API key. Either `CODEX_API_KEY` or `OPENAI_API_KEY` works.
 
 ---
 
@@ -133,57 +87,44 @@ You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_
 
 ### "No STT provider available"
 
-No speech-to-text provider is configured. Add at least one API key:
+Add at least one speech-to-text API key:
 
 ```env
-GROQ_API_KEY=gsk_...          # Recommended (fastest, free tier)
-OPENAI_API_KEY=sk-...          # Alternative
-ASSEMBLYAI_API_KEY=...         # Alternative
+GROQ_API_KEY=gsk_...
 ```
 
 ---
 
 ## MCP Servers
 
-### "MCP not supported" error
+### "MCP not supported"
 
-MCP is only available with OpenCode and Claude providers. Codex does not support MCP.
+MCP is only available with OpenCode and Claude.
 
-### MCP server shows "failed" status
+### MCP server shows "failed"
 
-Run `/mcp` to check the error message. Common causes:
-
-1. **Command not found**: The MCP server command isn't installed
-2. **Connection refused** (remote servers): The URL is wrong or the server is down
-3. **Permission denied**: The command doesn't have execute permissions
+Run `/mcp` to see the error. Common causes: command not found, connection refused (remote), or permission denied.
 
 ---
 
 ## Streaming
 
-### Messages appear jumpy or laggy
+### Messages appear jumpy
 
-Telegram rate limits message edits. Relay batches updates to avoid hitting limits, but on slow connections you may notice slight delays. This is normal behavior.
+Telegram rate-limits message edits. Relay batches updates to stay within limits, but slight delays on slow connections are normal.
 
-### Very long responses get cut off
+### Long responses get cut off
 
-Telegram messages have a 4096-character limit. Relay automatically splits long responses into multiple messages. If a response seems incomplete, it may still be generating — wait for the stream to finish.
+Telegram has a 4096-character limit per message. Relay splits long responses automatically. If a response seems incomplete, wait for the stream to finish.
 
 ---
 
 ## General
 
-### Bot is slow to respond
+### Bot is slow
 
-- Check your internet connection
-- The AI provider may be experiencing high load
-- Larger models (opus, o3) are slower than smaller ones (haiku, o4-mini)
-- If using OpenCode in connect mode, check the server's health
+Check your internet connection, the AI provider's status, and consider using a faster model (`/model haiku` or `/model o4-mini`).
 
 ### "Operation timed out"
 
-The AI took too long to respond. Try:
-
-- Simplifying your request
-- Using a faster model (`/model haiku` or `/model o4-mini`)
-- Breaking the task into smaller steps
+The AI took too long. Try simplifying your request, using a faster model, or breaking the task into smaller steps.

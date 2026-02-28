@@ -4,241 +4,128 @@ description: "Detailed guide to Relay's key features including streaming, voice,
 order: 5
 ---
 
-Detailed guide to Relay's key features.
-
----
-
 ## Streaming Responses
 
-Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced rather than waiting for the full response.
-
-### How it works
+Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
 
 1. You send a message
-2. The bot sends an initial "thinking" indicator
-3. As text arrives, the message is edited in place with new content
-4. When the response is complete, the final message is sent
+2. The bot sends a "thinking" indicator
+3. As text arrives, the message is edited in place
+4. When complete, the final message is sent
 
-### Streaming behavior
+Messages are updated roughly every second to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
 
-- Messages are updated approximately every second to avoid Telegram rate limits
-- Very long responses are split into multiple messages (Telegram's 4096-character limit)
-- Tool use indicators (e.g., "Reading file...", "Running command...") appear during processing
-- If the AI is using tools, you'll see status updates before the final text response
-
-### Configuration
-
-Streaming is enabled by default. To disable it:
+Streaming is enabled by default. To disable:
 
 ```env
 STREAMING=false
 ```
 
-When disabled, the bot waits for the complete response before sending a single message.
-
 ---
 
 ## File Attachments
 
-When the AI generates files, takes screenshots, or creates artifacts, they are automatically sent as Telegram attachments. This feature is available with the OpenCode provider.
+When the AI generates files, takes screenshots, or creates artifacts, they are sent as Telegram attachments. This is available with the OpenCode provider only — Claude and Codex do not support file output.
 
-### Supported file types
-
-- **Images** (`image/png`, `image/jpeg`, etc.) — sent as Telegram photos
-- **All other files** — sent as Telegram documents with the original filename
-
-### Provider support
-
-| Provider | File output |
-|----------|------------|
-| OpenCode | Yes — automatic |
-| Claude | No |
-| Codex | No |
+Supported types:
+- Images (`png`, `jpeg`, etc.) — sent as Telegram photos
+- All other files — sent as documents with the original filename
 
 ---
 
 ## Voice Messages
 
-Send voice notes to the bot and they'll be transcribed and processed as text input.
-
-### Setup
-
-Configure at least one speech-to-text provider:
+Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text provider:
 
 ```env
-GROQ_API_KEY=gsk_...          # Groq Whisper (fastest, has free tier)
-OPENAI_API_KEY=sk-...          # OpenAI Whisper
-ASSEMBLYAI_API_KEY=...         # AssemblyAI
+GROQ_API_KEY=gsk_...
+OPENAI_API_KEY=sk-...
+ASSEMBLYAI_API_KEY=...
 ```
 
-If multiple providers are configured, the cheapest available one is selected automatically.
-
-### Provider priority
-
-1. **Groq** — Fastest, free tier available
-2. **OpenAI** — Reliable, widely available
-3. **AssemblyAI** — Alternative option
+Provider priority (when `STT_PROVIDER=auto`): Groq > OpenAI > AssemblyAI.
 
 ---
 
 ## Photo Input
 
-Send photos to the bot for analysis by vision-capable models.
-
-### Tips
-
-- Add a caption to your photo to ask specific questions about it (e.g., "What's wrong with this UI?")
-- Without a caption, the AI will describe or analyze the image
-- Vision capability depends on the model — check `/models` for vision badges
+Send photos for analysis by vision-capable models. Add a caption to ask specific questions (e.g., "What's wrong with this UI?"). Without a caption, the AI will describe the image. Check `/models` for vision badges.
 
 ---
 
 ## File Input
 
-Send files to the bot as attachments.
+Send files as attachments. Text files (`.txt`, `.md`, `.js`, `.py`, `.json`, `.yaml`, `.toml`, `.xml`, `.csv`, `.html`, `.css`, etc.) are read and embedded directly in the message to the AI. Binary files are referenced by name only.
 
-### Text files
-
-Text files (`.txt`, `.md`, `.js`, `.py`, `.json`, `.yaml`, `.toml`, `.xml`, `.csv`, `.html`, `.css`, etc.) are read and their content is embedded directly in the message to the AI.
-
-### Binary files
-
-Binary files are referenced by name but their content is not sent to the AI.
-
-### Size limit
-
-Text messages have a 32,000-character limit. For larger content, send it as a file attachment.
+Text messages have a 32,000-character limit. For larger content, send as a file attachment.
 
 ---
 
 ## MCP Servers
 
-MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs.
+MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools. Supported by OpenCode (full API) and Claude (persisted to disk). Not available with Codex.
 
-### Adding a local MCP server
+### Local servers
 
-Local servers run as subprocesses on the same machine:
+Run as subprocesses on the same machine. Examples:
 
-```
-/mcp add memory local npx -y @modelcontextprotocol/server-memory
-/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
-/mcp add filesystem local npx -y @modelcontextprotocol/server-filesystem /home/user/projects
-```
+- `/mcp add memory local npx -y @modelcontextprotocol/server-memory`
+- `/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer`
 
-### Adding a remote MCP server
+### Remote servers
 
-Remote servers connect via URL:
-
-```
-/mcp add api remote https://mcp.example.com/sse
-```
-
-### Provider differences
-
-| Feature | OpenCode | Claude | Codex |
-|---------|----------|--------|-------|
-| MCP support | Full API | Persisted to disk | No |
-| Persistence | Saved in config | Saved in `.relay/` | N/A |
-| Local servers | Yes | Yes | No |
-| Remote servers | Yes | Yes | No |
+Connect via URL: `/mcp add api remote https://mcp.example.com/sse`
 
 ---
 
 ## Model Selection
 
-Relay supports switching between AI models at runtime.
+Switch between AI models at runtime. `/models` lists all configured models with capability badges: `[reasoning]`, `[vision]`, `[active]`.
 
-### Listing available models
+Switch models with `/model sonnet`, `/model deepseek`, or use a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
-Use `/models` to see all configured models with capability badges:
-
-- `[reasoning]` — Extended thinking/reasoning support
-- `[vision]` — Image input support
-- `[active]` — Currently selected model
-
-### Switching models
-
-```
-/model anthropic/claude-sonnet-4-20250514    -- By full path
-/model sonnet                                 -- By partial match
-/model deepseek                               -- By partial match
-```
-
-### Provider behavior
-
-- **OpenCode**: Lists all models from all configured providers dynamically
-- **Claude**: Fetches available models from the Anthropic API
-- **Codex**: Fetches available models from the OpenAI API
+Provider behavior:
+- OpenCode — lists all models from all configured providers
+- Claude — fetches available models from the Anthropic API
+- Codex — fetches available models from the OpenAI API
 
 ---
 
 ## System Prompt
 
-Customize the AI's behavior with a system prompt file.
-
-### Default behavior
-
-The bot loads a system prompt from `skill.md` in the project root. If the file doesn't exist, a built-in default prompt is used.
-
-### Custom prompt file
+Customize the AI's behavior with a system prompt file. The bot loads `skill.md` from the project root by default. Change the path with:
 
 ```env
 SYSTEM_PROMPT_FILE=prompts/my-prompt.md
 ```
 
-### Hot reload
-
-The system prompt file is watched for changes. When you edit it, the new prompt is loaded automatically on the next message. To force a reload:
-
-```
-/system reload
-```
+The file is watched for changes and reloaded automatically. Force reload with `/system reload`.
 
 ---
 
 ## Session Management
 
-Sessions keep your conversations organized. Each session maintains its own message history.
+Sessions keep conversations organized. Each session maintains its own message history.
 
-### Creating sessions
-
-```
-/new                          # Create with auto-generated title
-/new Refactoring auth module  # Create with a custom title
-```
-
-### Forking sessions
-
-Create a copy of the current session:
-
-```
-/fork                  # Fork from the latest message
-/fork msg_abc123       # Fork from a specific message
-```
+Create sessions with `/new` or `/new Refactoring auth module`. Fork a session with `/fork` or `/fork msg_abc123`.
 
 ---
 
 ## State Persistence
 
-Relay automatically persists critical state to disk so it survives bot restarts and crashes.
+Relay persists critical state to disk so it survives restarts:
 
-### What is persisted
+- `.relay/session.json` — Current session ID and selected model
+- `.relay/claude-mcp.json` — Claude MCP server configurations
+- `.relay/codex-threads.json` — Codex thread ID mappings
 
-| Data | File | Description |
-|------|------|-------------|
-| Active session | `.relay/session.json` | Current session ID and selected model |
-| Claude MCP servers | `.relay/claude-mcp.json` | MCP server configurations |
-| Codex thread IDs | `.relay/codex-threads.json` | Thread ID mappings |
-
-State is written atomically (via temp file + rename) to prevent corruption.
+State is written atomically (temp file + rename) to prevent corruption.
 
 ---
 
 ## Webhook Deployment
 
-For production deployments, you can run Relay in webhook mode instead of long-polling.
-
-### Setup
+For production, run Relay in webhook mode instead of long-polling.
 
 ```env
 BOT_MODE=webhook
@@ -247,8 +134,4 @@ WEBHOOK_PORT=3000
 WEBHOOK_SECRET=your-random-secret
 ```
 
-### Benefits over polling
-
-- Lower latency (push vs pull)
-- Reduced resource usage (no continuous polling loop)
-- Better for containerized/serverless deployments
+Benefits: lower latency, reduced resource usage, better for containerized deployments.

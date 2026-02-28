@@ -13,11 +13,17 @@ export function Section({ children, id, className, background = "primary" }: Sec
     <section
       id={id}
       className={clsx(
-        "py-24 lg:py-32",
+        "relative py-24 lg:py-32",
         background === "primary" ? "bg-bg-primary" : "bg-bg-secondary",
         className
       )}
     >
+      <div
+        className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{
+          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)",
+        }}
+      />
       <Container>{children}</Container>
     </section>
   );
@@ -34,11 +40,11 @@ export function SectionHeader({
 }) {
   return (
     <div className={clsx("mb-16 text-center", className)}>
-      <h2 className="text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
+      <h2 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
         {title}
       </h2>
       {subtitle && (
-        <p className="mt-4 text-lg text-text-secondary max-w-2xl mx-auto">
+        <p className="mt-4 text-base text-text-tertiary max-w-2xl mx-auto leading-relaxed">
           {subtitle}
         </p>
       )}

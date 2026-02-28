@@ -60,7 +60,6 @@ export const mdxComponents: MDXComponents = {
     </li>
   ),
   code: ({ children, className, ...props }) => {
-    // Inline code (not inside pre)
     if (!className) {
       return (
         <code className="bg-bg-card-hover px-1.5 py-0.5 rounded text-sm font-mono text-text-primary" {...props}>
@@ -68,7 +67,6 @@ export const mdxComponents: MDXComponents = {
         </code>
       );
     }
-    // Code block (inside pre) - pass through
     return (
       <code className={className} {...props}>
         {children}
@@ -97,13 +95,18 @@ export const mdxComponents: MDXComponents = {
       {children}
     </thead>
   ),
+  tr: ({ children, ...props }) => (
+    <tr className="border-b border-border-primary last:border-b-0" {...props}>
+      {children}
+    </tr>
+  ),
   th: ({ children, ...props }) => (
-    <th className="px-4 py-3 text-left font-semibold text-text-primary border-b border-border-primary" {...props}>
+    <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-text-primary whitespace-nowrap" {...props}>
       {children}
     </th>
   ),
   td: ({ children, ...props }) => (
-    <td className="px-4 py-3 text-text-secondary border-b border-border-primary" {...props}>
+    <td className="px-4 py-2.5 text-text-secondary align-top" {...props}>
       {children}
     </td>
   ),

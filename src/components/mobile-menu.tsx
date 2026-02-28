@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Logo } from "./logo";
 import { Button } from "./ui/button";
 import { siteConfig } from "@/lib/metadata";
 

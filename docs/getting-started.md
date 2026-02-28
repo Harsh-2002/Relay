@@ -96,6 +96,18 @@ relay update
 
 Auto-detects your install method (npm or git source) and updates to the latest version. Restarts the daemon automatically if it's running.
 
+**Upgrading from v1.0.x:** The `relay update` command was added in v1.1.0. To upgrade from an older version, run the one-time manual update for your install method:
+
+```bash
+# npm
+npm install -g @4via6/relay@latest
+
+# From source
+git pull && npm install && npm run build
+```
+
+After that, `relay update` will work for all future updates.
+
 ## First Steps
 
 1. Open your bot in Telegram

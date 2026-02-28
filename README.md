@@ -100,6 +100,16 @@ relay update
 
 Detects how Relay was installed (npm global or git source) and updates accordingly. If the daemon is running, it's automatically restarted after the update.
 
+**Upgrading from v1.0.x** (before `relay update` existed):
+
+```bash
+# npm
+npm install -g @4via6/relay@latest
+
+# From source
+git pull && npm install && npm run build
+```
+
 ## Configuration
 
 Config is stored in `.relay/config.json`. Use the setup wizard or CLI flags:

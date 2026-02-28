@@ -308,6 +308,20 @@ Or access the raw files directly:
 ~/.pm2/logs/relay-error.log  # stderr
 ```
 
+### "relay update" / "relay start" — command not found
+
+These commands were added in v1.1.0. If you're on an older version, update manually first:
+
+```bash
+# npm
+npm install -g @4via6/relay@latest
+
+# From source
+git pull && npm install && npm run build
+```
+
+After that, `relay update` will work for all future updates.
+
 ---
 
 ## General

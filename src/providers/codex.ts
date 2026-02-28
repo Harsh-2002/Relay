@@ -19,6 +19,8 @@ import type {
 } from "./types.js";
 import { JsonStore } from "../utils/store.js";
 import { getConfig } from "../config/index.js";
+import { writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 
 // Dynamic import — only loads when PROVIDER=codex
 let CodexClass: any;
@@ -156,6 +158,46 @@ export class CodexProvider implements Provider {
 
   // --- Messaging ---
 
+  /**
+   * Build the input parameter for the Codex SDK.
+   * If parts contain images, writes them to temp files and returns UserInput[]
+   * with local_image entries. Otherwise returns the plain text string.
+   */
+  private buildInput(text: string, options?: PromptOptions): string | any[] {
+    const fileParts = (options?.parts ?? []).filter(
+      (p): p is Extract<import("./types.js").MessagePart, { type: "file" }> =>
+        p.type === "file"
+    );
+
+    if (fileParts.length === 0) {
+      return text;
+    }
+
+    const inputs: any[] = [];
+
+    // Add image inputs
+    for (const part of fileParts) {
+      if (part.url.startsWith("data:")) {
+        const match = part.url.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const ext = match[1].split("/")[1] ?? "bin";
+          const tmpDir = join(this.cwd, ".relay", "tmp");
+          mkdirSync(tmpDir, { recursive: true });
+          const tmpPath = join(tmpDir, `img-${Date.now()}.${ext}`);
+          writeFileSync(tmpPath, Buffer.from(match[2], "base64"));
+          inputs.push({ type: "local_image", path: tmpPath });
+        }
+      }
+    }
+
+    // Add text input
+    if (text) {
+      inputs.push({ type: "text", text });
+    }
+
+    return inputs;
+  }
+
   private async getOrResumeThread(sessionId: string): Promise<any> {
     let thread = threads.get(sessionId);
     if (!thread) {
@@ -180,7 +222,8 @@ export class CodexProvider implements Provider {
     abortControllers.set(sessionId, controller);
 
     try {
-      const result = await thread.run(text, {
+      const input = this.buildInput(text, options);
+      const result = await thread.run(input, {
         signal: controller.signal,
         model: options?.model?.modelID ?? this.model,
       });
@@ -209,12 +252,13 @@ export class CodexProvider implements Provider {
 
     const controller = new AbortController();
     abortControllers.set(sessionId, controller);
+    const input = this.buildInput(text, options);
 
     try {
       if (!thread.runStreamed) {
         // Fallback: non-streaming (inlined to avoid orphaning the outer AbortController)
         try {
-          const result = await thread.run(text, {
+          const result = await thread.run(input, {
             signal: controller.signal,
             model: options?.model?.modelID ?? this.model,
           });
@@ -227,7 +271,7 @@ export class CodexProvider implements Provider {
         return;
       }
 
-      const { events } = await thread.runStreamed(text, {
+      const { events } = await thread.runStreamed(input, {
         signal: controller.signal,
         model: options?.model?.modelID ?? this.model,
       });

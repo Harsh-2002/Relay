@@ -473,41 +473,37 @@ export class ClaudeProvider implements Provider {
   // --- Models ---
 
   async listModels(): Promise<ModelDetail[]> {
-    // Fetch models dynamically from Anthropic API
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return this.fallbackModels();
-
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-      });
-      if (!res.ok) return this.fallbackModels();
-
-      const body = await res.json() as any;
-      const models: ModelDetail[] = (body.data ?? []).map((m: any) => ({
-        id: m.id,
-        name: m.display_name ?? m.id,
-        provider: "anthropic",
-        reasoning: /opus|sonnet-4/i.test(m.id),
-        attachment: false,
-        active: this.model === m.id,
-      }));
-
-      return models.length > 0 ? models : this.fallbackModels();
-    } catch {
-      return this.fallbackModels();
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY is required to list models.");
     }
-  }
 
-  private fallbackModels(): ModelDetail[] {
-    return [
-      { id: "sonnet", name: "Claude Sonnet", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "sonnet" },
-      { id: "opus", name: "Claude Opus", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "opus" },
-      { id: "haiku", name: "Claude Haiku", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "haiku" },
-    ];
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch models from Anthropic API (HTTP ${res.status}). Check your ANTHROPIC_API_KEY.`);
+    }
+
+    const body = await res.json() as any;
+    const models: ModelDetail[] = (body.data ?? []).map((m: any) => ({
+      id: m.id,
+      name: m.display_name ?? m.id,
+      provider: "anthropic",
+      reasoning: /opus|sonnet-4/i.test(m.id),
+      attachment: false,
+      active: this.model === m.id,
+    }));
+
+    if (models.length === 0) {
+      throw new Error("No models returned from Anthropic API. Check your ANTHROPIC_API_KEY permissions.");
+    }
+
+    return models;
   }
 
   // --- MCP ---

@@ -236,8 +236,8 @@ Capabilities: reasoning, vision
 ### Provider behavior
 
 - **OpenCode**: Lists all models from all configured providers dynamically
-- **Claude**: Fetches available models from the Anthropic API (`GET /v1/models`). Falls back to a static list (sonnet, opus, haiku) if the API is unreachable.
-- **Codex**: Fetches available models from the OpenAI API (`GET /v1/models`). Falls back to a static list (o3, o4-mini) if the API is unreachable.
+- **Claude**: Fetches available models dynamically from the Anthropic API (`GET /v1/models`)
+- **Codex**: Fetches available models dynamically from the OpenAI API (`GET /v1/models`)
 
 ---
 

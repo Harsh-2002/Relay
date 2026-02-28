@@ -102,7 +102,7 @@ Get your API key from the [Anthropic Console](https://console.anthropic.com/). T
 
 ### Models
 
-Models are fetched dynamically from the Anthropic API (`GET /v1/models`), so new models are automatically available without a bot update. If the API is unreachable, a fallback list is used (sonnet, opus, haiku).
+Models are fetched dynamically from the Anthropic API (`GET /v1/models`), so new models are automatically available without a bot update.
 
 Use `/models` to see all available models, and `/model <id>` to switch:
 
@@ -176,7 +176,7 @@ You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_
 
 ### Models
 
-Models are fetched dynamically from the OpenAI API (`GET /v1/models`), so new models are automatically available without a bot update. If the API is unreachable, a fallback list is used (o3, o4-mini).
+Models are fetched dynamically from the OpenAI API (`GET /v1/models`), so new models are automatically available without a bot update.
 
 Use `/models` to see all available models, and `/model <id>` to switch:
 

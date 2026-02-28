@@ -1,6 +1,6 @@
 {
   "name": "@4via6/relay",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Telegram bot for AI coding agents — supports OpenCode, Claude Code, and OpenAI Codex",
   "type": "module",
   "main": "dist/index.js",
@@ -39,7 +39,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^2.1.63",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.63",
     "@inquirer/prompts": "^8.3.0",
     "@opencode-ai/sdk": "^1.2.15",
     "@openai/codex-sdk": "^0.106.0",

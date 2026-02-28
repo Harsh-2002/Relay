@@ -58,12 +58,12 @@ export class ClaudeProvider implements Provider {
 
   async init(): Promise<void> {
     try {
-      const sdk = await import("@anthropic-ai/claude-code");
+      const sdk = await import("@anthropic-ai/claude-agent-sdk");
       queryFn = sdk.query;
       listSessionsFn = sdk.listSessions;
     } catch (err: any) {
       throw new Error(
-        "Could not load the Claude Code SDK (@anthropic-ai/claude-code).\n\n" +
+        "Could not load the Claude Agent SDK (@anthropic-ai/claude-agent-sdk).\n\n" +
           "  This SDK is bundled with Relay and should work out of the box.\n" +
           "  Try reinstalling Relay:\n\n" +
           "    npm install -g @4via6/relay@latest\n\n" +

@@ -145,6 +145,65 @@ export class ClaudeProvider implements Provider {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
   }
 
+  /**
+   * Build the prompt parameter for the SDK query function.
+   * If parts contain images, constructs a MessageParam with image content blocks
+   * via AsyncIterable<SDKUserMessage>. Otherwise returns the plain text string.
+   */
+  private buildPromptParam(
+    sessionId: string,
+    text: string,
+    options?: PromptOptions
+  ): string | AsyncGenerator<any> {
+    const fileParts = (options?.parts ?? []).filter(
+      (p): p is Extract<import("./types.js").MessagePart, { type: "file" }> =>
+        p.type === "file"
+    );
+
+    if (fileParts.length === 0) {
+      return text;
+    }
+
+    // Build Anthropic API content blocks
+    const content: any[] = [];
+
+    // Add image blocks first (model sees them before the text)
+    for (const part of fileParts) {
+      if (part.url.startsWith("data:")) {
+        const match = part.url.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          content.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: match[1],
+              data: match[2],
+            },
+          });
+        }
+      }
+    }
+
+    // Add text block
+    if (text) {
+      content.push({ type: "text", text });
+    }
+
+    // Wrap in SDKUserMessage async iterable
+    const message = {
+      type: "user" as const,
+      message: { role: "user" as const, content },
+      parent_tool_use_id: null,
+      session_id: sessionId,
+    };
+
+    async function* gen() {
+      yield message;
+    }
+
+    return gen();
+  }
+
   private buildQueryOpts(sessionId: string, options?: PromptOptions): { opts: any; stderr: string[] } {
     const stderr: string[] = [];
     const queryOpts: any = {
@@ -174,9 +233,10 @@ export class ClaudeProvider implements Provider {
     let resultText = "";
 
     const { opts: queryOpts, stderr } = this.buildQueryOpts(sessionId, options);
+    const promptParam = this.buildPromptParam(sessionId, text, options);
 
     const messages = queryFn({
-      prompt: text,
+      prompt: promptParam,
       options: queryOpts,
     });
 
@@ -222,9 +282,10 @@ export class ClaudeProvider implements Provider {
     options?: PromptOptions
   ): AsyncGenerator<StreamChunk> {
     const { opts: queryOpts, stderr } = this.buildQueryOpts(sessionId, options);
+    const promptParam = this.buildPromptParam(sessionId, text, options);
 
     const messages = queryFn({
-      prompt: text,
+      prompt: promptParam,
       options: queryOpts,
     });
 

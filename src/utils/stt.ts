@@ -76,8 +76,7 @@ async function transcribeWithOpenAI(
   );
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI Whisper error (${response.status}): ${errorText}`);
+    throw new Error(`Voice transcription failed (OpenAI, HTTP ${response.status})`);
   }
 
   const data = (await response.json()) as { text: string };
@@ -105,8 +104,7 @@ async function transcribeWithGroq(
   );
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Groq Whisper error (${response.status}): ${errorText}`);
+    throw new Error(`Voice transcription failed (Groq, HTTP ${response.status})`);
   }
 
   const data = (await response.json()) as { text: string };
@@ -129,7 +127,7 @@ async function transcribeWithAssemblyAI(
   });
 
   if (!uploadResp.ok) {
-    throw new Error(`AssemblyAI upload error: ${uploadResp.status}`);
+    throw new Error(`Voice transcription failed (AssemblyAI upload, HTTP ${uploadResp.status})`);
   }
 
   const { upload_url } = (await uploadResp.json()) as { upload_url: string };
@@ -148,7 +146,7 @@ async function transcribeWithAssemblyAI(
   );
 
   if (!transcriptResp.ok) {
-    throw new Error(`AssemblyAI transcript error: ${transcriptResp.status}`);
+    throw new Error(`Voice transcription failed (AssemblyAI, HTTP ${transcriptResp.status})`);
   }
 
   const { id } = (await transcriptResp.json()) as { id: string };
@@ -171,7 +169,7 @@ async function transcribeWithAssemblyAI(
       return { text: result.text ?? "", provider: "assemblyai" };
     }
     if (result.status === "error") {
-      throw new Error(`AssemblyAI error: ${result.error}`);
+      throw new Error("Voice transcription failed (AssemblyAI processing error)");
     }
 
     await new Promise((r) => setTimeout(r, 1500));

@@ -12,10 +12,6 @@ dist/
 # Uploads directory (runtime files)
 uploads/
 
-# Lock files
-bun.lock
-bun.lockb
-
 # OS files
 .DS_Store
 Thumbs.db

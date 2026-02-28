@@ -39,7 +39,7 @@ export function registerMediaHandlers(bot: Bot): void {
         parts = [
           {
             type: "text" as const,
-            text: `${caption}\n\n(File saved to: ${localPath})`,
+            text: `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`,
           },
         ];
       }
@@ -284,7 +284,7 @@ export function registerMediaHandlers(bot: Bot): void {
           parts: [
             {
               type: "text",
-              text: `${caption}\n\n(Audio saved to: ${localPath})`,
+              text: `${caption}\n\n(Audio file: ${fileName})`,
             },
           ],
           ...(model && { model }),

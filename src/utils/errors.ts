@@ -3,8 +3,7 @@
  * All output is HTML-formatted for parse_mode: "HTML".
  */
 
-const HOST = process.env.OPENCODE_HOSTNAME ?? "127.0.0.1";
-const PORT = process.env.OPENCODE_PORT ?? "4096";
+const MAX_ERROR_LENGTH = 200;
 
 /**
  * Format an SDK result.error into a user-friendly HTML message.
@@ -17,7 +16,7 @@ export function formatSdkError(error: unknown): string {
     return (
       `<b>Rate limit exceeded</b>\n\n` +
       `The AI provider is throttling requests. This usually means the model's token limit was exceeded.\n\n` +
-      `<i>${escapeHtml(msg)}</i>`
+      `<i>${escapeHtml(truncate(msg))}</i>`
     );
   }
 
@@ -26,7 +25,7 @@ export function formatSdkError(error: unknown): string {
     return (
       `<b>Model not found</b>\n\n` +
       `The selected model isn't available. Use /model to check or /providers to see what's available.\n\n` +
-      `<i>${escapeHtml(msg)}</i>`
+      `<i>${escapeHtml(truncate(msg))}</i>`
     );
   }
 
@@ -43,12 +42,12 @@ export function formatSdkError(error: unknown): string {
     return (
       `<b>Authentication error</b>\n\n` +
       `The AI provider rejected the request. Check your API keys and provider configuration.\n\n` +
-      `<i>${escapeHtml(msg)}</i>`
+      `<i>${escapeHtml(truncate(msg))}</i>`
     );
   }
 
-  // Generic — show the actual error
-  return `<b>Error</b>\n\n<i>${escapeHtml(msg)}</i>`;
+  // Generic — show truncated error (don't leak full internals)
+  return `<b>Error</b>\n\n<i>${escapeHtml(truncate(msg))}</i>`;
 }
 
 /**
@@ -61,7 +60,7 @@ export function formatCatchError(err: unknown, context: string): string {
   if (matchesAny(msg, ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "fetch failed", "network", "socket"])) {
     return (
       `<b>Server unreachable</b>\n\n` +
-      `Cannot connect to OpenCode at <code>${HOST}:${PORT}</code>. Make sure the server is running.`
+      `Cannot reach the AI server. Make sure OpenCode is running.`
     );
   }
 
@@ -78,7 +77,7 @@ export function formatCatchError(err: unknown, context: string): string {
     return (
       `<b>Rate limit exceeded</b>\n\n` +
       `The AI provider is throttling requests. Wait a moment and try again.\n\n` +
-      `<i>${escapeHtml(msg)}</i>`
+      `<i>${escapeHtml(truncate(msg))}</i>`
     );
   }
 
@@ -87,14 +86,14 @@ export function formatCatchError(err: unknown, context: string): string {
     return (
       `<b>Model not found</b>\n\n` +
       `The selected model isn't available. Use /model to check or /providers to see what's available.\n\n` +
-      `<i>${escapeHtml(msg)}</i>`
+      `<i>${escapeHtml(truncate(msg))}</i>`
     );
   }
 
   // Generic — show what happened and why
   return (
     `<b>Error ${escapeHtml(context)}</b>\n\n` +
-    `<i>${escapeHtml(msg)}</i>`
+    `<i>${escapeHtml(truncate(msg))}</i>`
   );
 }
 
@@ -119,11 +118,10 @@ function extractMessage(error: unknown): string {
     if (typeof e.message === "string" && e.message) return e.message;
     if (e.error && typeof e.error === "object" && typeof e.error.message === "string") return e.error.message;
     if (typeof e.error === "string") return e.error;
-    // Status code errors
+    // Status code errors — don't include full body (may contain secrets)
     if (e.statusCode || e.status) {
       const code = e.statusCode ?? e.status;
-      const body = e.body ?? e.data ?? "";
-      return `HTTP ${code}${body ? `: ${typeof body === "string" ? body : JSON.stringify(body)}` : ""}`;
+      return `HTTP ${code}`;
     }
     // Last resort — stringify but keep it short
     try {
@@ -139,6 +137,11 @@ function extractMessage(error: unknown): string {
 function matchesAny(text: string, patterns: string[]): boolean {
   const lower = text.toLowerCase();
   return patterns.some((p) => lower.includes(p.toLowerCase()));
+}
+
+function truncate(text: string): string {
+  if (text.length <= MAX_ERROR_LENGTH) return text;
+  return text.slice(0, MAX_ERROR_LENGTH) + "...";
 }
 
 function escapeHtml(text: string): string {

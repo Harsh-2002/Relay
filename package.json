@@ -8,8 +8,8 @@
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "latest",
-    "grammy": "latest"
+    "@opencode-ai/sdk": "^1.2.15",
+    "grammy": "^1.40.1"
   },
   "devDependencies": {
     "@types/bun": "latest",

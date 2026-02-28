@@ -1,5 +1,7 @@
 import { initClient, shutdownServer } from "./client.js";
 import { createBot } from "./bot.js";
+import { isAuthConfigured } from "./auth.js";
+import { startUploadCleanup } from "./utils/media.js";
 
 async function main() {
   const botToken = process.env.BOT_TOKEN;
@@ -8,9 +10,17 @@ async function main() {
     process.exit(1);
   }
 
+  if (!isAuthConfigured()) {
+    console.error("ALLOWED_USER_ID environment variable is required (must be a valid Telegram user ID).");
+    process.exit(1);
+  }
+
   console.log("Initializing OpenCode client...");
   await initClient();
   console.log("OpenCode client ready.");
+
+  // Clean up old uploads every 30 minutes
+  startUploadCleanup();
 
   const bot = createBot(botToken);
 

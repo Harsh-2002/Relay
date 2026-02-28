@@ -154,7 +154,6 @@ export function registerMediaHandlers(bot: Bot): void {
     try {
       await ctx.replyWithChatAction("typing");
 
-      const voice = ctx.message.voice;
       const file = await ctx.getFile();
       const fileName = `voice_${Date.now()}.ogg`;
 
@@ -165,11 +164,6 @@ export function registerMediaHandlers(bot: Bot): void {
         await ctx.reply("Could not transcribe voice message (empty result).");
         return;
       }
-
-      const duration = voice.duration;
-      await ctx.reply(
-        `Transcription (${duration}s, ${result.provider}):\n"${result.text}"`
-      );
 
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
@@ -224,11 +218,6 @@ export function registerMediaHandlers(bot: Bot): void {
         const result = await transcribeAudio(buffer, fileName);
 
         if (result.text && result.text.trim().length > 0) {
-          const duration = audio.duration;
-          await ctx.reply(
-            `Transcription (${duration}s, ${result.provider}):\n"${result.text}"`
-          );
-
           await ctx.replyWithChatAction("typing");
 
           const sessionId = await getOrCreateSession();

@@ -1,7 +1,14 @@
 import { getClient } from "./client.js";
 
 let activeSessionId: string | null = null;
-let selectedModel: { providerID: string; modelID: string } | null = null;
+let selectedModel: { providerID: string; modelID: string } | null = (() => {
+  const envModel = process.env.OPENCODE_MODEL;
+  if (envModel && envModel.includes("/")) {
+    const [providerID, ...rest] = envModel.split("/");
+    return { providerID, modelID: rest.join("/") };
+  }
+  return null;
+})();
 
 export async function getOrCreateSession(): Promise<string> {
   if (activeSessionId) return activeSessionId;

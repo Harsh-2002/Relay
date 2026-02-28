@@ -473,12 +473,40 @@ export class ClaudeProvider implements Provider {
   // --- Models ---
 
   async listModels(): Promise<ModelDetail[]> {
+    // Fetch models dynamically from Anthropic API
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return this.fallbackModels();
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+      });
+      if (!res.ok) return this.fallbackModels();
+
+      const body = await res.json() as any;
+      const models: ModelDetail[] = (body.data ?? []).map((m: any) => ({
+        id: m.id,
+        name: m.display_name ?? m.id,
+        provider: "anthropic",
+        reasoning: /opus|sonnet-4/i.test(m.id),
+        attachment: false,
+        active: this.model === m.id,
+      }));
+
+      return models.length > 0 ? models : this.fallbackModels();
+    } catch {
+      return this.fallbackModels();
+    }
+  }
+
+  private fallbackModels(): ModelDetail[] {
     return [
       { id: "sonnet", name: "Claude Sonnet", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "sonnet" },
       { id: "opus", name: "Claude Opus", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "opus" },
       { id: "haiku", name: "Claude Haiku", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "haiku" },
-      { id: "claude-sonnet-4-5-20250514", name: "Claude Sonnet 4.5", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "claude-sonnet-4-5-20250514" },
-      { id: "claude-opus-4-0-20250514", name: "Claude Opus 4", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "claude-opus-4-0-20250514" },
     ];
   }
 

@@ -453,6 +453,35 @@ export class CodexProvider implements Provider {
   // --- Models ---
 
   async listModels(): Promise<ModelDetail[]> {
+    // Fetch models dynamically from OpenAI API
+    const apiKey = process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY;
+    if (!apiKey) return this.fallbackModels();
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!res.ok) return this.fallbackModels();
+
+      const body = await res.json() as any;
+      const models: ModelDetail[] = (body.data ?? [])
+        .map((m: any) => ({
+          id: m.id,
+          name: m.id,
+          provider: "openai",
+          reasoning: /^(o[0-9]|gpt-5)/i.test(m.id),
+          attachment: false,
+          active: this.model === m.id,
+        }))
+        .sort((a: ModelDetail, b: ModelDetail) => a.id.localeCompare(b.id));
+
+      return models.length > 0 ? models : this.fallbackModels();
+    } catch {
+      return this.fallbackModels();
+    }
+  }
+
+  private fallbackModels(): ModelDetail[] {
     return [
       { id: "o3", name: "o3", provider: "openai", reasoning: true, attachment: false, active: this.model === "o3" },
       { id: "o4-mini", name: "o4 Mini", provider: "openai", reasoning: true, attachment: false, active: this.model === "o4-mini" },

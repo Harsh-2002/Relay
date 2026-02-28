@@ -102,20 +102,14 @@ Get your API key from the [Anthropic Console](https://console.anthropic.com/). T
 
 ### Models
 
-Available models:
+Models are fetched dynamically from the Anthropic API (`GET /v1/models`), so new models are automatically available without a bot update. If the API is unreachable, a fallback list is used (sonnet, opus, haiku).
 
-| Model | ID | Description |
-|-------|-----|-------------|
-| Claude Sonnet | `sonnet` | Fast, capable, good for most tasks |
-| Claude Opus | `opus` | Most powerful, supports extended thinking |
-| Claude Haiku | `haiku` | Fastest, best for simple tasks |
-
-Switch at runtime:
+Use `/models` to see all available models, and `/model <id>` to switch:
 
 ```
-/model sonnet
-/model opus
-/model haiku
+/models              -- List all available Anthropic models
+/model sonnet        -- Switch by alias
+/model claude-opus-4-0-20250514  -- Switch by full ID
 ```
 
 ### Permission Mode
@@ -148,7 +142,7 @@ MCP configs are persisted to `.ocbot/claude-mcp.json` and automatically restored
 | Sessions | Create, list, delete, fork |
 | Shell access | Via prompt (asks Claude to run commands) |
 | MCP management | Persisted to disk |
-| Model selection | Static list (sonnet, opus, haiku, sonnet-4.5, opus-4) |
+| Model selection | Dynamic (fetched from Anthropic API) |
 | File operations | Via prompt delegation (read, find, search, git status) |
 | Code diffs | Via prompt delegation (git diff) |
 | History | Supported (session message history) |
@@ -182,14 +176,15 @@ You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_
 
 ### Models
 
-Available models:
+Models are fetched dynamically from the OpenAI API (`GET /v1/models`), so new models are automatically available without a bot update. If the API is unreachable, a fallback list is used (o3, o4-mini).
 
-| Model | ID | Description |
-|-------|-----|-------------|
-| o3 | `o3` | Powerful reasoning model |
-| o4 Mini | `o4-mini` | Faster, more affordable |
+Use `/models` to see all available models, and `/model <id>` to switch:
 
-Both models have built-in reasoning capabilities (shown as `[reasoning]` in `/models`).
+```
+/models              -- List all available OpenAI models
+/model o3            -- Switch to o3
+/model o4-mini       -- Switch to o4-mini
+```
 
 ### Working Directory
 
@@ -203,7 +198,7 @@ Set `CODEX_CWD` to the project directory. Defaults to the directory where OCBot 
 | Sessions | Create, list, delete (persisted to disk) |
 | Shell access | Via prompt (asks Codex to run commands) |
 | MCP management | Not supported |
-| Model selection | Static list (o3, o4-mini) |
+| Model selection | Dynamic (fetched from OpenAI API) |
 | File operations | Via prompt delegation (read, find, search, git status) |
 | Code diffs | Via prompt delegation (git diff) |
 | Todos | Not supported |
@@ -218,7 +213,7 @@ Set `CODEX_CWD` to the project directory. Defaults to the directory where OCBot 
 | Streaming | yes | yes | yes |
 | File output (screenshots) | yes | no | no |
 | MCP management | full API | persisted | no |
-| Model listing | dynamic | static | static |
+| Model listing | dynamic | dynamic (API) | dynamic (API) |
 | Todo tracking | yes | no | no |
 | Code diffs | yes | via prompt | via prompt |
 | Session forking | yes | yes | no |

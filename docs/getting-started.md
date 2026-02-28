@@ -13,8 +13,16 @@ This guide walks you through setting up Relay from scratch.
 
 ### From npm (recommended)
 
+Relay is published as [`@4via6/relay`](https://www.npmjs.com/package/@4via6/relay) on npm:
+
 ```bash
 npm install -g @4via6/relay
+```
+
+Or run directly without installing:
+
+```bash
+npx @4via6/relay
 ```
 
 ### From source

@@ -31,6 +31,10 @@
     "mcp",
     "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Harsh-2002/Relay"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

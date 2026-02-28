@@ -1,5 +1,5 @@
 {
-  "name": "relay",
+  "name": "@4via6/relay",
   "version": "1.0.0",
   "description": "Telegram bot for AI coding agents — supports OpenCode, Claude Code, and OpenAI Codex",
   "type": "module",

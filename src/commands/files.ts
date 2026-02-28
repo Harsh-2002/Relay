@@ -3,12 +3,13 @@ import { InputFile } from "grammy";
 import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerFileCommands(bot: Bot): void {
   bot.command("read", async (ctx) => {
     const filePath = ctx.match?.trim();
     if (!filePath) {
-      await ctx.reply("Usage: /read <file-path>");
+      await ctx.reply("Usage: <code>/read &lt;file-path&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -19,12 +20,13 @@ export function registerFileCommands(bot: Bot): void {
 
       if (content === null) {
         await ctx.reply(
-          `File reading is not directly supported by the ${provider.name} provider.`
+          `File reading is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      const header = `**${filePath}**\n\n`;
+      const header = `<b>${escapeHtml(filePath)}</b>\n\n`;
 
       if (content.length > 15000) {
         const buffer = Buffer.from(content, "utf-8");
@@ -33,14 +35,10 @@ export function registerFileCommands(bot: Bot): void {
         return;
       }
 
-      const formatted = header + "```\n" + content + "\n```";
+      const formatted = header + "<pre>" + escapeHtml(content) + "</pre>";
       const chunks = chunkMessage(formatted);
       for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
+        await ctx.reply(chunk, { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "reading file"), { parse_mode: "HTML" });
@@ -50,7 +48,7 @@ export function registerFileCommands(bot: Bot): void {
   bot.command("search", async (ctx) => {
     const pattern = ctx.match?.trim();
     if (!pattern) {
-      await ctx.reply("Usage: /search <pattern>");
+      await ctx.reply("Usage: <code>/search &lt;pattern&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -61,29 +59,27 @@ export function registerFileCommands(bot: Bot): void {
 
       if (matches === null) {
         await ctx.reply(
-          `Text search is not directly supported by the ${provider.name} provider.`
+          `Text search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (matches.length === 0) {
-        await ctx.reply(`No matches found for: ${pattern}`);
+        await ctx.reply(`No matches found for: <code>${escapeHtml(pattern)}</code>`, { parse_mode: "HTML" });
         return;
       }
 
-      const text = matches
-        .slice(0, 20)
-        .map((m) => `**${m.file}${m.line ? `:${m.line}` : ""}**\n\`${m.text ?? ""}\``)
+      const shown = matches.slice(0, 20);
+      const text = shown
+        .map((m) => `<b>${escapeHtml(m.file)}${m.line ? `:${m.line}` : ""}</b>\n<code>${escapeHtml(m.text ?? "")}</code>`)
         .join("\n\n");
 
-      const header = `Found ${matches.length} match(es) for \`${pattern}\`:\n\n`;
-      const chunks = chunkMessage(header + text);
+      const header = `Found ${matches.length} match(es) for <code>${escapeHtml(pattern)}</code>:\n\n`;
+      const footer = matches.length > 20 ? `\n\n<i>...and ${matches.length - 20} more</i>` : "";
+      const chunks = chunkMessage(header + text + footer);
       for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
+        await ctx.reply(chunk, { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "searching files"), { parse_mode: "HTML" });
@@ -93,7 +89,7 @@ export function registerFileCommands(bot: Bot): void {
   bot.command("find", async (ctx) => {
     const query = ctx.match?.trim();
     if (!query) {
-      await ctx.reply("Usage: /find <filename-pattern>");
+      await ctx.reply("Usage: <code>/find &lt;filename-pattern&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -104,25 +100,24 @@ export function registerFileCommands(bot: Bot): void {
 
       if (files === null) {
         await ctx.reply(
-          `File search is not directly supported by the ${provider.name} provider.`
+          `File search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (files.length === 0) {
-        await ctx.reply(`No files found matching: ${query}`);
+        await ctx.reply(`No files found matching: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
         return;
       }
 
-      const text = files.slice(0, 50).map((f) => `\`${f}\``).join("\n");
-      const header = `Found ${files.length} file(s) matching \`${query}\`:\n\n`;
-      const chunks = chunkMessage(header + text);
+      const shown = files.slice(0, 50);
+      const text = shown.map((f) => `<code>${escapeHtml(f)}</code>`).join("\n");
+      const header = `Found ${files.length} file(s) matching <code>${escapeHtml(query)}</code>:\n\n`;
+      const footer = files.length > 50 ? `\n\n<i>...and ${files.length - 50} more</i>` : "";
+      const chunks = chunkMessage(header + text + footer);
       for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
+        await ctx.reply(chunk, { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "finding files"), { parse_mode: "HTML" });
@@ -132,7 +127,7 @@ export function registerFileCommands(bot: Bot): void {
   bot.command("symbols", async (ctx) => {
     const query = ctx.match?.trim();
     if (!query) {
-      await ctx.reply("Usage: /symbols <query>");
+      await ctx.reply("Usage: <code>/symbols &lt;query&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -142,22 +137,24 @@ export function registerFileCommands(bot: Bot): void {
 
       if (symbols === null) {
         await ctx.reply(
-          `Symbol search is not supported by the ${provider.name} provider.`
+          `Symbol search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (symbols.length === 0) {
-        await ctx.reply(`No symbols found for: ${query}`);
+        await ctx.reply(`No symbols found for: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
         return;
       }
 
-      const text = symbols
-        .slice(0, 30)
-        .map((s: any) => `\`${s.name}\` in \`${s.location?.path ?? "unknown"}\``)
+      const shown = symbols.slice(0, 30);
+      const text = shown
+        .map((s: any) => `<code>${escapeHtml(s.name)}</code> in <code>${escapeHtml(s.location?.path ?? "unknown")}</code>`)
         .join("\n");
 
-      await ctx.reply(`Found ${symbols.length} symbol(s):\n\n${text}`, { parse_mode: "Markdown" });
+      const footer = symbols.length > 30 ? `\n\n<i>...and ${symbols.length - 30} more</i>` : "";
+      await ctx.reply(`Found ${symbols.length} symbol(s):\n\n${text}${footer}`, { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "searching symbols"), { parse_mode: "HTML" });
     }
@@ -170,21 +167,22 @@ export function registerFileCommands(bot: Bot): void {
 
       if (files === null) {
         await ctx.reply(
-          `File status is not directly supported by the ${provider.name} provider.`
+          `File status is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (files.length === 0) {
-        await ctx.reply("No changed files (clean working tree).");
+        await ctx.reply("No changed files (clean working tree).", { parse_mode: "HTML" });
         return;
       }
 
       const text = files
-        .map((f) => `\`${f.status}\` ${f.path}`)
+        .map((f) => `<code>${escapeHtml(f.status)}</code> ${escapeHtml(f.path)}`)
         .join("\n");
 
-      await ctx.reply(`**File status:**\n\n${text}`, { parse_mode: "Markdown" });
+      await ctx.reply(`<b>File status:</b>\n\n${text}`, { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching file status"), { parse_mode: "HTML" });
     }

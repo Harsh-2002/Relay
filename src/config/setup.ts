@@ -68,9 +68,11 @@ export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
     config.claudePermissionMode = await select({
       message: "Permission mode:",
       choices: [
-        { value: "acceptEdits", name: "Accept Edits (default)" },
-        { value: "full", name: "Full" },
-        { value: "plan", name: "Plan" },
+        { value: "acceptEdits", name: "Accept Edits — approve file writes (default)" },
+        { value: "bypassPermissions", name: "Bypass Permissions — no prompts" },
+        { value: "dontAsk", name: "Don't Ask — allow everything silently" },
+        { value: "plan", name: "Plan — read-only, no writes" },
+        { value: "default", name: "Default — prompt for all actions" },
       ],
     });
   } else if (provider === "codex") {

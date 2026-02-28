@@ -11,6 +11,7 @@ import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
 import { readFileSync } from "fs";
 import { getConfig } from "../config/index.js";
+import { chatLogger } from "../utils/logger.js";
 
 function getBotToken(): string {
   return getConfig().botToken;
@@ -32,7 +33,13 @@ export function registerMediaHandlers(bot: Bot): void {
       let promptText: string;
 
       if (isTextFile) {
-        const content = readFileSync(localPath, "utf-8");
+        let content: string;
+        try {
+          content = readFileSync(localPath, "utf-8");
+        } catch {
+          await ctx.reply("Failed to read the uploaded file. Please try again.", { parse_mode: "HTML" });
+          return;
+        }
         if (content.length <= 500_000) {
           promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
         } else {
@@ -134,7 +141,8 @@ export function registerMediaHandlers(bot: Bot): void {
   bot.on("message:voice", async (ctx) => {
     if (!isSttAvailable()) {
       await ctx.reply(
-        "Voice messages not supported. Configure GROQ_API_KEY, OPENAI_API_KEY, or ASSEMBLYAI_API_KEY."
+        "Voice messages not supported. Configure <code>GROQ_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>ASSEMBLYAI_API_KEY</code>.",
+        { parse_mode: "HTML" }
       );
       return;
     }
@@ -149,7 +157,7 @@ export function registerMediaHandlers(bot: Bot): void {
       const result = await transcribeAudio(buffer, fileName);
 
       if (!result.text || result.text.trim().length === 0) {
-        await ctx.reply("Could not transcribe voice message (empty result).");
+        await ctx.reply("Could not transcribe voice message (empty result).", { parse_mode: "HTML" });
         return;
       }
 
@@ -280,7 +288,11 @@ async function sendTextChunks(ctx: any, text: string): Promise<void> {
   for (const chunk of chunks) {
     try {
       await ctx.reply(chunk, { parse_mode: "Markdown" });
-    } catch {
+    } catch (sendErr: any) {
+      const desc = sendErr?.description ?? sendErr?.message ?? "";
+      if (!desc.includes("can't parse")) {
+        chatLogger.warn({ err: desc }, "Failed to send message chunk");
+      }
       await ctx.reply(chunk);
     }
   }

@@ -9,7 +9,8 @@ export function registerMcpCommands(bot: Bot): void {
 
     if (!provider.capabilities.mcp) {
       await ctx.reply(
-        `MCP management is not supported by the ${provider.name} provider.`
+        `MCP management is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+        { parse_mode: "HTML" }
       );
       return;
     }
@@ -40,7 +41,7 @@ async function handleMcpStatus(ctx: any): Promise<void> {
     const servers = await provider.getMcpStatus();
 
     if (servers === null) {
-      await ctx.reply("MCP status is not available.");
+      await ctx.reply("MCP status is not available.", { parse_mode: "HTML" });
       return;
     }
 

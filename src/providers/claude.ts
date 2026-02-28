@@ -19,12 +19,18 @@ import type {
 } from "./types.js";
 import { JsonStore } from "../utils/store.js";
 import { getConfig } from "../config/index.js";
+import { providerLogger } from "../utils/logger.js";
+import { setActiveSessionId } from "../session.js";
 
 // Dynamic import — only loads when PROVIDER=claude
 let queryFn: any;
 let listSessionsFn: any;
 // Per-session active query tracking (keyed by session ID)
 const activeQueries = new Map<string, any>();
+
+const VALID_PERMISSION_MODES = new Set([
+  "acceptEdits", "bypassPermissions", "default", "dontAsk", "plan",
+]);
 
 export class ClaudeProvider implements Provider {
   readonly name = "claude" as const;
@@ -57,6 +63,15 @@ export class ClaudeProvider implements Provider {
   }
 
   async init(): Promise<void> {
+    // Validate permission mode before loading the SDK
+    if (!VALID_PERMISSION_MODES.has(this.permissionMode)) {
+      throw new Error(
+        `Invalid claudePermissionMode: "${this.permissionMode}"\n\n` +
+          `  Valid modes: ${[...VALID_PERMISSION_MODES].join(", ")}\n` +
+          `  Update your config: ~/.relay/config.json`
+      );
+    }
+
     try {
       const sdk = await import("@anthropic-ai/claude-agent-sdk");
       queryFn = sdk.query;
@@ -88,9 +103,10 @@ export class ClaudeProvider implements Provider {
   // --- Sessions ---
 
   async createSession(title?: string): Promise<Session> {
-    // Generate a local ID. Claude will create the actual session
-    // implicitly on the first prompt() call via the resume option.
-    const sessionId = `claude-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Use a non-UUID placeholder so buildQueryOpts skips --resume.
+    // The real UUID session ID is captured from the first SDK result
+    // and stored for subsequent messages.
+    const sessionId = `claude-new-${Date.now()}`;
     return { id: sessionId, title: title ?? "Claude Session" };
   }
 
@@ -121,20 +137,33 @@ export class ClaudeProvider implements Provider {
 
   // --- Messaging ---
 
-  private buildQueryOpts(sessionId: string, options?: PromptOptions): any {
+  /** Real session ID returned by the SDK (UUID). */
+  public lastSessionId: string | null = null;
+
+  /** Check if a string looks like a valid UUID (Claude Code session format). */
+  private static isUUID(s: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+  }
+
+  private buildQueryOpts(sessionId: string, options?: PromptOptions): { opts: any; stderr: string[] } {
+    const stderr: string[] = [];
     const queryOpts: any = {
       model: options?.model?.modelID ?? this.model,
       permissionMode: this.permissionMode,
       cwd: this.cwd,
-      resume: sessionId,
+      stderr: (line: string) => { stderr.push(line); },
     };
+    // Only pass resume if we have a valid Claude session ID (UUID format)
+    if (ClaudeProvider.isUUID(sessionId)) {
+      queryOpts.resume = sessionId;
+    }
     if (options?.system) {
       queryOpts.systemPrompt = options.system;
     }
     if (this.mcpServers.size > 0) {
       queryOpts.mcpServers = Object.fromEntries(this.mcpServers);
     }
-    return queryOpts;
+    return { opts: queryOpts, stderr };
   }
 
   async prompt(
@@ -144,7 +173,7 @@ export class ClaudeProvider implements Provider {
   ): Promise<PromptResult> {
     let resultText = "";
 
-    const queryOpts = this.buildQueryOpts(sessionId, options);
+    const { opts: queryOpts, stderr } = this.buildQueryOpts(sessionId, options);
 
     const messages = queryFn({
       prompt: text,
@@ -162,9 +191,24 @@ export class ClaudeProvider implements Provider {
             }
           }
         } else if (msg.type === "result") {
-          if (msg.result) resultText = msg.result;
+          if (msg.is_error && msg.errors?.length) {
+            throw new Error(msg.errors.join("\n"));
+          }
+          if (msg.session_id && ClaudeProvider.isUUID(msg.session_id)) {
+            this.lastSessionId = msg.session_id;
+            setActiveSessionId(msg.session_id);
+            // Re-key activeQueries so abort() can find the query by real session ID
+            if (msg.session_id !== sessionId) {
+              activeQueries.set(msg.session_id, activeQueries.get(sessionId)!);
+              activeQueries.delete(sessionId);
+            }
+          }
+          // Only use result text if we didn't already collect from assistant messages
+          if (msg.result && !resultText) resultText = msg.result;
         }
       }
+    } catch (err: any) {
+      throw this.enrichError(err, stderr);
     } finally {
       activeQueries.delete(sessionId);
     }
@@ -177,7 +221,7 @@ export class ClaudeProvider implements Provider {
     text: string,
     options?: PromptOptions
   ): AsyncGenerator<StreamChunk> {
-    const queryOpts = this.buildQueryOpts(sessionId, options);
+    const { opts: queryOpts, stderr } = this.buildQueryOpts(sessionId, options);
 
     const messages = queryFn({
       prompt: text,
@@ -186,11 +230,16 @@ export class ClaudeProvider implements Provider {
 
     activeQueries.set(sessionId, messages);
 
+    let msgCount = 0;
+    let hasAssistantText = false;
     try {
       for await (const msg of messages) {
+        msgCount++;
+        providerLogger.debug({ type: msg.type, turn: msgCount }, "Claude SDK event");
         if (msg.type === "assistant" && msg.message?.content) {
           for (const block of msg.message.content) {
             if (block.type === "text") {
+              hasAssistantText = true;
               yield { type: "text", content: block.text };
             } else if (block.type === "tool_use") {
               yield {
@@ -200,12 +249,33 @@ export class ClaudeProvider implements Provider {
             }
           }
         } else if (msg.type === "result") {
-          if (msg.result) {
+          // Check for errors in the result
+          if (msg.is_error && msg.errors?.length) {
+            throw new Error(msg.errors.join("\n"));
+          }
+          // Capture real session ID for future resume
+          if (msg.session_id && ClaudeProvider.isUUID(msg.session_id)) {
+            this.lastSessionId = msg.session_id;
+            setActiveSessionId(msg.session_id);
+            // Re-key activeQueries so abort() can find the query by real session ID
+            if (msg.session_id !== sessionId) {
+              activeQueries.set(msg.session_id, activeQueries.get(sessionId)!);
+              activeQueries.delete(sessionId);
+            }
+          }
+          // Only yield result text if we didn't already get it from assistant messages
+          if (msg.result && !hasAssistantText) {
             yield { type: "text", content: msg.result };
           }
           yield { type: "done", content: "" };
         }
       }
+      providerLogger.debug({ msgCount }, "Stream ended");
+      if (msgCount === 0) {
+        providerLogger.warn("SDK yielded zero messages — stderr: %s", stderr.join("\n"));
+      }
+    } catch (err: any) {
+      throw this.enrichError(err, stderr);
     } finally {
       activeQueries.delete(sessionId);
     }
@@ -217,6 +287,18 @@ export class ClaudeProvider implements Provider {
       try { query.abort?.(); } catch {}
       activeQueries.delete(sessionId);
     }
+  }
+
+  /**
+   * Enrich a SDK error with captured stderr for better diagnostics.
+   */
+  private enrichError(err: any, stderrLines?: string[]): Error {
+    const stderr = (stderrLines ?? []).join("\n").trim();
+    const base = err?.message ?? String(err);
+    if (stderr) {
+      return new Error(`${base}\n\nClaude Code stderr:\n${stderr}`);
+    }
+    return err;
   }
 
   // --- Session features ---
@@ -250,7 +332,7 @@ export class ClaudeProvider implements Provider {
           model: this.model,
           permissionMode: this.permissionMode,
           cwd: this.cwd,
-          resume: sessionId,
+          ...(ClaudeProvider.isUUID(sessionId) && { resume: sessionId }),
           forkSession: true,
           maxTurns: 1,
         },
@@ -297,7 +379,7 @@ export class ClaudeProvider implements Provider {
           model: this.model,
           permissionMode: this.permissionMode,
           cwd: this.cwd,
-          resume: sessionId,
+          ...(ClaudeProvider.isUUID(sessionId) && { resume: sessionId }),
           maxTurns: 0,
         },
       });
@@ -328,7 +410,7 @@ export class ClaudeProvider implements Provider {
         model: this.model,
         permissionMode: this.permissionMode,
         cwd: this.cwd,
-        resume: sessionId,
+        ...(ClaudeProvider.isUUID(sessionId) && { resume: sessionId }),
         maxTurns: 1,
       },
     });
@@ -340,7 +422,7 @@ export class ClaudeProvider implements Provider {
             if (block.type === "text") resultText += block.text;
           }
         } else if (msg.type === "result") {
-          if (msg.result) resultText = msg.result;
+          if (msg.result && !resultText) resultText = msg.result;
         }
       }
     } catch {

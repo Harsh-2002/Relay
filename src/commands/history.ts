@@ -3,13 +3,14 @@ import { getProvider } from "../providers/index.js";
 import { getActiveSessionId } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerHistoryCommands(bot: Bot): void {
   bot.command("history", async (ctx) => {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session. Use /new to create one.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -18,13 +19,14 @@ export function registerHistoryCommands(bot: Bot): void {
 
       if (!messages) {
         await ctx.reply(
-          `History is not supported by the ${provider.name} provider.`
+          `History is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (messages.length === 0) {
-        await ctx.reply("No messages in this session.");
+        await ctx.reply("No messages in this session.", { parse_mode: "HTML" });
         return;
       }
 
@@ -40,18 +42,14 @@ export function registerHistoryCommands(bot: Bot): void {
                 .join("\n")
                 .slice(0, 200)
             : String(parts).slice(0, 200);
-          return `**${role}:** ${content || "(no text)"}`;
+          return `<b>${escapeHtml(role)}:</b> ${escapeHtml(content || "(no text)")}`;
         })
         .join("\n\n---\n\n");
 
       const header = `Last ${Math.min(messages.length, 10)} message(s):\n\n`;
       const chunks = chunkMessage(header + text);
       for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
+        await ctx.reply(chunk, { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching history"), { parse_mode: "HTML" });
@@ -62,13 +60,13 @@ export function registerHistoryCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
       const provider = getProvider();
       await provider.abort(sessionId);
-      await ctx.reply("Operation aborted.");
+      await ctx.reply("Operation aborted.", { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "aborting operation"), { parse_mode: "HTML" });
     }
@@ -78,7 +76,7 @@ export function registerHistoryCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -86,13 +84,17 @@ export function registerHistoryCommands(bot: Bot): void {
       const shareUrl = await provider.share(sessionId);
 
       if (shareUrl) {
-        await ctx.reply(`Session shared: ${shareUrl}`);
+        await ctx.reply(
+          `Session shared: <a href="${escapeHtml(shareUrl)}">${escapeHtml(shareUrl)}</a>`,
+          { parse_mode: "HTML" }
+        );
       } else if (shareUrl === null) {
         await ctx.reply(
-          `Sharing is not supported by the ${provider.name} provider.`
+          `Sharing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
       } else {
-        await ctx.reply("Session shared successfully.");
+        await ctx.reply("Session shared successfully.", { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "sharing session"), { parse_mode: "HTML" });
@@ -103,7 +105,7 @@ export function registerHistoryCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -114,12 +116,13 @@ export function registerHistoryCommands(bot: Bot): void {
         await ctx.reply(
           provider.name === "opencode"
             ? "No assistant message to revert."
-            : `Revert is not supported by the ${provider.name} provider.`
+            : `Revert is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      await ctx.reply("Last change reverted.");
+      await ctx.reply("Last change reverted.", { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "reverting change"), { parse_mode: "HTML" });
     }
@@ -129,7 +132,7 @@ export function registerHistoryCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -138,12 +141,13 @@ export function registerHistoryCommands(bot: Bot): void {
 
       if (!ok) {
         await ctx.reply(
-          `Unrevert is not supported by the ${provider.name} provider.`
+          `Unrevert is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      await ctx.reply("Revert undone.");
+      await ctx.reply("Revert undone.", { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "undoing revert"), { parse_mode: "HTML" });
     }
@@ -153,7 +157,7 @@ export function registerHistoryCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -163,12 +167,13 @@ export function registerHistoryCommands(bot: Bot): void {
 
       if (!ok) {
         await ctx.reply(
-          `Summarize is not supported by the ${provider.name} provider.`
+          `Summarize is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      await ctx.reply("Session summarized.");
+      await ctx.reply("Session summarized.", { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "summarizing session"), { parse_mode: "HTML" });
     }

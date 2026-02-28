@@ -14,6 +14,10 @@ export function getProviderName(): ProviderName {
 }
 
 export async function initProvider(): Promise<Provider> {
+  if (activeProvider) {
+    activeProvider.shutdown();
+    activeProvider = null;
+  }
   const name = getProviderName();
 
   switch (name) {

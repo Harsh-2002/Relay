@@ -1,9 +1,11 @@
 import { getConfig } from "./config/index.js";
 import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
+import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
+import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
 
 function die(message: string): never {
@@ -13,6 +15,7 @@ function die(message: string): never {
 
 async function main() {
   const config = getConfig();
+  if (config.dataDir) setDataDir(config.dataDir);
 
   if (!config.botToken) {
     die("Bot token is required. Run 'relay onboard' to configure.");
@@ -35,10 +38,16 @@ async function main() {
 
   const bot = createBot(config.botToken);
 
+  // Register commands with Telegram for autocomplete menu
+  await bot.api.setMyCommands(getBotCommands(providerName));
+
   const botMode = config.botMode;
   let httpServer: import("http").Server | null = null;
+  let shuttingDown = false;
 
   async function gracefulShutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info({ signal }, "Shutting down...");
     if (httpServer) {
       httpServer.close();

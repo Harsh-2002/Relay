@@ -138,9 +138,8 @@ export function loadConfig(): LoadResult {
     config.dataDir = dataDir;
   }
 
-  // Detect if setup is needed (no config file and no bot token)
-  const hasConfigFile = Object.keys(fileConfig).length > 0;
-  const needsSetup = !hasConfigFile && !config.botToken;
+  // Detect if setup is needed (no bot token means we can't run)
+  const needsSetup = !config.botToken;
 
   return {
     config,

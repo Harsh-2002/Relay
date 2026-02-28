@@ -5,6 +5,7 @@ import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import { sendResponseFiles, type ResponseFile } from "./files.js";
 import { getConfig } from "../config/index.js";
+import { providerLogger } from "./logger.js";
 
 function getEditInterval(): number {
   return getConfig().streamEditIntervalMs;
@@ -38,7 +39,7 @@ export async function streamPrompt({
       ...(model && { model }),
       ...(system && { system }),
     });
-    await sendFinalText(ctx, result.text);
+    await sendPlainText(ctx, result.text);
     return;
   }
 
@@ -55,6 +56,7 @@ export async function streamPrompt({
   let accumulated = "";
   let toolStatus = "";
   let lastEditTime = 0;
+  let lastEditedText = "";
   let errorMsg: string | null = null;
   const collectedFiles: ResponseFile[] = [];
 
@@ -76,12 +78,15 @@ export async function streamPrompt({
         break;
       }
 
-      // Throttled edit
+      // Throttled edit — use Markdown so the final edit doesn't cause a visual flash
       const now = Date.now();
       if (now - lastEditTime >= getEditInterval()) {
         const display = buildDisplayText(accumulated, toolStatus);
-        await safeEditMessage(ctx, chatId, messageId, display);
-        lastEditTime = now;
+        if (display !== lastEditedText) {
+          await safeEditMarkdown(ctx, chatId, messageId, display);
+          lastEditedText = display;
+          lastEditTime = now;
+        }
       }
     }
   } catch (err: any) {
@@ -101,7 +106,18 @@ export async function streamPrompt({
     return;
   }
 
-  await sendFinalResponse(ctx, chatId, messageId, accumulated);
+  const finalDisplay = buildDisplayText(accumulated, "");
+  const chunks = chunkMessage(accumulated);
+
+  if (chunks.length <= 1 && finalDisplay === lastEditedText) {
+    // Already showing the complete response — nothing to do
+  } else if (chunks.length <= 1) {
+    // Fits in one message but last streaming edit was throttled — do one final edit
+    await safeEditMarkdown(ctx, chatId, messageId, finalDisplay);
+  } else {
+    // Too long for one message — delete placeholder and send as multiple messages
+    await sendFinalResponse(ctx, chatId, messageId, accumulated);
+  }
 
   // Send any collected file attachments
   if (collectedFiles.length > 0) {
@@ -116,7 +132,7 @@ function buildDisplayText(text: string, toolStatus: string): string {
   }
   // Telegram message limit is 4096
   if (display.length > 4000) {
-    display = display.slice(-4000) + "\n\n(streaming...)";
+    display = display.slice(0, 4000) + "\n\n(streaming...)";
   }
   return display;
 }
@@ -131,23 +147,63 @@ async function safeEditMessage(
   try {
     await ctx.api.editMessageText(chatId, messageId, text, html ? { parse_mode: "HTML" } : undefined);
   } catch (err: any) {
-    // Ignore "message is not modified" and rate limit errors
-    const desc = err?.description ?? err?.message ?? "";
-    if (
-      desc.includes("message is not modified") ||
-      desc.includes("MESSAGE_NOT_MODIFIED")
-    ) {
+    if (isNotModifiedError(err)) return;
+    await retryOnRateLimit(err, () =>
+      ctx.api.editMessageText(chatId, messageId, text, html ? { parse_mode: "HTML" } : undefined)
+    );
+  }
+}
+
+/**
+ * Edit a message with Markdown formatting. Falls back to plain text if Markdown parsing fails.
+ * This is used for streaming edits so the final message doesn't need a re-render.
+ */
+async function safeEditMarkdown(
+  ctx: Context,
+  chatId: number,
+  messageId: number,
+  text: string,
+): Promise<void> {
+  try {
+    await ctx.api.editMessageText(chatId, messageId, text, { parse_mode: "Markdown" });
+  } catch (err: any) {
+    if (isNotModifiedError(err)) return;
+    // Markdown parse failure — retry without formatting
+    if (isParseError(err)) {
+      try {
+        await ctx.api.editMessageText(chatId, messageId, text);
+      } catch (plainErr: any) {
+        if (isNotModifiedError(plainErr)) return;
+        await retryOnRateLimit(plainErr, () =>
+          ctx.api.editMessageText(chatId, messageId, text)
+        );
+      }
       return;
     }
-    if (desc.includes("Too Many Requests") || desc.includes("retry_after")) {
-      const retryAfter = err?.parameters?.retry_after ?? 3;
-      await new Promise((r) => setTimeout(r, retryAfter * 1000));
-      try {
-        await ctx.api.editMessageText(chatId, messageId, text, html ? { parse_mode: "HTML" } : undefined);
-      } catch {
-        // Give up
-      }
-    }
+    await retryOnRateLimit(err, () =>
+      ctx.api.editMessageText(chatId, messageId, text, { parse_mode: "Markdown" })
+    );
+  }
+}
+
+function isNotModifiedError(err: any): boolean {
+  const desc = err?.description ?? err?.message ?? "";
+  return desc.includes("message is not modified") || desc.includes("MESSAGE_NOT_MODIFIED");
+}
+
+function isParseError(err: any): boolean {
+  const desc = err?.description ?? err?.message ?? "";
+  return desc.includes("can't parse") || desc.includes("Bad Request: can't parse");
+}
+
+async function retryOnRateLimit(err: any, fn: () => Promise<any>): Promise<void> {
+  const desc = err?.description ?? err?.message ?? "";
+  if (desc.includes("Too Many Requests") || desc.includes("retry_after")) {
+    const retryAfter = err?.parameters?.retry_after ?? 3;
+    await new Promise((r) => setTimeout(r, retryAfter * 1000));
+    try { await fn(); } catch { /* give up after retry */ }
+  } else {
+    providerLogger.warn({ err: desc }, "Telegram edit failed");
   }
 }
 
@@ -157,17 +213,41 @@ async function sendFinalResponse(
   placeholderMsgId: number,
   text: string
 ): Promise<void> {
-  // Delete placeholder
+  const chunks = chunkMessage(text);
+
+  // If it fits in a single message, just edit the placeholder in place (no flash)
+  if (chunks.length === 1) {
+    try {
+      await ctx.api.editMessageText(chatId, placeholderMsgId, chunks[0], { parse_mode: "Markdown" });
+      return;
+    } catch {
+      // Markdown failed — try plain text edit
+      try {
+        await ctx.api.editMessageText(chatId, placeholderMsgId, chunks[0]);
+        return;
+      } catch {
+        // Edit failed entirely — fall through to delete+resend
+      }
+    }
+  }
+
+  // Multiple chunks or edit failed — delete placeholder and send fresh messages
   try {
     await ctx.api.deleteMessage(chatId, placeholderMsgId);
   } catch {
     // May fail if message was already deleted
   }
 
-  await sendFinalText(ctx, text, chatId);
+  for (const chunk of chunks) {
+    try {
+      await ctx.api.sendMessage(chatId, chunk, { parse_mode: "Markdown" });
+    } catch {
+      await ctx.api.sendMessage(chatId, chunk);
+    }
+  }
 }
 
-async function sendFinalText(ctx: Context, text: string, chatId?: number): Promise<void> {
+async function sendPlainText(ctx: Context, text: string, chatId?: number): Promise<void> {
   const targetChatId = chatId ?? ctx.chat?.id;
   if (!targetChatId) return;
 

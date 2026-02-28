@@ -86,6 +86,7 @@ export class OpenCodeProvider implements Provider {
     const result = await client.session.create({
       body: { title: title ?? "Telegram Session" },
     });
+    if (result.error) throw sdkError(result.error);
     if (result.data) {
       return { id: result.data.id, title: result.data.title };
     }
@@ -167,43 +168,49 @@ export class OpenCodeProvider implements Provider {
       body,
     });
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
     const sseResult = await client.event.subscribe();
 
-    for await (const event of sseResult.stream) {
-      const evt = event as OcEvent;
-      if (!matchesSession(evt, sessionId)) continue;
+    try {
+      for await (const event of sseResult.stream) {
+        if (controller.signal.aborted) break;
+        const evt = event as OcEvent;
+        if (!matchesSession(evt, sessionId)) continue;
 
-      if (evt.type === "message.part.updated") {
-        const { part, delta } = evt.properties;
-        if (part.type === "text") {
-          if (delta) {
-            yield { type: "text", content: delta };
+        if (evt.type === "message.part.updated") {
+          const { part, delta } = evt.properties;
+          if (part.type === "text") {
+            if (delta) {
+              yield { type: "text", content: delta };
+            }
+          } else if (part.type === "file") {
+            yield {
+              type: "file" as const,
+              content: part.filename ?? "file",
+              file: { mime: part.mime, filename: part.filename ?? "file", url: part.url },
+            };
+          } else if (part.type === "tool") {
+            const toolName = part.tool;
+            if (part.state.status === "running") {
+              yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
+            } else if (part.state.status === "completed") {
+              yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
+            } else if (part.state.status === "error") {
+              yield { type: "tool_use", content: `[${toolName} error]` };
+            }
           }
-        } else if (part.type === "file") {
-          yield {
-            type: "file" as const,
-            content: part.filename ?? "file",
-            file: { mime: part.mime, filename: part.filename ?? "file", url: part.url },
-          };
-        } else if (part.type === "tool") {
-          const toolName = part.tool;
-          if (part.state.status === "running") {
-            yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
-          } else if (part.state.status === "completed") {
-            yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
-          } else if (part.state.status === "error") {
-            yield { type: "tool_use", content: `[${toolName} error]` };
-          }
+        } else if (evt.type === "session.idle") {
+          yield { type: "done", content: "" };
+          break;
+        } else if (evt.type === "session.error") {
+          const rawError = (evt.properties as any).error ?? "Unknown session error";
+          throw new Error(rawError);
         }
-      } else if (evt.type === "session.idle") {
-        yield { type: "done", content: "" };
-        break;
-      } else if (evt.type === "session.error") {
-        const rawError = (evt.properties as any).error ?? "Unknown session error";
-        yield { type: "text", content: `Error: ${rawError}` };
-        yield { type: "done", content: "" };
-        break;
       }
+    } finally {
+      clearTimeout(timeout);
+      try { sseResult.stream?.return?.(undefined as any); } catch {}
     }
   }
 
@@ -350,6 +357,8 @@ export class OpenCodeProvider implements Provider {
     });
     if (result.error) throw sdkError(result.error);
     const data = result.data as any;
+    const output = data?.output ?? data?.result ?? data?.text;
+    if (output) return String(output);
     return data?.modelID
       ? `Shell command completed (model: ${data.modelID}).`
       : "Shell command completed.";

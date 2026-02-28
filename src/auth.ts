@@ -23,7 +23,8 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
     return;
   }
 
-  const userId = ctx.from?.id;
+  if (!ctx.from) return;  // channel posts, etc. — silently ignore
+  const userId = ctx.from.id;
   if (userId !== allowedUserId) {
     await ctx.reply("Unauthorized.");
     return;

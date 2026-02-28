@@ -2,7 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "
 import { join } from "path";
 
 // Bootstrap: read data dir from env directly (config hasn't loaded yet when stores are created)
-const DATA_DIR = process.env.RELAY_DATA_DIR ?? join(process.cwd(), ".relay");
+let DATA_DIR = process.env.RELAY_DATA_DIR ?? join(process.cwd(), ".relay");
+
+export function setDataDir(dir: string): void {
+  DATA_DIR = dir;
+}
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {

@@ -9,7 +9,7 @@ export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
     const command = ctx.match?.trim();
     if (!command) {
-      await ctx.reply("Usage: /shell <command>");
+      await ctx.reply("Usage: <code>/shell &lt;command&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -22,12 +22,17 @@ export function registerShellCommands(bot: Bot): void {
 
       if (result === null) {
         await ctx.reply(
-          `Shell commands are not directly supported by the ${provider.name} provider.`
+          `Shell commands are not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      await ctx.reply(result);
+      const formatted = `<b>$ ${escapeHtml(command)}</b>\n\n<pre>${escapeHtml(result)}</pre>`;
+      const chunks = chunkMessage(formatted);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "running shell command"), { parse_mode: "HTML" });
     }
@@ -36,7 +41,7 @@ export function registerShellCommands(bot: Bot): void {
   bot.command("cmd", async (ctx) => {
     const input = ctx.match?.trim();
     if (!input) {
-      await ctx.reply("Usage: /cmd <command> [arguments]");
+      await ctx.reply("Usage: <code>/cmd &lt;command&gt; [arguments]</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -53,18 +58,16 @@ export function registerShellCommands(bot: Bot): void {
 
       if (result === null) {
         await ctx.reply(
-          `Custom commands are not supported by the ${provider.name} provider.`
+          `Custom commands are not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
-      const chunks = chunkMessage(result.text);
+      const formatted = `<pre>${escapeHtml(result.text)}</pre>`;
+      const chunks = chunkMessage(formatted);
       for (const chunk of chunks) {
-        try {
-          await ctx.reply(chunk, { parse_mode: "Markdown" });
-        } catch {
-          await ctx.reply(chunk);
-        }
+        await ctx.reply(chunk, { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "running command"), { parse_mode: "HTML" });
@@ -78,13 +81,14 @@ export function registerShellCommands(bot: Bot): void {
 
       if (commands === null) {
         await ctx.reply(
-          `Command listing is not supported by the ${provider.name} provider.`
+          `Command listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (commands.length === 0) {
-        await ctx.reply("No commands available.");
+        await ctx.reply("No commands available.", { parse_mode: "HTML" });
         return;
       }
 

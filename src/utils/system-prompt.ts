@@ -2,7 +2,7 @@ import { readFileSync, existsSync, watchFile, unwatchFile } from "fs";
 import { resolve, join } from "path";
 import { getConfig } from "../config/index.js";
 
-const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant accessed through a Telegram bot. Your responses are delivered as Telegram messages, so keep them concise and under 4000 characters when possible — use Markdown formatting (bold, inline code, code blocks) for readability. Focus on actionable, practical answers: provide code, commands, or direct solutions rather than lengthy explanations. Messages may originate from voice transcriptions, so interpret the user's intent generously even if the wording is imprecise or contains transcription artifacts.`;
+const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant accessed through a Telegram bot. Your responses are delivered as Telegram messages, so keep them concise and under 4000 characters when possible — use Markdown formatting (bold, inline code, code blocks) for readability. Focus on actionable, practical answers: provide code, commands, or direct solutions rather than lengthy explanations. Keep the tone natural and conversational — avoid unnecessary jargon and explain technical terms when they come up. Use emojis sparingly, only when they genuinely add clarity or tone. Messages may originate from voice transcriptions, so interpret the user's intent generously even if the wording is imprecise or contains transcription artifacts.`;
 
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;
@@ -14,18 +14,21 @@ export function getSystemPrompt(): string {
 
 export function loadSystemPrompt(): string {
   const filePath = resolvePromptPath();
+
+  // Always set up watcher (watchFile works on non-existent paths too — fires when created)
+  if (filePath && watchedPath !== filePath) {
+    if (watchedPath) unwatchFile(watchedPath);
+    watchFile(filePath, { interval: 5000 }, () => {
+      cachedPrompt = null;
+    });
+    watchedPath = filePath;
+  }
+
   if (filePath && existsSync(filePath)) {
     try {
       const fileContent = readFileSync(filePath, "utf-8").trim();
       if (fileContent) {
         cachedPrompt = fileContent;
-        if (watchedPath !== filePath) {
-          if (watchedPath) unwatchFile(watchedPath);
-          watchFile(filePath, { interval: 5000 }, () => {
-            cachedPrompt = null;
-          });
-          watchedPath = filePath;
-        }
         return cachedPrompt;
       }
     } catch {

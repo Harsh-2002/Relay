@@ -6,6 +6,7 @@ import {
   clearActiveSession,
 } from "../session.js";
 import { formatCatchError } from "../utils/errors.js";
+import { escapeHtml } from "../utils/html.js";
 
 export function registerSessionCommands(bot: Bot): void {
   bot.command("new", async (ctx) => {
@@ -16,8 +17,8 @@ export function registerSessionCommands(bot: Bot): void {
 
       setActiveSessionId(session.id);
       await ctx.reply(
-        `Session created!\nTitle: **${session.title ?? title}**\nID: \`${session.id}\``,
-        { parse_mode: "Markdown" }
+        `Session created\n\n<b>Title:</b> ${escapeHtml(session.title ?? title)}\n<b>ID:</b> <code>${escapeHtml(session.id)}</code>`,
+        { parse_mode: "HTML" }
       );
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "creating session"), { parse_mode: "HTML" });
@@ -30,7 +31,7 @@ export function registerSessionCommands(bot: Bot): void {
       const sessions = await provider.listSessions();
 
       if (sessions.length === 0) {
-        await ctx.reply("No sessions found.");
+        await ctx.reply("No sessions found.", { parse_mode: "HTML" });
         return;
       }
 
@@ -42,19 +43,15 @@ export function registerSessionCommands(bot: Bot): void {
           const date = s.lastModified
             ? new Date(s.lastModified).toLocaleDateString()
             : "";
-          return `${i + 1}. **${s.title || "Untitled"}**\n   ID: \`${s.id}\`${date ? ` | ${date}` : ""}${marker}`;
+          return `${i + 1}. <b>${escapeHtml(s.title || "Untitled")}</b>\n   ID: <code>${escapeHtml(s.id)}</code>${date ? ` | ${date}` : ""}${marker}`;
         })
         .join("\n\n");
 
       const text = activeId
-        ? `Active: \`${activeId}\`\n\n${lines}`
+        ? `Active: <code>${escapeHtml(activeId)}</code>\n\n${lines}`
         : lines;
 
-      try {
-        await ctx.reply(text, { parse_mode: "Markdown" });
-      } catch {
-        await ctx.reply(text);
-      }
+      await ctx.reply(text, { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing sessions"), { parse_mode: "HTML" });
     }
@@ -63,7 +60,7 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("switch", async (ctx) => {
     const id = ctx.match?.trim();
     if (!id) {
-      await ctx.reply("Usage: /switch <session-id>");
+      await ctx.reply("Usage: <code>/switch &lt;session-id&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -72,14 +69,14 @@ export function registerSessionCommands(bot: Bot): void {
       const session = await provider.getSession(id);
 
       if (!session) {
-        await ctx.reply(`Session \`${id}\` not found.`, { parse_mode: "Markdown" });
+        await ctx.reply(`Session <code>${escapeHtml(id)}</code> not found.`, { parse_mode: "HTML" });
         return;
       }
 
       setActiveSessionId(id);
       await ctx.reply(
-        `Switched to session: **${session.title ?? "Untitled"}** (\`${id}\`)`,
-        { parse_mode: "Markdown" }
+        `Switched to session: <b>${escapeHtml(session.title ?? "Untitled")}</b> (<code>${escapeHtml(id)}</code>)`,
+        { parse_mode: "HTML" }
       );
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "switching session"), { parse_mode: "HTML" });
@@ -89,7 +86,7 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("delete", async (ctx) => {
     const id = ctx.match?.trim();
     if (!id) {
-      await ctx.reply("Usage: /delete <session-id>");
+      await ctx.reply("Usage: <code>/delete &lt;session-id&gt;</code>", { parse_mode: "HTML" });
       return;
     }
 
@@ -99,7 +96,8 @@ export function registerSessionCommands(bot: Bot): void {
 
       if (!deleted) {
         await ctx.reply(
-          `Could not delete session. This may not be supported by the ${provider.name} provider.`
+          `Could not delete session. This feature is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
@@ -107,7 +105,7 @@ export function registerSessionCommands(bot: Bot): void {
       if (getActiveSessionId() === id) {
         clearActiveSession();
       }
-      await ctx.reply(`Session \`${id}\` deleted.`, { parse_mode: "Markdown" });
+      await ctx.reply(`Session <code>${escapeHtml(id)}</code> deleted.`, { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "deleting session"), { parse_mode: "HTML" });
     }
@@ -116,7 +114,7 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("current", async (ctx) => {
     const activeId = getActiveSessionId();
     if (!activeId) {
-      await ctx.reply("No active session. Send a message or use /new to create one.");
+      await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
       return;
     }
 
@@ -125,15 +123,15 @@ export function registerSessionCommands(bot: Bot): void {
       const session = await provider.getSession(activeId);
 
       if (!session) {
-        await ctx.reply(`Active session \`${activeId}\` (details not available)`, {
-          parse_mode: "Markdown",
+        await ctx.reply(`Active session <code>${escapeHtml(activeId)}</code> (details not available)`, {
+          parse_mode: "HTML",
         });
         return;
       }
 
       await ctx.reply(
-        `**${session.title ?? "Untitled"}**\nID: \`${session.id}\``,
-        { parse_mode: "Markdown" }
+        `<b>${escapeHtml(session.title ?? "Untitled")}</b>\nID: <code>${escapeHtml(session.id)}</code>`,
+        { parse_mode: "HTML" }
       );
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching session"), { parse_mode: "HTML" });

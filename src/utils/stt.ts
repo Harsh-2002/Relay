@@ -171,6 +171,10 @@ async function transcribeWithAssemblyAI(
       { headers: { Authorization: apiKey } }
     );
 
+    if (!pollResp.ok) {
+      throw new Error(`Voice transcription failed (AssemblyAI polling, HTTP ${pollResp.status})`);
+    }
+
     const result = (await pollResp.json()) as {
       status: string;
       text?: string;
@@ -182,7 +186,7 @@ async function transcribeWithAssemblyAI(
       return { text: result.text ?? "", provider: "assemblyai" };
     }
     if (result.status === "error") {
-      throw new Error("Voice transcription failed (AssemblyAI processing error)");
+      throw new Error(`Voice transcription failed (AssemblyAI: ${result.error ?? "unknown"})`);
     }
 
     await new Promise((r) => setTimeout(r, 1500));

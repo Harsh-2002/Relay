@@ -12,6 +12,14 @@ import { escapeHtml } from "../utils/html.js";
 
 const MODELS_PER_PAGE = 8;
 
+const SENSITIVE_KEYS = new Set([
+  "botToken",
+  "groqApiKey",
+  "openaiSttApiKey",
+  "assemblyaiApiKey",
+  "webhookSecret",
+]);
+
 function buildModelKeyboard(
   models: ModelDetail[],
   page: number,
@@ -95,6 +103,68 @@ function buildModelKeyboard(
   return { keyboard: kb, text: headerText };
 }
 
+function formatConfigResponse(data: any): string {
+  if (!data || typeof data !== "object") {
+    return "No configuration data available.";
+  }
+
+  const entries = Object.entries(data);
+  if (entries.length === 0) {
+    return "Configuration is empty.";
+  }
+
+  let text = "<b>Configuration</b>\n\n";
+  for (const [key, value] of entries) {
+    if (value === undefined || value === null || value === "") continue;
+    const displayValue = SENSITIVE_KEYS.has(key)
+      ? "••••••"
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value);
+    text += `<b>${escapeHtml(key)}:</b>  <code>${escapeHtml(displayValue)}</code>\n`;
+  }
+
+  return text;
+}
+
+function formatProvidersResponse(data: any): string {
+  if (!data) return "No provider data available.";
+
+  const items = Array.isArray(data) ? data : [data];
+  if (items.length === 0) return "No providers found.";
+
+  let text = `<b>Providers</b>  (${items.length})\n\n`;
+  for (const p of items) {
+    const name = p.name ?? p.id ?? "unknown";
+    text += `<b>${escapeHtml(name)}</b>`;
+    if (p.id && p.id !== name) text += `  <code>${escapeHtml(p.id)}</code>`;
+    if (p.status) text += `  —  ${escapeHtml(p.status)}`;
+    text += "\n";
+    if (p.models && Array.isArray(p.models)) {
+      text += `  Models: ${p.models.length}\n`;
+    }
+  }
+
+  return text;
+}
+
+function formatAgentsResponse(data: any): string {
+  if (!data) return "No agent data available.";
+
+  const items = Array.isArray(data) ? data : [data];
+  if (items.length === 0) return "No agents available.";
+
+  let text = `<b>Agents</b>  (${items.length})\n\n`;
+  for (const a of items) {
+    const name = a.name ?? a.id ?? "unknown";
+    text += `<code>${escapeHtml(name)}</code>`;
+    if (a.description) text += ` — ${escapeHtml(a.description)}`;
+    text += "\n";
+  }
+
+  return text;
+}
+
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
     try {
@@ -156,7 +226,11 @@ export function registerAdminCommands(bot: Bot): void {
     try {
       const provider = getProvider();
       const config = await provider.getConfig();
-      await sendJsonResponse(ctx, config, "config.json");
+      const text = formatConfigResponse(config);
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching config"), { parse_mode: "HTML" });
     }
@@ -166,7 +240,11 @@ export function registerAdminCommands(bot: Bot): void {
     try {
       const provider = getProvider();
       const providers = await provider.getProviders();
-      await sendJsonResponse(ctx, providers, "providers.json");
+      const text = formatProvidersResponse(providers);
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching providers"), { parse_mode: "HTML" });
     }
@@ -179,17 +257,22 @@ export function registerAdminCommands(bot: Bot): void {
 
       if (agents === null) {
         await ctx.reply(
-          `Agent listing is not supported by the ${provider.name} provider.`
+          `Agent listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (agents.length === 0) {
-        await ctx.reply("No agents available.");
+        await ctx.reply("No agents available.", { parse_mode: "HTML" });
         return;
       }
 
-      await sendJsonResponse(ctx, agents, "agents.json");
+      const text = formatAgentsResponse(agents);
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing agents"), { parse_mode: "HTML" });
     }
@@ -202,7 +285,8 @@ export function registerAdminCommands(bot: Bot): void {
 
       if (!proj) {
         await ctx.reply(
-          `Project info is not available for the ${provider.name} provider.`
+          `Project info is not available for the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
@@ -233,7 +317,8 @@ export function registerAdminCommands(bot: Bot): void {
 
       if (!projectInfo?.branch && fileStatus === null) {
         await ctx.reply(
-          `Git info is not directly available for the ${provider.name} provider.`
+          `Git info is not available for the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
@@ -273,13 +358,14 @@ export function registerAdminCommands(bot: Bot): void {
 
       if (ids === null) {
         await ctx.reply(
-          `Tool listing is not supported by the ${provider.name} provider.`
+          `Tool listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (ids.length === 0) {
-        await ctx.reply("No tools available.");
+        await ctx.reply("No tools available.", { parse_mode: "HTML" });
         return;
       }
 
@@ -303,7 +389,7 @@ export function registerAdminCommands(bot: Bot): void {
       const selected = getSelectedModel();
 
       if (models.length === 0) {
-        await ctx.reply("No models available.");
+        await ctx.reply("No models available.", { parse_mode: "HTML" });
         return;
       }
 
@@ -492,22 +578,22 @@ export function registerAdminCommands(bot: Bot): void {
 
     const prompt = getSystemPrompt();
     const source = isUsingCustomPrompt() ? "Custom (SKILL.md)" : "Default (built-in)";
-    const escaped = escapeHtml(prompt.length > 500 ? prompt.slice(0, 500) + "\n\n...(truncated)" : prompt);
-    await ctx.reply(
-      `<b>System Prompt</b>\n` +
-      `<b>Source:</b>  ${source}  |  <b>Length:</b>  ${prompt.length} chars\n\n` +
-      `<pre>${escaped}</pre>`,
-      { parse_mode: "HTML" }
-    );
+    const header = `<b>System Prompt</b>\n<b>Source:</b>  ${source}  |  <b>Length:</b>  ${prompt.length} chars\n\n`;
+    const text = header + `<pre>${escapeHtml(prompt)}</pre>`;
+    const chunks = chunkMessage(text);
+    for (const chunk of chunks) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
   });
 
   bot.command("start", async (ctx) => {
     const providerName = getProviderName();
     await ctx.reply(
       `Hey! Send me a message and I'll pass it to the AI.\n\n` +
-      `Provider: ${providerName}\n\n` +
+      `<b>Provider:</b> ${escapeHtml(providerName)}\n\n` +
       `You can also send voice notes, photos, or files.\n\n` +
       `Type /help to see all commands.`,
+      { parse_mode: "HTML" }
     );
   });
 
@@ -590,24 +676,4 @@ export function registerAdminCommands(bot: Bot): void {
 
     await ctx.reply(text, { parse_mode: "HTML" });
   });
-}
-
-async function sendJsonResponse(ctx: any, data: any, filename: string): Promise<void> {
-  const json = JSON.stringify(data, null, 2);
-
-  if (json.length > 3500) {
-    const buffer = Buffer.from(json, "utf-8");
-    await ctx.replyWithDocument(new InputFile(buffer, filename));
-    return;
-  }
-
-  const text = "```json\n" + json + "\n```";
-  const chunks = chunkMessage(text);
-  for (const chunk of chunks) {
-    try {
-      await ctx.reply(chunk, { parse_mode: "Markdown" });
-    } catch {
-      await ctx.reply(chunk);
-    }
-  }
 }

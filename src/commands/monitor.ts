@@ -11,7 +11,7 @@ export function registerMonitorCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session. Use /new to create one.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -20,13 +20,14 @@ export function registerMonitorCommands(bot: Bot): void {
 
       if (todos === null) {
         await ctx.reply(
-          `Todo list is not supported by the ${provider.name} provider.`
+          `Todo list is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (todos.length === 0) {
-        await ctx.reply("No tasks in this session.");
+        await ctx.reply("No tasks in this session.", { parse_mode: "HTML" });
         return;
       }
 
@@ -53,7 +54,7 @@ export function registerMonitorCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session. Use /new to create one.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -62,13 +63,14 @@ export function registerMonitorCommands(bot: Bot): void {
 
       if (diffs === null) {
         await ctx.reply(
-          `Diff is not supported by the ${provider.name} provider.`
+          `Diff is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }
 
       if (diffs.length === 0) {
-        await ctx.reply("No changes in this session.");
+        await ctx.reply("No changes in this session.", { parse_mode: "HTML" });
         return;
       }
 
@@ -124,7 +126,7 @@ export function registerMonitorCommands(bot: Bot): void {
     try {
       const sessionId = getActiveSessionId();
       if (!sessionId) {
-        await ctx.reply("No active session. Use /new to create one.");
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
 
@@ -134,7 +136,8 @@ export function registerMonitorCommands(bot: Bot): void {
 
       if (!forked) {
         await ctx.reply(
-          `Forking is not supported by the ${provider.name} provider.`
+          `Forking is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
+          { parse_mode: "HTML" }
         );
         return;
       }

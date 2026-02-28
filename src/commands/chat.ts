@@ -7,6 +7,7 @@ import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
+import { chatLogger } from "../utils/logger.js";
 import { InputFile } from "grammy";
 
 const MAX_INPUT_LENGTH = 32_000;
@@ -16,11 +17,14 @@ export function registerChat(bot: Bot): void {
     const text = ctx.message.text;
     if (text.startsWith("/")) return;
 
+    chatLogger.info({ from: ctx.from?.id, len: text.length }, "Inbound message");
+
     if (text.length > MAX_INPUT_LENGTH) {
       await ctx.reply(
-        `Message too long (${text.toLocaleString().length} chars). ` +
+        `Message too long (${text.length.toLocaleString()} chars). ` +
         `Maximum is ${MAX_INPUT_LENGTH.toLocaleString()} characters. ` +
-        `Send the content as a file instead.`
+        `Send the content as a file instead.`,
+        { parse_mode: "HTML" }
       );
       return;
     }
@@ -86,7 +90,11 @@ async function sendResponse(ctx: any, text: string): Promise<void> {
   for (const chunk of chunks) {
     try {
       await ctx.reply(chunk, { parse_mode: "Markdown" });
-    } catch {
+    } catch (sendErr: any) {
+      const desc = sendErr?.description ?? sendErr?.message ?? "";
+      if (!desc.includes("can't parse")) {
+        chatLogger.warn({ err: desc }, "Failed to send message chunk");
+      }
       await ctx.reply(chunk);
     }
   }

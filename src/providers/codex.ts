@@ -212,10 +212,18 @@ export class CodexProvider implements Provider {
 
     try {
       if (!thread.runStreamed) {
-        // Fallback: non-streaming
-        const result = await this.prompt(sessionId, text, options);
-        yield { type: "text", content: result.text };
-        yield { type: "done", content: "" };
+        // Fallback: non-streaming (inlined to avoid orphaning the outer AbortController)
+        try {
+          const result = await thread.run(text, {
+            signal: controller.signal,
+            model: options?.model?.modelID ?? this.model,
+          });
+          const responseText = result.finalResponse ?? result.response ?? "(empty)";
+          yield { type: "text", content: responseText };
+          yield { type: "done", content: "" };
+        } finally {
+          abortControllers.delete(sessionId);
+        }
         return;
       }
 
@@ -304,12 +312,15 @@ export class CodexProvider implements Provider {
       const threadId = thread.id ?? thread.threadId ?? sessionId;
       threads.set(threadId, thread);
 
-      const result = await this.prompt(
-        threadId,
-        `Read the file at "${path}" and return its contents verbatim. Output ONLY the file content, nothing else.`
-      );
-      threads.delete(threadId);
-      return result.text === "(empty response)" ? null : result.text;
+      try {
+        const result = await this.prompt(
+          threadId,
+          `Read the file at "${path}" and return its contents verbatim. Output ONLY the file content, nothing else.`
+        );
+        return result.text === "(empty response)" ? null : result.text;
+      } finally {
+        threads.delete(threadId);
+      }
     } catch {
       return null;
     }
@@ -322,13 +333,16 @@ export class CodexProvider implements Provider {
       const threadId = thread.id ?? thread.threadId ?? sessionId;
       threads.set(threadId, thread);
 
-      const result = await this.prompt(
-        threadId,
-        `Find files matching "${query}". List each matching file path on its own line. Output ONLY the file paths, nothing else.`
-      );
-      threads.delete(threadId);
-      if (result.text === "(empty response)") return null;
-      return result.text.split("\n").map((l) => l.trim()).filter(Boolean);
+      try {
+        const result = await this.prompt(
+          threadId,
+          `Find files matching "${query}". List each matching file path on its own line. Output ONLY the file paths, nothing else.`
+        );
+        if (result.text === "(empty response)") return null;
+        return result.text.split("\n").map((l) => l.trim()).filter(Boolean);
+      } finally {
+        threads.delete(threadId);
+      }
     } catch {
       return null;
     }
@@ -341,20 +355,23 @@ export class CodexProvider implements Provider {
       const threadId = thread.id ?? thread.threadId ?? sessionId;
       threads.set(threadId, thread);
 
-      const result = await this.prompt(
-        threadId,
-        `Search the codebase for "${pattern}". For each match output file:line:text. Output ONLY the matches, nothing else.`
-      );
-      threads.delete(threadId);
-      if (result.text === "(empty response)") return null;
-      return result.text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [file, lineStr, ...rest] = line.split(":");
-          return { file: file ?? line, line: Number(lineStr) || undefined, text: rest.join(":") || undefined };
-        });
+      try {
+        const result = await this.prompt(
+          threadId,
+          `Search the codebase for "${pattern}". For each match output file:line:text. Output ONLY the matches, nothing else.`
+        );
+        if (result.text === "(empty response)") return null;
+        return result.text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const [file, lineStr, ...rest] = line.split(":");
+            return { file: file ?? line, line: Number(lineStr) || undefined, text: rest.join(":") || undefined };
+          });
+      } finally {
+        threads.delete(threadId);
+      }
     } catch {
       return null;
     }
@@ -371,21 +388,24 @@ export class CodexProvider implements Provider {
       const threadId = thread.id ?? thread.threadId ?? sessionId;
       threads.set(threadId, thread);
 
-      const result = await this.prompt(
-        threadId,
-        `Run "git status --porcelain" and return the output. Output ONLY the raw git status output, nothing else.`
-      );
-      threads.delete(threadId);
-      if (result.text === "(empty response)") return null;
-      return result.text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const status = line.slice(0, 2).trim();
-          const path = line.slice(3).trim();
-          return { path, status };
-        });
+      try {
+        const result = await this.prompt(
+          threadId,
+          `Run "git status --porcelain" and return the output. Output ONLY the raw git status output, nothing else.`
+        );
+        if (result.text === "(empty response)") return null;
+        return result.text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const status = line.slice(0, 2).trim();
+            const path = line.slice(3).trim();
+            return { path, status };
+          });
+      } finally {
+        threads.delete(threadId);
+      }
     } catch {
       return null;
     }

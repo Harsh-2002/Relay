@@ -13,8 +13,8 @@ export function chunkMessage(text: string, maxLen: number = MAX_LENGTH): string[
     }
 
     let splitAt = remaining.lastIndexOf("\n\n", maxLen);
-    if (splitAt < maxLen * 0.3) splitAt = remaining.lastIndexOf("\n", maxLen);
-    if (splitAt < maxLen * 0.2) splitAt = remaining.lastIndexOf(" ", maxLen);
+    if (splitAt < 1) splitAt = remaining.lastIndexOf("\n", maxLen);
+    if (splitAt < 1) splitAt = remaining.lastIndexOf(" ", maxLen);
     if (splitAt < 1) splitAt = maxLen;
 
     chunks.push(remaining.slice(0, splitAt));

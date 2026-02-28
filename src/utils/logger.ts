@@ -13,6 +13,7 @@ const logger = pino({
 export default logger;
 
 export const botLogger = logger.child({ component: "bot" });
+export const chatLogger = logger.child({ component: "chat" });
 export const providerLogger = logger.child({ component: "provider" });
 export const sttLogger = logger.child({ component: "stt" });
 export const streamLogger = logger.child({ component: "stream" });

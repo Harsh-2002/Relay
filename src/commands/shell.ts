@@ -3,6 +3,7 @@ import { getClient } from "../client.js";
 import { getOrCreateSession } from "../session.js";
 import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
+import { formatSdkError, formatCatchError } from "../utils/errors.js";
 
 export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
@@ -23,7 +24,7 @@ export function registerShellCommands(bot: Bot): void {
       });
 
       if (result.error) {
-        await ctx.reply(`Shell error: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -33,7 +34,7 @@ export function registerShellCommands(bot: Bot): void {
         : "Shell command completed.";
       await ctx.reply(text);
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "running shell command"), { parse_mode: "HTML" });
     }
   });
 
@@ -59,7 +60,7 @@ export function registerShellCommands(bot: Bot): void {
       });
 
       if (result.error) {
-        await ctx.reply(`Command error: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -73,7 +74,7 @@ export function registerShellCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "running command"), { parse_mode: "HTML" });
     }
   });
 }

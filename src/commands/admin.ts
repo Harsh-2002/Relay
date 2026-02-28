@@ -6,6 +6,7 @@ import { chunkMessage } from "../utils/chunker.js";
 import { isSttAvailable, getSttProvider } from "../utils/stt.js";
 import { isStreamingEnabled } from "../utils/stream.js";
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
+import { formatSdkError, formatCatchError } from "../utils/errors.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
@@ -13,7 +14,7 @@ export function registerAdminCommands(bot: Bot): void {
       const client = getClient();
       const result = await client.config.get();
       if (result.error) {
-        await ctx.reply("Server responded with error.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
       const streaming = isStreamingEnabled() ? "Enabled" : "Disabled";
@@ -33,7 +34,7 @@ export function registerAdminCommands(bot: Bot): void {
         { parse_mode: "HTML" }
       );
     } catch (err: any) {
-      await ctx.reply(`Server unreachable: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "checking server health"), { parse_mode: "HTML" });
     }
   });
 
@@ -43,13 +44,13 @@ export function registerAdminCommands(bot: Bot): void {
       const result = await client.config.get();
 
       if (result.error) {
-        await ctx.reply("Failed to get config.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
       await sendJsonResponse(ctx, result.data, "config.json");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "fetching config"), { parse_mode: "HTML" });
     }
   });
 
@@ -59,13 +60,13 @@ export function registerAdminCommands(bot: Bot): void {
       const result = await client.config.providers();
 
       if (result.error) {
-        await ctx.reply("Failed to get providers.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
       await sendJsonResponse(ctx, result.data, "providers.json");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "fetching providers"), { parse_mode: "HTML" });
     }
   });
 
@@ -75,7 +76,7 @@ export function registerAdminCommands(bot: Bot): void {
       const result = await client.app.agents();
 
       if (result.error) {
-        await ctx.reply("Failed to list agents.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -87,7 +88,7 @@ export function registerAdminCommands(bot: Bot): void {
 
       await sendJsonResponse(ctx, agents, "agents.json");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "listing agents"), { parse_mode: "HTML" });
     }
   });
 

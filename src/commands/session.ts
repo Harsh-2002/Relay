@@ -7,6 +7,7 @@ import {
   getOrCreateSession,
 } from "../session.js";
 import { formatSessionList } from "../utils/formatter.js";
+import { formatSdkError, formatCatchError } from "../utils/errors.js";
 
 export function registerSessionCommands(bot: Bot): void {
   bot.command("new", async (ctx) => {
@@ -16,7 +17,7 @@ export function registerSessionCommands(bot: Bot): void {
       const result = await client.session.create({ body: { title } });
 
       if (result.error) {
-        await ctx.reply(`Failed to create session: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -26,7 +27,7 @@ export function registerSessionCommands(bot: Bot): void {
         { parse_mode: "Markdown" }
       );
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "creating session"), { parse_mode: "HTML" });
     }
   });
 
@@ -36,7 +37,7 @@ export function registerSessionCommands(bot: Bot): void {
       const result = await client.session.list();
 
       if (result.error) {
-        await ctx.reply(`Failed to list sessions: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -51,7 +52,7 @@ export function registerSessionCommands(bot: Bot): void {
         await ctx.reply(text);
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "listing sessions"), { parse_mode: "HTML" });
     }
   });
 
@@ -67,7 +68,7 @@ export function registerSessionCommands(bot: Bot): void {
       const result = await client.session.get({ path: { id } });
 
       if (result.error) {
-        await ctx.reply(`Session not found: ${id}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -76,7 +77,7 @@ export function registerSessionCommands(bot: Bot): void {
         parse_mode: "Markdown",
       });
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "switching session"), { parse_mode: "HTML" });
     }
   });
 
@@ -96,7 +97,7 @@ export function registerSessionCommands(bot: Bot): void {
       }
       await ctx.reply(`Session \`${id}\` deleted.`, { parse_mode: "Markdown" });
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "deleting session"), { parse_mode: "HTML" });
     }
   });
 
@@ -112,7 +113,7 @@ export function registerSessionCommands(bot: Bot): void {
       const result = await client.session.get({ path: { id: activeId } });
 
       if (result.error) {
-        await ctx.reply(`Could not fetch session: ${activeId}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -124,7 +125,7 @@ export function registerSessionCommands(bot: Bot): void {
         { parse_mode: "Markdown" }
       );
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "fetching session"), { parse_mode: "HTML" });
     }
   });
 }

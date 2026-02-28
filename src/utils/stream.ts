@@ -3,6 +3,7 @@ import { InputFile } from "grammy";
 import { getClient } from "../client.js";
 import { formatParts } from "./formatter.js";
 import { chunkMessage } from "./chunker.js";
+import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import type { Event as OcEvent } from "@opencode-ai/sdk";
 
 const EDIT_INTERVAL = Number(process.env.STREAM_EDIT_INTERVAL_MS) || 2000;
@@ -101,7 +102,8 @@ export async function streamPrompt({
         } else if (evt.type === "session.idle") {
           break;
         } else if (evt.type === "session.error") {
-          errorMsg = (evt.properties as any).error ?? "Unknown error";
+          const rawError = (evt.properties as any).error ?? "Unknown session error";
+          errorMsg = formatCatchError(rawError, "processing request");
           break;
         }
       }
@@ -109,18 +111,15 @@ export async function streamPrompt({
       clearTimeout(timeout);
     }
   } catch (err: any) {
-    if (err.name === "AbortError") {
-      errorMsg = "Response timed out.";
-    } else {
-      errorMsg = err.message ?? "Unknown streaming error";
-    }
+    errorMsg = formatCatchError(err, "streaming response");
   } finally {
     clearInterval(typingInterval);
   }
 
   // Final response
   if (errorMsg) {
-    await safeEditMessage(ctx, chatId, messageId, `Error: ${errorMsg}`);
+    // errorMsg is already HTML-formatted from formatCatchError, or raw from session.error
+    await safeEditMessage(ctx, chatId, messageId, errorMsg, true);
     return;
   }
 
@@ -140,7 +139,7 @@ export async function streamPrompt({
     } catch {
       // Fallback
     }
-    await safeEditMessage(ctx, chatId, messageId, "(empty response)");
+    await safeEditMessage(ctx, chatId, messageId, EMPTY_RESPONSE_MSG, true);
     return;
   }
 
@@ -171,10 +170,11 @@ async function safeEditMessage(
   ctx: Context,
   chatId: number,
   messageId: number,
-  text: string
+  text: string,
+  html = false,
 ): Promise<void> {
   try {
-    await ctx.api.editMessageText(chatId, messageId, text);
+    await ctx.api.editMessageText(chatId, messageId, text, html ? { parse_mode: "HTML" } : undefined);
   } catch (err: any) {
     // Ignore "message is not modified" and rate limit errors
     const desc = err?.description ?? err?.message ?? "";
@@ -189,7 +189,7 @@ async function safeEditMessage(
       const retryAfter = err?.parameters?.retry_after ?? 3;
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       try {
-        await ctx.api.editMessageText(chatId, messageId, text);
+        await ctx.api.editMessageText(chatId, messageId, text, html ? { parse_mode: "HTML" } : undefined);
       } catch {
         // Give up
       }

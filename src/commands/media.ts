@@ -7,6 +7,7 @@ import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
+import { formatSdkError, formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { readFileSync } from "fs";
 
 const botToken = process.env.BOT_TOKEN ?? "";
@@ -58,11 +59,15 @@ export function registerMediaHandlers(bot: Bot): void {
       });
 
       if (result.error) {
-        await ctx.reply(`Error: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
       const response = formatParts(result.data?.parts ?? []);
+      if (!response.trim()) {
+        await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+        return;
+      }
       const chunks = chunkMessage(response);
       for (const chunk of chunks) {
         try {
@@ -72,7 +77,7 @@ export function registerMediaHandlers(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error handling file: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "handling file"), { parse_mode: "HTML" });
     }
   });
 
@@ -124,11 +129,15 @@ export function registerMediaHandlers(bot: Bot): void {
         });
 
         if (result.error) {
-          await ctx.reply(`Error: ${JSON.stringify(result.error)}`);
+          await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
           return;
         }
 
         const response = formatParts(result.data?.parts ?? []);
+        if (!response.trim()) {
+          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+          return;
+        }
         const chunks = chunkMessage(response);
         for (const chunk of chunks) {
           try {
@@ -139,7 +148,7 @@ export function registerMediaHandlers(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error handling photo: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "handling photo"), { parse_mode: "HTML" });
     }
   });
 
@@ -186,11 +195,15 @@ export function registerMediaHandlers(bot: Bot): void {
         });
 
         if (promptResult.error) {
-          await ctx.reply(`Error: ${JSON.stringify(promptResult.error)}`);
+          await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
           return;
         }
 
         const response = formatParts(promptResult.data?.parts ?? []);
+        if (!response.trim()) {
+          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+          return;
+        }
         const chunks = chunkMessage(response);
         for (const chunk of chunks) {
           try {
@@ -201,7 +214,7 @@ export function registerMediaHandlers(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error handling voice message: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" });
     }
   });
 
@@ -235,11 +248,15 @@ export function registerMediaHandlers(bot: Bot): void {
           });
 
           if (promptResult.error) {
-            await ctx.reply(`Error: ${JSON.stringify(promptResult.error)}`);
+            await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
             return;
           }
 
           const response = formatParts(promptResult.data?.parts ?? []);
+          if (!response.trim()) {
+            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+            return;
+          }
           const chunks = chunkMessage(response);
           for (const chunk of chunks) {
             try {
@@ -276,11 +293,15 @@ export function registerMediaHandlers(bot: Bot): void {
       });
 
       if (promptResult.error) {
-        await ctx.reply(`Error: ${JSON.stringify(promptResult.error)}`);
+        await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
         return;
       }
 
       const response = formatParts(promptResult.data?.parts ?? []);
+      if (!response.trim()) {
+        await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+        return;
+      }
       const chunks = chunkMessage(response);
       for (const chunk of chunks) {
         try {
@@ -290,7 +311,7 @@ export function registerMediaHandlers(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error handling audio: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" });
     }
   });
 }

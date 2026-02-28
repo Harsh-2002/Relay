@@ -5,6 +5,7 @@ import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
+import { formatSdkError, formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { InputFile } from "grammy";
 
 export function registerChat(bot: Bot): void {
@@ -36,14 +37,18 @@ export function registerChat(bot: Bot): void {
       });
 
       if (result.error) {
-        await ctx.reply(`Error: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
       const response = formatParts(result.data?.parts ?? []);
+      if (!response.trim()) {
+        await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+        return;
+      }
       await sendResponse(ctx, response);
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message ?? "Unknown error"}`);
+      await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
     }
   });
 }

@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { getClient } from "../client.js";
 import { getActiveSessionId, getOrCreateSession } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
+import { formatSdkError, formatCatchError } from "../utils/errors.js";
 
 export function registerHistoryCommands(bot: Bot): void {
   bot.command("history", async (ctx) => {
@@ -16,7 +17,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const result = await client.session.messages({ path: { id: sessionId } });
 
       if (result.error) {
-        await ctx.reply("Failed to get messages.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -50,7 +51,7 @@ export function registerHistoryCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "fetching history"), { parse_mode: "HTML" });
     }
   });
 
@@ -66,7 +67,7 @@ export function registerHistoryCommands(bot: Bot): void {
       await client.session.abort({ path: { id: sessionId } });
       await ctx.reply("Operation aborted.");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "aborting operation"), { parse_mode: "HTML" });
     }
   });
 
@@ -82,7 +83,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const result = await client.session.share({ path: { id: sessionId } });
 
       if (result.error) {
-        await ctx.reply("Failed to share session.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -93,7 +94,7 @@ export function registerHistoryCommands(bot: Bot): void {
         await ctx.reply("Session shared successfully.");
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "sharing session"), { parse_mode: "HTML" });
     }
   });
 
@@ -129,13 +130,13 @@ export function registerHistoryCommands(bot: Bot): void {
       });
 
       if (result.error) {
-        await ctx.reply(`Revert failed: ${JSON.stringify(result.error)}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
       await ctx.reply("Last change reverted.");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "reverting change"), { parse_mode: "HTML" });
     }
   });
 
@@ -151,7 +152,7 @@ export function registerHistoryCommands(bot: Bot): void {
       await client.session.unrevert({ path: { id: sessionId } });
       await ctx.reply("Revert undone.");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "undoing revert"), { parse_mode: "HTML" });
     }
   });
 
@@ -168,7 +169,7 @@ export function registerHistoryCommands(bot: Bot): void {
       await client.session.summarize({ path: { id: sessionId } });
       await ctx.reply("Session summarized.");
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "summarizing session"), { parse_mode: "HTML" });
     }
   });
 }

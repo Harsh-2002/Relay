@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { InputFile } from "grammy";
 import { getClient } from "../client.js";
 import { chunkMessage } from "../utils/chunker.js";
+import { formatSdkError, formatCatchError } from "../utils/errors.js";
 
 export function registerFileCommands(bot: Bot): void {
   bot.command("read", async (ctx) => {
@@ -17,7 +18,7 @@ export function registerFileCommands(bot: Bot): void {
       const result = await client.file.read({ query: { path: filePath } });
 
       if (result.error) {
-        await ctx.reply(`Failed to read file: ${filePath}`);
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -42,7 +43,7 @@ export function registerFileCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "reading file"), { parse_mode: "HTML" });
     }
   });
 
@@ -71,7 +72,7 @@ export function registerFileCommands(bot: Bot): void {
       }
 
       if (result.error) {
-        await ctx.reply("Search failed.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -96,11 +97,7 @@ export function registerFileCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      if (err.name === "AbortError") {
-        await ctx.reply("Search timed out. Try a more specific pattern.");
-      } else {
-        await ctx.reply(`Error: ${err.message}`);
-      }
+      await ctx.reply(formatCatchError(err, "searching files"), { parse_mode: "HTML" });
     }
   });
 
@@ -117,7 +114,7 @@ export function registerFileCommands(bot: Bot): void {
       const result = await client.find.files({ query: { query } });
 
       if (result.error) {
-        await ctx.reply("Find failed.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -138,7 +135,7 @@ export function registerFileCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "finding files"), { parse_mode: "HTML" });
     }
   });
 
@@ -154,7 +151,7 @@ export function registerFileCommands(bot: Bot): void {
       const result = await client.find.symbols({ query: { query } });
 
       if (result.error) {
-        await ctx.reply("Symbol search failed.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -171,7 +168,7 @@ export function registerFileCommands(bot: Bot): void {
 
       await ctx.reply(`Found ${symbols.length} symbol(s):\n\n${text}`, { parse_mode: "Markdown" });
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "searching symbols"), { parse_mode: "HTML" });
     }
   });
 
@@ -181,7 +178,7 @@ export function registerFileCommands(bot: Bot): void {
       const result = await client.file.status();
 
       if (result.error) {
-        await ctx.reply("Failed to get file status.");
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
         return;
       }
 
@@ -197,7 +194,7 @@ export function registerFileCommands(bot: Bot): void {
 
       await ctx.reply(`**File status:**\n\n${text}`, { parse_mode: "Markdown" });
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      await ctx.reply(formatCatchError(err, "fetching file status"), { parse_mode: "HTML" });
     }
   });
 }

@@ -1,8 +1,8 @@
 import type { Bot } from "grammy";
-import { getClient } from "../client.js";
-import { getActiveSessionId, getOrCreateSession } from "../session.js";
+import { getProvider } from "../providers/index.js";
+import { getActiveSessionId } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerHistoryCommands(bot: Bot): void {
   bot.command("history", async (ctx) => {
@@ -13,15 +13,16 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      const result = await client.session.messages({ path: { id: sessionId } });
+      const provider = getProvider();
+      const messages = await provider.getHistory(sessionId);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (!messages) {
+        await ctx.reply(
+          `History is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const messages = result.data ?? [];
       if (messages.length === 0) {
         await ctx.reply("No messages in this session.");
         return;
@@ -30,13 +31,15 @@ export function registerHistoryCommands(bot: Bot): void {
       const text = messages
         .slice(-10)
         .map((m: any) => {
-          const role = m.info?.role ?? "unknown";
-          const parts = m.parts ?? [];
-          const content = parts
-            .filter((p: any) => p.type === "text")
-            .map((p: any) => p.text)
-            .join("\n")
-            .slice(0, 200);
+          const role = m.info?.role ?? m.role ?? "unknown";
+          const parts = m.parts ?? m.content ?? [];
+          const content = Array.isArray(parts)
+            ? parts
+                .filter((p: any) => p.type === "text")
+                .map((p: any) => p.text)
+                .join("\n")
+                .slice(0, 200)
+            : String(parts).slice(0, 200);
           return `**${role}:** ${content || "(no text)"}`;
         })
         .join("\n\n---\n\n");
@@ -63,8 +66,8 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      await client.session.abort({ path: { id: sessionId } });
+      const provider = getProvider();
+      await provider.abort(sessionId);
       await ctx.reply("Operation aborted.");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "aborting operation"), { parse_mode: "HTML" });
@@ -79,17 +82,15 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      const result = await client.session.share({ path: { id: sessionId } });
+      const provider = getProvider();
+      const shareUrl = await provider.share(sessionId);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      const shareUrl = result.data?.share?.url;
       if (shareUrl) {
         await ctx.reply(`Session shared: ${shareUrl}`);
+      } else if (shareUrl === null) {
+        await ctx.reply(
+          `Sharing is not supported by the ${provider.name} provider.`
+        );
       } else {
         await ctx.reply("Session shared successfully.");
       }
@@ -106,31 +107,15 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
+      const provider = getProvider();
+      const reverted = await provider.revert(sessionId);
 
-      // Get the last assistant message ID to revert
-      const msgsResult = await client.session.messages({ path: { id: sessionId } });
-      const messages = msgsResult.data ?? [];
-      const lastAssistant = [...messages].reverse().find((m: any) => m.info?.role === "assistant");
-
-      if (!lastAssistant) {
-        await ctx.reply("No assistant message to revert.");
-        return;
-      }
-
-      const messageID = (lastAssistant as any).info?.id;
-      if (!messageID) {
-        await ctx.reply("Could not determine message ID to revert.");
-        return;
-      }
-
-      const result = await client.session.revert({
-        path: { id: sessionId },
-        body: { messageID },
-      });
-
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (!reverted) {
+        await ctx.reply(
+          provider.name === "opencode"
+            ? "No assistant message to revert."
+            : `Revert is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
@@ -148,8 +133,16 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      await client.session.unrevert({ path: { id: sessionId } });
+      const provider = getProvider();
+      const ok = await provider.unrevert(sessionId);
+
+      if (!ok) {
+        await ctx.reply(
+          `Unrevert is not supported by the ${provider.name} provider.`
+        );
+        return;
+      }
+
       await ctx.reply("Revert undone.");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "undoing revert"), { parse_mode: "HTML" });
@@ -165,8 +158,16 @@ export function registerHistoryCommands(bot: Bot): void {
       }
 
       await ctx.replyWithChatAction("typing");
-      const client = getClient();
-      await client.session.summarize({ path: { id: sessionId } });
+      const provider = getProvider();
+      const ok = await provider.summarize(sessionId);
+
+      if (!ok) {
+        await ctx.reply(
+          `Summarize is not supported by the ${provider.name} provider.`
+        );
+        return;
+      }
+
       await ctx.reply("Session summarized.");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "summarizing session"), { parse_mode: "HTML" });

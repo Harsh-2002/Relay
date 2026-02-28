@@ -1,10 +1,8 @@
-import type { Part } from "@opencode-ai/sdk";
-
 export function escapeMarkdownV2(text: string): string {
   return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 }
 
-export function formatParts(parts: Part[]): string {
+export function formatParts(parts: any[]): string {
   const sections: string[] = [];
 
   for (const part of parts) {

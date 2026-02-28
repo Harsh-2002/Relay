@@ -1,8 +1,8 @@
 import type { Bot } from "grammy";
 import { InputFile } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "../utils/chunker.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerFileCommands(bot: Bot): void {
   bot.command("read", async (ctx) => {
@@ -14,17 +14,17 @@ export function registerFileCommands(bot: Bot): void {
 
     try {
       await ctx.replyWithChatAction("typing");
-      const client = getClient();
-      const result = await client.file.read({ query: { path: filePath } });
+      const provider = getProvider();
+      const content = await provider.readFile(filePath);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (content === null) {
+        await ctx.reply(
+          `File reading is not directly supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const fileData = result.data as any;
-      const content = fileData?.content ?? JSON.stringify(fileData, null, 2);
-      const header = `📄 **${filePath}**\n\n`;
+      const header = `**${filePath}**\n\n`;
 
       if (content.length > 15000) {
         const buffer = Buffer.from(content, "utf-8");
@@ -56,27 +56,16 @@ export function registerFileCommands(bot: Bot): void {
 
     try {
       await ctx.replyWithChatAction("typing");
-      const client = getClient();
+      const provider = getProvider();
+      const matches = await provider.searchText(pattern);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      let result: any;
-      try {
-        result = await client.find.text({
-          query: { pattern },
-          signal: controller.signal,
-        } as any);
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (matches === null) {
+        await ctx.reply(
+          `Text search is not directly supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const matches = result.data ?? [];
       if (matches.length === 0) {
         await ctx.reply(`No matches found for: ${pattern}`);
         return;
@@ -84,7 +73,7 @@ export function registerFileCommands(bot: Bot): void {
 
       const text = matches
         .slice(0, 20)
-        .map((m: any) => `**${m.path.text}:${m.line_number}**\n\`${m.lines.text.trim()}\``)
+        .map((m) => `**${m.file}${m.line ? `:${m.line}` : ""}**\n\`${m.text ?? ""}\``)
         .join("\n\n");
 
       const header = `Found ${matches.length} match(es) for \`${pattern}\`:\n\n`;
@@ -110,15 +99,16 @@ export function registerFileCommands(bot: Bot): void {
 
     try {
       await ctx.replyWithChatAction("typing");
-      const client = getClient();
-      const result = await client.find.files({ query: { query } });
+      const provider = getProvider();
+      const files = await provider.findFiles(query);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (files === null) {
+        await ctx.reply(
+          `File search is not directly supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const files = result.data ?? [];
       if (files.length === 0) {
         await ctx.reply(`No files found matching: ${query}`);
         return;
@@ -147,15 +137,16 @@ export function registerFileCommands(bot: Bot): void {
     }
 
     try {
-      const client = getClient();
-      const result = await client.find.symbols({ query: { query } });
+      const provider = getProvider();
+      const symbols = await provider.findSymbols(query);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (symbols === null) {
+        await ctx.reply(
+          `Symbol search is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const symbols = result.data ?? [];
       if (symbols.length === 0) {
         await ctx.reply(`No symbols found for: ${query}`);
         return;
@@ -174,22 +165,23 @@ export function registerFileCommands(bot: Bot): void {
 
   bot.command("status", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.file.status();
+      const provider = getProvider();
+      const files = await provider.getFileStatus();
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (files === null) {
+        await ctx.reply(
+          `File status is not directly supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const files = result.data ?? [];
       if (files.length === 0) {
         await ctx.reply("No changed files (clean working tree).");
         return;
       }
 
       const text = files
-        .map((f: any) => `\`${f.status ?? "?"}\` ${f.path ?? f}`)
+        .map((f) => `\`${f.status}\` ${f.path}`)
         .join("\n");
 
       await ctx.reply(`**File status:**\n\n${text}`, { parse_mode: "Markdown" });

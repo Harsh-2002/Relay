@@ -1,4 +1,4 @@
-import { getClient } from "./client.js";
+import { getProvider } from "./providers/index.js";
 
 let activeSessionId: string | null = null;
 let selectedModel: { providerID: string; modelID: string } | null = (() => {
@@ -13,13 +13,10 @@ let selectedModel: { providerID: string; modelID: string } | null = (() => {
 export async function getOrCreateSession(): Promise<string> {
   if (activeSessionId) return activeSessionId;
 
-  const client = getClient();
-  const result = await client.session.create({ body: { title: "Telegram Session" } });
-  if (result.data) {
-    activeSessionId = result.data.id;
-    return activeSessionId;
-  }
-  throw new Error("Failed to create session");
+  const provider = getProvider();
+  const session = await provider.createSession("Telegram Session");
+  activeSessionId = session.id;
+  return activeSessionId;
 }
 
 export function getActiveSessionId(): string | null {

@@ -1,13 +1,12 @@
 import type { Bot } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { getOrCreateSession, getSelectedModel } from "../session.js";
-import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media.js";
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
-import { formatSdkError, formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
+import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { readFileSync } from "fs";
 
 const botToken = process.env.BOT_TOKEN ?? "";
@@ -25,50 +24,31 @@ export function registerMediaHandlers(bot: Bot): void {
       const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
 
       const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
-      let parts: any[];
+      let promptText: string;
 
       if (isTextFile && doc.file_size && doc.file_size < 100_000) {
         const content = readFileSync(localPath, "utf-8");
-        parts = [
-          {
-            type: "text" as const,
-            text: `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``,
-          },
-        ];
+        promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
       } else {
-        parts = [
-          {
-            type: "text" as const,
-            text: `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`,
-          },
-        ];
+        promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
       }
 
       const sessionId = await getOrCreateSession();
-      const client = getClient();
+      const provider = getProvider();
       const model = getSelectedModel();
       const system = getSystemPrompt();
 
-      const result = await client.session.prompt({
-        path: { id: sessionId },
-        body: {
-          parts,
-          ...(model && { model }),
-          system,
-        },
+      const result = await provider.prompt(sessionId, promptText, {
+        parts: [{ type: "text", text: promptText }],
+        ...(model && { model }),
+        system,
       });
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      const response = formatParts(result.data?.parts ?? []);
-      if (!response.trim()) {
+      if (!result.text.trim() || result.text === "(empty response)") {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
         return;
       }
-      const chunks = chunkMessage(response);
+      const chunks = chunkMessage(result.text);
       for (const chunk of chunks) {
         try {
           await ctx.reply(chunk, { parse_mode: "Markdown" });
@@ -108,37 +88,28 @@ export function registerMediaHandlers(bot: Bot): void {
       ];
 
       // Also save locally for reference
-      const localPath = await downloadTelegramFile(botToken, file.file_path!, fileName);
+      await downloadTelegramFile(botToken, file.file_path!, fileName);
 
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
       const system = getSystemPrompt();
+      const provider = getProvider();
 
-      if (isStreamingEnabled()) {
+      // Streaming only available for OpenCode (SSE-based)
+      if (isStreamingEnabled() && provider.name === "opencode") {
         await streamPrompt({ ctx, sessionId, parts, model, system });
       } else {
-        const client = getClient();
-
-        const result = await client.session.prompt({
-          path: { id: sessionId },
-          body: {
-            parts,
-            ...(model && { model }),
-            system,
-          },
+        const result = await provider.prompt(sessionId, caption, {
+          parts,
+          ...(model && { model }),
+          system,
         });
 
-        if (result.error) {
-          await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-          return;
-        }
-
-        const response = formatParts(result.data?.parts ?? []);
-        if (!response.trim()) {
+        if (!result.text.trim() || result.text === "(empty response)") {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
           return;
         }
-        const chunks = chunkMessage(response);
+        const chunks = chunkMessage(result.text);
         for (const chunk of chunks) {
           try {
             await ctx.reply(chunk, { parse_mode: "Markdown" });
@@ -177,34 +148,26 @@ export function registerMediaHandlers(bot: Bot): void {
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
       const system = getSystemPrompt();
+      const provider = getProvider();
       const promptParts = [{ type: "text" as const, text: result.text }];
 
-      if (isStreamingEnabled()) {
+      // Streaming only available for OpenCode (SSE-based)
+      if (isStreamingEnabled() && provider.name === "opencode") {
         await streamPrompt({ ctx, sessionId, parts: promptParts, model, system });
       } else {
         await ctx.replyWithChatAction("typing");
-        const client = getClient();
 
-        const promptResult = await client.session.prompt({
-          path: { id: sessionId },
-          body: {
-            parts: promptParts,
-            ...(model && { model }),
-            system,
-          },
+        const promptResult = await provider.prompt(sessionId, result.text, {
+          parts: promptParts,
+          ...(model && { model }),
+          system,
         });
 
-        if (promptResult.error) {
-          await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
-          return;
-        }
-
-        const response = formatParts(promptResult.data?.parts ?? []);
-        if (!response.trim()) {
+        if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
           return;
         }
-        const chunks = chunkMessage(response);
+        const chunks = chunkMessage(promptResult.text);
         for (const chunk of chunks) {
           try {
             await ctx.reply(chunk, { parse_mode: "Markdown" });
@@ -234,30 +197,21 @@ export function registerMediaHandlers(bot: Bot): void {
           await ctx.replyWithChatAction("typing");
 
           const sessionId = await getOrCreateSession();
-          const client = getClient();
+          const provider = getProvider();
           const model = getSelectedModel();
           const system = getSystemPrompt();
 
-          const promptResult = await client.session.prompt({
-            path: { id: sessionId },
-            body: {
-              parts: [{ type: "text", text: result.text }],
-              ...(model && { model }),
-              system,
-            },
+          const promptResult = await provider.prompt(sessionId, result.text, {
+            parts: [{ type: "text", text: result.text }],
+            ...(model && { model }),
+            system,
           });
 
-          if (promptResult.error) {
-            await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
-            return;
-          }
-
-          const response = formatParts(promptResult.data?.parts ?? []);
-          if (!response.trim()) {
+          if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
             await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
             return;
           }
-          const chunks = chunkMessage(response);
+          const chunks = chunkMessage(promptResult.text);
           for (const chunk of chunks) {
             try {
               await ctx.reply(chunk, { parse_mode: "Markdown" });
@@ -270,39 +224,30 @@ export function registerMediaHandlers(bot: Bot): void {
       }
 
       // Fallback: download and reference as file
-      const localPath = await downloadTelegramFile(botToken, file.file_path!, fileName);
+      await downloadTelegramFile(botToken, file.file_path!, fileName);
       const caption = ctx.message.caption ?? `Audio file: ${fileName}`;
 
       const sessionId = await getOrCreateSession();
-      const client = getClient();
+      const provider = getProvider();
       const model = getSelectedModel();
       const system = getSystemPrompt();
 
-      const promptResult = await client.session.prompt({
-        path: { id: sessionId },
-        body: {
-          parts: [
-            {
-              type: "text",
-              text: `${caption}\n\n(Audio file: ${fileName})`,
-            },
-          ],
-          ...(model && { model }),
-          system,
-        },
+      const promptResult = await provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
+        parts: [
+          {
+            type: "text",
+            text: `${caption}\n\n(Audio file: ${fileName})`,
+          },
+        ],
+        ...(model && { model }),
+        system,
       });
 
-      if (promptResult.error) {
-        await ctx.reply(formatSdkError(promptResult.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      const response = formatParts(promptResult.data?.parts ?? []);
-      if (!response.trim()) {
+      if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
         return;
       }
-      const chunks = chunkMessage(response);
+      const chunks = chunkMessage(promptResult.text);
       for (const chunk of chunks) {
         try {
           await ctx.reply(chunk, { parse_mode: "Markdown" });

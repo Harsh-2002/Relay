@@ -1,29 +1,22 @@
 import type { Bot } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import {
   getActiveSessionId,
   setActiveSessionId,
   clearActiveSession,
-  getOrCreateSession,
 } from "../session.js";
-import { formatSessionList } from "../utils/formatter.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerSessionCommands(bot: Bot): void {
   bot.command("new", async (ctx) => {
     try {
       const title = ctx.match || "Telegram Session";
-      const client = getClient();
-      const result = await client.session.create({ body: { title } });
+      const provider = getProvider();
+      const session = await provider.createSession(title);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      setActiveSessionId(result.data!.id);
+      setActiveSessionId(session.id);
       await ctx.reply(
-        `Session created!\nTitle: **${result.data!.title}**\nID: \`${result.data!.id}\``,
+        `Session created!\nTitle: **${session.title ?? title}**\nID: \`${session.id}\``,
         { parse_mode: "Markdown" }
       );
     } catch (err: any) {
@@ -33,19 +26,30 @@ export function registerSessionCommands(bot: Bot): void {
 
   bot.command("sessions", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.session.list();
+      const provider = getProvider();
+      const sessions = await provider.listSessions();
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (sessions.length === 0) {
+        await ctx.reply("No sessions found.");
         return;
       }
 
       const activeId = getActiveSessionId();
-      let text = formatSessionList(result.data ?? []);
-      if (activeId) {
-        text = `Active: \`${activeId}\`\n\n${text}`;
-      }
+      const lines = sessions
+        .sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0))
+        .map((s, i) => {
+          const marker = s.id === activeId ? " ← active" : "";
+          const date = s.lastModified
+            ? new Date(s.lastModified).toLocaleDateString()
+            : "";
+          return `${i + 1}. **${s.title || "Untitled"}**\n   ID: \`${s.id}\`${date ? ` | ${date}` : ""}${marker}`;
+        })
+        .join("\n\n");
+
+      const text = activeId
+        ? `Active: \`${activeId}\`\n\n${lines}`
+        : lines;
+
       try {
         await ctx.reply(text, { parse_mode: "Markdown" });
       } catch {
@@ -64,18 +68,19 @@ export function registerSessionCommands(bot: Bot): void {
     }
 
     try {
-      const client = getClient();
-      const result = await client.session.get({ path: { id } });
+      const provider = getProvider();
+      const session = await provider.getSession(id);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (!session) {
+        await ctx.reply(`Session \`${id}\` not found.`, { parse_mode: "Markdown" });
         return;
       }
 
       setActiveSessionId(id);
-      await ctx.reply(`Switched to session: **${result.data!.title}** (\`${id}\`)`, {
-        parse_mode: "Markdown",
-      });
+      await ctx.reply(
+        `Switched to session: **${session.title ?? "Untitled"}** (\`${id}\`)`,
+        { parse_mode: "Markdown" }
+      );
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "switching session"), { parse_mode: "HTML" });
     }
@@ -89,8 +94,15 @@ export function registerSessionCommands(bot: Bot): void {
     }
 
     try {
-      const client = getClient();
-      await client.session.delete({ path: { id } });
+      const provider = getProvider();
+      const deleted = await provider.deleteSession(id);
+
+      if (!deleted) {
+        await ctx.reply(
+          `Could not delete session. This may not be supported by the ${provider.name} provider.`
+        );
+        return;
+      }
 
       if (getActiveSessionId() === id) {
         clearActiveSession();
@@ -109,19 +121,18 @@ export function registerSessionCommands(bot: Bot): void {
     }
 
     try {
-      const client = getClient();
-      const result = await client.session.get({ path: { id: activeId } });
+      const provider = getProvider();
+      const session = await provider.getSession(activeId);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (!session) {
+        await ctx.reply(`Active session \`${activeId}\` (details not available)`, {
+          parse_mode: "Markdown",
+        });
         return;
       }
 
-      const s = result.data!;
-      const created = new Date(s.time.created).toLocaleString();
-      const updated = new Date(s.time.updated).toLocaleString();
       await ctx.reply(
-        `**${s.title}**\nID: \`${s.id}\`\nCreated: ${created}\nUpdated: ${updated}`,
+        `**${session.title ?? "Untitled"}**\nID: \`${session.id}\``,
         { parse_mode: "Markdown" }
       );
     } catch (err: any) {

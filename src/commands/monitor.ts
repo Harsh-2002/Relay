@@ -1,9 +1,9 @@
 import type { Bot } from "grammy";
 import { InputFile } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { getActiveSessionId, setActiveSessionId } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerMonitorCommands(bot: Bot): void {
   bot.command("todo", async (ctx) => {
@@ -14,15 +14,16 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      const result = await client.session.todo({ path: { id: sessionId } });
+      const provider = getProvider();
+      const todos = await provider.getTodos(sessionId);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (todos === null) {
+        await ctx.reply(
+          `Todo list is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const todos = (result.data ?? []) as any[];
       if (todos.length === 0) {
         await ctx.reply("No tasks in this session.");
         return;
@@ -55,15 +56,16 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
-      const client = getClient();
-      const result = await client.session.diff({ path: { id: sessionId } });
+      const provider = getProvider();
+      const diffs = await provider.getDiff(sessionId);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (diffs === null) {
+        await ctx.reply(
+          `Diff is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const diffs = (result.data ?? []) as any[];
       if (diffs.length === 0) {
         await ctx.reply("No changes in this session.");
         return;
@@ -73,8 +75,8 @@ export function registerMonitorCommands(bot: Bot): void {
       let totalAdded = 0;
       let totalDeleted = 0;
       for (const d of diffs) {
-        totalAdded += d.additions ?? 0;
-        totalDeleted += d.deletions ?? 0;
+        totalAdded += d.additions;
+        totalDeleted += d.deletions;
       }
 
       const arg = ctx.match?.trim();
@@ -82,8 +84,8 @@ export function registerMonitorCommands(bot: Bot): void {
       // "full" → send before/after content as file
       if (arg === "full") {
         const fullText = diffs
-          .map((d: any) => {
-            let section = `=== ${d.file} ===  +${d.additions ?? 0} -${d.deletions ?? 0}\n`;
+          .map((d) => {
+            let section = `=== ${d.file} ===  +${d.additions} -${d.deletions}\n`;
             if (d.after) {
               section += `--- before\n${d.before ?? "(new file)"}\n+++ after\n${d.after}\n`;
             }
@@ -98,7 +100,7 @@ export function registerMonitorCommands(bot: Bot): void {
 
       // Default: compact summary
       const fileLines = diffs.map(
-        (d: any) => `<code>${escapeHtml(d.file)}</code>  +${d.additions ?? 0} -${d.deletions ?? 0}`
+        (d) => `<code>${escapeHtml(d.file)}</code>  +${d.additions} -${d.deletions}`
       );
 
       const text =
@@ -126,19 +128,16 @@ export function registerMonitorCommands(bot: Bot): void {
       }
 
       const messageID = ctx.match?.trim() || undefined;
+      const provider = getProvider();
+      const forked = await provider.forkSession(sessionId, messageID);
 
-      const client = getClient();
-      const result = await client.session.fork({
-        path: { id: sessionId },
-        body: { messageID },
-      });
-
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (!forked) {
+        await ctx.reply(
+          `Forking is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const forked = result.data as any;
       setActiveSessionId(forked.id);
 
       await ctx.reply(

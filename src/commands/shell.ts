@@ -1,9 +1,8 @@
 import type { Bot } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { getOrCreateSession } from "../session.js";
-import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
@@ -16,23 +15,18 @@ export function registerShellCommands(bot: Bot): void {
     try {
       await ctx.replyWithChatAction("typing");
       const sessionId = await getOrCreateSession();
-      const client = getClient();
+      const provider = getProvider();
 
-      const result = await client.session.shell({
-        path: { id: sessionId },
-        body: { command, agent: "default" },
-      });
+      const result = await provider.shell(sessionId, command);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (result === null) {
+        await ctx.reply(
+          `Shell commands are not directly supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const data = result.data as any;
-      const text = data?.modelID
-        ? `Shell command completed (model: ${data.modelID}).`
-        : "Shell command completed.";
-      await ctx.reply(text);
+      await ctx.reply(result);
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "running shell command"), { parse_mode: "HTML" });
     }
@@ -52,20 +46,18 @@ export function registerShellCommands(bot: Bot): void {
     try {
       await ctx.replyWithChatAction("typing");
       const sessionId = await getOrCreateSession();
-      const client = getClient();
+      const provider = getProvider();
 
-      const result = await client.session.command({
-        path: { id: sessionId },
-        body: { command, arguments: args, agent: "build" },
-      });
+      const result = await provider.runCommand(sessionId, command, args);
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (result === null) {
+        await ctx.reply(
+          `Custom commands are not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const response = formatParts(result.data?.parts ?? []);
-      const chunks = chunkMessage(response);
+      const chunks = chunkMessage(result.text);
       for (const chunk of chunks) {
         try {
           await ctx.reply(chunk, { parse_mode: "Markdown" });
@@ -80,25 +72,26 @@ export function registerShellCommands(bot: Bot): void {
 
   bot.command("commands", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.command.list();
+      const provider = getProvider();
+      const commands = await provider.getCommands();
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (commands === null) {
+        await ctx.reply(
+          `Command listing is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const commands = (result.data ?? []) as any[];
       if (commands.length === 0) {
         await ctx.reply("No commands available.");
         return;
       }
 
       const text =
-        `<b>OpenCode Commands</b>  (${commands.length})\n` +
+        `<b>Commands</b>  (${commands.length})\n` +
         `<i>Use with /cmd &lt;command&gt;</i>\n\n` +
         commands
-          .map((c: any) => {
+          .map((c) => {
             const desc = c.description ? ` — ${escapeHtml(c.description)}` : "";
             return `<code>${escapeHtml(c.name)}</code>${desc}`;
           })

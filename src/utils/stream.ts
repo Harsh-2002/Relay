@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
 import { InputFile } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { formatParts } from "./formatter.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
@@ -28,7 +28,13 @@ export async function streamPrompt({
   model,
   system,
 }: StreamPromptOptions): Promise<void> {
-  const client = getClient();
+  // Streaming uses OpenCode-specific SSE — get the raw client
+  const provider = getProvider();
+  if (provider.name !== "opencode") {
+    throw new Error("Streaming is only supported with the OpenCode provider.");
+  }
+  const { OpenCodeProvider } = await import("../providers/opencode.js");
+  const client = (provider as InstanceType<typeof OpenCodeProvider>).getClient();
 
   // Send placeholder
   const placeholder = await ctx.reply("Thinking...");

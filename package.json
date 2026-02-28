@@ -1,7 +1,7 @@
 {
   "name": "ocbot",
   "version": "1.0.0",
-  "description": "Telegram bot wrapper for OpenCode SDK — control OpenCode from Telegram",
+  "description": "Telegram bot for AI coding agents — supports OpenCode, Claude Code, and OpenAI Codex",
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
@@ -10,6 +10,10 @@
   "dependencies": {
     "@opencode-ai/sdk": "^1.2.15",
     "grammy": "^1.40.1"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-code": "^0.2.62",
+    "@openai/codex": "^0.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -1,4 +1,4 @@
-import { initClient, shutdownServer } from "./client.js";
+import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
 import { isAuthConfigured } from "./auth.js";
 import { startUploadCleanup } from "./utils/media.js";
@@ -15,9 +15,10 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("Initializing OpenCode client...");
-  await initClient();
-  console.log("OpenCode client ready.");
+  const providerName = getProviderName();
+  console.log(`Initializing ${providerName} provider...`);
+  await initProvider();
+  console.log(`${providerName} provider ready.`);
 
   // Clean up old uploads every 30 minutes
   startUploadCleanup();
@@ -27,13 +28,13 @@ async function main() {
   process.on("SIGINT", () => {
     console.log("\nShutting down...");
     bot.stop();
-    shutdownServer();
+    shutdownProvider();
     process.exit(0);
   });
 
   process.on("SIGTERM", () => {
     bot.stop();
-    shutdownServer();
+    shutdownProvider();
     process.exit(0);
   });
 

@@ -1,11 +1,10 @@
 import type { Bot } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider } from "../providers/index.js";
 import { getOrCreateSession, getSelectedModel } from "../session.js";
-import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
-import { formatSdkError, formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
+import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { InputFile } from "grammy";
 
 export function registerChat(bot: Bot): void {
@@ -17,36 +16,28 @@ export function registerChat(bot: Bot): void {
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
       const system = getSystemPrompt();
-      const parts = [{ type: "text" as const, text }];
+      const provider = getProvider();
 
-      if (isStreamingEnabled()) {
+      // Streaming only available for OpenCode provider (SSE-based)
+      if (isStreamingEnabled() && provider.name === "opencode") {
+        const parts = [{ type: "text" as const, text }];
         await streamPrompt({ ctx, sessionId, parts, model, system });
         return;
       }
 
       await ctx.replyWithChatAction("typing");
-      const client = getClient();
 
-      const result = await client.session.prompt({
-        path: { id: sessionId },
-        body: {
-          parts,
-          ...(model && { model }),
-          system,
-        },
+      const result = await provider.prompt(sessionId, text, {
+        parts: [{ type: "text" as const, text }],
+        ...(model && { model }),
+        system,
       });
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      const response = formatParts(result.data?.parts ?? []);
-      if (!response.trim()) {
+      if (!result.text.trim() || result.text === "(empty response)") {
         await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
         return;
       }
-      await sendResponse(ctx, response);
+      await sendResponse(ctx, result.text);
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
     }

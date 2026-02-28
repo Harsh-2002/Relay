@@ -1,27 +1,18 @@
 import type { Bot } from "grammy";
 import { InputFile } from "grammy";
-import { getClient } from "../client.js";
+import { getProvider, getProviderName } from "../providers/index.js";
 import { setSelectedModel, getSelectedModel } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isSttAvailable, getSttProvider } from "../utils/stt.js";
 import { isStreamingEnabled } from "../utils/stream.js";
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
-import { formatSdkError, formatCatchError } from "../utils/errors.js";
+import { formatCatchError } from "../utils/errors.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
     try {
-      const client = getClient();
-      const [configResult, projResult, vcsResult] = await Promise.all([
-        client.config.get(),
-        client.project.current(),
-        client.vcs.get(),
-      ]);
-
-      if (configResult.error) {
-        await ctx.reply(formatSdkError(configResult.error), { parse_mode: "HTML" });
-        return;
-      }
+      const provider = getProvider();
+      const health = await provider.getHealth();
 
       const streaming = isStreamingEnabled() ? "Enabled" : "Disabled";
       const sttProvider = getSttProvider();
@@ -29,24 +20,29 @@ export function registerAdminCommands(bot: Bot): void {
       const prompt = getSystemPrompt();
       const promptSource = isUsingCustomPrompt() ? "Custom" : "Default";
       const model = getSelectedModel();
-      const modelStr = model ? `${model.providerID}/${model.modelID}` : "Server default";
-
-      const proj = projResult.data as any;
-      const vcs = vcsResult.data as any;
+      const modelStr = model
+        ? `${model.providerID}/${model.modelID}`
+        : health.model ?? "Server default";
 
       let text =
         `<b>Server Status</b>\n\n` +
-        `<b>Status:</b>  Healthy\n` +
+        `<b>Provider:</b>  <code>${health.provider}</code>\n` +
+        `<b>Status:</b>  ${health.status}\n` +
         `<b>Model:</b>  <code>${modelStr}</code>\n` +
         `<b>Streaming:</b>  ${streaming}\n` +
         `<b>Voice STT:</b>  ${stt}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
 
-      if (proj?.worktree) {
-        text += `\n\n<b>Project:</b>  <code>${escapeHtml(proj.worktree)}</code>`;
+      if (health.project) {
+        text += `\n\n<b>Project:</b>  <code>${escapeHtml(health.project)}</code>`;
       }
-      if (vcs?.branch) {
-        text += `\n<b>Branch:</b>  <code>${escapeHtml(vcs.branch)}</code>`;
+      if (health.branch) {
+        text += `\n<b>Branch:</b>  <code>${escapeHtml(health.branch)}</code>`;
+      }
+      if (health.extra) {
+        for (const [key, value] of Object.entries(health.extra)) {
+          text += `\n<b>${escapeHtml(key)}:</b>  <code>${escapeHtml(value)}</code>`;
+        }
       }
 
       await ctx.reply(text, { parse_mode: "HTML" });
@@ -57,15 +53,9 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("config", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.config.get();
-
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      await sendJsonResponse(ctx, result.data, "config.json");
+      const provider = getProvider();
+      const config = await provider.getConfig();
+      await sendJsonResponse(ctx, config, "config.json");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching config"), { parse_mode: "HTML" });
     }
@@ -73,15 +63,9 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("providers", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.config.providers();
-
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
-        return;
-      }
-
-      await sendJsonResponse(ctx, result.data, "providers.json");
+      const provider = getProvider();
+      const providers = await provider.getProviders();
+      await sendJsonResponse(ctx, providers, "providers.json");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "fetching providers"), { parse_mode: "HTML" });
     }
@@ -89,16 +73,17 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("agents", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.app.agents();
+      const provider = getProvider();
+      const agents = await provider.getAgents();
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (agents === null) {
+        await ctx.reply(
+          `Agent listing is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const agents = result.data ?? [];
-      if (Array.isArray(agents) && agents.length === 0) {
+      if (agents.length === 0) {
         await ctx.reply("No agents available.");
         return;
       }
@@ -111,34 +96,23 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("project", async (ctx) => {
     try {
-      const client = getClient();
-      const [projResult, pathResult, vcsResult] = await Promise.all([
-        client.project.current(),
-        client.path.get(),
-        client.vcs.get(),
-      ]);
+      const provider = getProvider();
+      const proj = await provider.getProjectInfo();
 
-      if (projResult.error) {
-        await ctx.reply(formatSdkError(projResult.error), { parse_mode: "HTML" });
+      if (!proj) {
+        await ctx.reply(
+          `Project info is not available for the ${provider.name} provider.`
+        );
         return;
       }
 
-      const proj = projResult.data as any;
-      const paths = pathResult.data as any;
-      const vcs = vcsResult.data as any;
+      let text = `<b>Project Info</b>\n\n`;
 
-      let text =
-        `<b>Project Info</b>\n\n` +
-        `<b>ID:</b>  <code>${escapeHtml(proj?.id ?? "unknown")}</code>\n` +
-        `<b>Worktree:</b>  <code>${escapeHtml(proj?.worktree ?? "unknown")}</code>\n` +
-        `<b>VCS:</b>  ${proj?.vcs ?? "none"}`;
-
-      if (vcs?.branch) {
-        text += `\n<b>Branch:</b>  <code>${escapeHtml(vcs.branch)}</code>`;
-      }
-      if (paths?.directory) {
-        text += `\n<b>Directory:</b>  <code>${escapeHtml(paths.directory)}</code>`;
-      }
+      if (proj.id) text += `<b>ID:</b>  <code>${escapeHtml(proj.id)}</code>\n`;
+      if (proj.worktree) text += `<b>Worktree:</b>  <code>${escapeHtml(proj.worktree)}</code>\n`;
+      if (proj.vcs) text += `<b>VCS:</b>  ${escapeHtml(proj.vcs)}\n`;
+      if (proj.branch) text += `<b>Branch:</b>  <code>${escapeHtml(proj.branch)}</code>\n`;
+      if (proj.directory) text += `<b>Directory:</b>  <code>${escapeHtml(proj.directory)}</code>\n`;
 
       await ctx.reply(text, { parse_mode: "HTML" });
     } catch (err: any) {
@@ -148,38 +122,37 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("git", async (ctx) => {
     try {
-      const client = getClient();
-      const [vcsResult, statusResult] = await Promise.all([
-        client.vcs.get(),
-        client.file.status(),
+      const provider = getProvider();
+
+      // Use provider's file status and project info for git data
+      const [projectInfo, fileStatus] = await Promise.all([
+        provider.getProjectInfo(),
+        provider.getFileStatus(),
       ]);
 
-      if (vcsResult.error) {
-        await ctx.reply(formatSdkError(vcsResult.error), { parse_mode: "HTML" });
+      if (!projectInfo?.branch && fileStatus === null) {
+        await ctx.reply(
+          `Git info is not directly available for the ${provider.name} provider.`
+        );
         return;
       }
 
-      const vcs = vcsResult.data as any;
-      const files = ((statusResult.data ?? []) as any[]);
-
       let text =
         `<b>Git Info</b>\n\n` +
-        `<b>Branch:</b>  <code>${escapeHtml(vcs?.branch ?? "unknown")}</code>\n`;
+        `<b>Branch:</b>  <code>${escapeHtml(projectInfo?.branch ?? "unknown")}</code>\n`;
 
-      if (files.length === 0) {
+      if (fileStatus === null) {
+        text += `<b>Status:</b>  Not available`;
+      } else if (fileStatus.length === 0) {
         text += `<b>Status:</b>  Clean working tree`;
       } else {
-        text += `<b>Changed files:</b>  ${files.length}\n\n`;
-        text += files
+        text += `<b>Changed files:</b>  ${fileStatus.length}\n\n`;
+        text += fileStatus
           .slice(0, 30)
-          .map((f: any) => {
-            const status = f.status ?? "?";
-            const path = f.path ?? String(f);
-            return `<code>${escapeHtml(status)}</code>  ${escapeHtml(path)}`;
-          })
+          .map((f) => `<code>${escapeHtml(f.status)}</code>  ${escapeHtml(f.path)}`)
           .join("\n");
-        if (files.length > 30) {
-          text += `\n\n<i>...and ${files.length - 30} more</i>`;
+        if (fileStatus.length > 30) {
+          text += `\n\n<i>...and ${fileStatus.length - 30} more</i>`;
         }
       }
 
@@ -194,15 +167,16 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("tools", async (ctx) => {
     try {
-      const client = getClient();
-      const result = await client.tool.ids();
+      const provider = getProvider();
+      const ids = await provider.getTools();
 
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      if (ids === null) {
+        await ctx.reply(
+          `Tool listing is not supported by the ${provider.name} provider.`
+        );
         return;
       }
 
-      const ids = (result.data ?? []) as string[];
       if (ids.length === 0) {
         await ctx.reply("No tools available.");
         return;
@@ -282,15 +256,22 @@ export function registerAdminCommands(bot: Bot): void {
   });
 
   bot.command("start", async (ctx) => {
+    const providerName = getProviderName();
     await ctx.reply(
       `Hey! Send me a message and I'll pass it to the AI.\n\n` +
+      `Provider: ${providerName}\n\n` +
       `You can also send voice notes, photos, or files.\n\n` +
       `Type /help to see all commands.`,
     );
   });
 
   bot.command("help", async (ctx) => {
-    await ctx.reply(
+    const providerName = getProviderName();
+    const isOpencode = providerName === "opencode";
+
+    let text =
+      `<b>OCBot</b> — ${providerName} provider\n\n` +
+
       `<b>Chat</b>\n` +
       `Just send any text, voice, photo, or file\n\n` +
 
@@ -300,13 +281,17 @@ export function registerAdminCommands(bot: Bot): void {
       `/switch <code>id</code>  —  Switch session\n` +
       `/delete <code>id</code>  —  Delete session\n` +
       `/current  —  Active session\n` +
-      `/fork <code>[messageId]</code>  —  Fork session\n\n` +
+      `/fork <code>[messageId]</code>  —  Fork session\n\n`;
 
-      `<b>Monitor</b>\n` +
-      `/todo  —  AI task checklist\n` +
-      `/diff  —  Session code changes\n` +
-      `/diff full  —  Download full diff\n\n` +
+    if (isOpencode) {
+      text +=
+        `<b>Monitor</b>\n` +
+        `/todo  —  AI task checklist\n` +
+        `/diff  —  Session code changes\n` +
+        `/diff full  —  Download full diff\n\n`;
+    }
 
+    text +=
       `<b>Files</b>\n` +
       `/read <code>path</code>  —  Read file\n` +
       `/find <code>query</code>  —  Find files\n` +
@@ -322,10 +307,17 @@ export function registerAdminCommands(bot: Bot): void {
       `/share  —  Share session\n\n` +
 
       `<b>Shell</b>\n` +
-      `/shell <code>cmd</code>  —  Run command\n` +
-      `/cmd <code>command</code>  —  OpenCode command\n` +
-      `/commands  —  List available commands\n\n` +
+      `/shell <code>cmd</code>  —  Run command\n`;
 
+    if (isOpencode) {
+      text +=
+        `/cmd <code>command</code>  —  OpenCode command\n` +
+        `/commands  —  List available commands\n\n`;
+    } else {
+      text += `\n`;
+    }
+
+    text +=
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
       `/system  —  View system prompt\n` +
@@ -336,9 +328,9 @@ export function registerAdminCommands(bot: Bot): void {
       `/agents  —  List agents\n` +
       `/tools  —  Available tools\n` +
       `/project  —  Project info\n` +
-      `/git  —  Git branch + status`,
-      { parse_mode: "HTML" }
-    );
+      `/git  —  Git branch + status`;
+
+    await ctx.reply(text, { parse_mode: "HTML" });
   });
 }
 

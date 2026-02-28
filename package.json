@@ -44,6 +44,7 @@
     "@openai/codex": "^0.1.0"
   },
   "devDependencies": {
+    "@types/node": "^25.3.2",
     "typescript": "^5.0.0"
   }
 }

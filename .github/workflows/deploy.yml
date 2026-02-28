@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [web]
+    branches: [web, claude/web-6Omcp]
   workflow_dispatch:
 
 permissions:

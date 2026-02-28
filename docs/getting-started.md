@@ -14,14 +14,14 @@ This guide walks you through setting up Relay from scratch.
 ### From npm (recommended)
 
 ```bash
-npm install -g relay
+npm install -g @4via6/relay
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/Harsh-2002/relay.git
-cd relay
+git clone https://github.com/Harsh-2002/Relay.git
+cd Relay
 npm install
 npm run build
 ```

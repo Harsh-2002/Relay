@@ -36,13 +36,13 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 ### From npm
 
 ```bash
-npm install -g relay
+npm install -g @4via6/relay
 ```
 
 Then create a `.env` file in your working directory (see [Configuration](docs/configuration.md)):
 
 ```bash
-curl -O https://raw.githubusercontent.com/Harsh-2002/relay/main/.env.example
+curl -O https://raw.githubusercontent.com/Harsh-2002/Relay/main/.env.example
 # Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
 relay
 ```
@@ -50,8 +50,8 @@ relay
 ### From source
 
 ```bash
-git clone https://github.com/Harsh-2002/relay.git
-cd relay
+git clone https://github.com/Harsh-2002/Relay.git
+cd Relay
 npm install
 npm run build
 cp .env.example .env
@@ -62,7 +62,7 @@ npm start
 ### With npx (no install)
 
 ```bash
-npx relay
+npx @4via6/relay
 ```
 
 ### Prerequisites

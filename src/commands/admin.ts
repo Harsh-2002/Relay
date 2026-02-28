@@ -3,6 +3,8 @@ import { InputFile } from "grammy";
 import { getClient } from "../client.js";
 import { setSelectedModel, getSelectedModel } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
+import { isSttAvailable, getSttProvider } from "../utils/stt.js";
+import { isStreamingEnabled } from "../utils/stream.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
@@ -13,7 +15,12 @@ export function registerAdminCommands(bot: Bot): void {
         await ctx.reply("Server responded with error.");
         return;
       }
-      await ctx.reply("OpenCode server is healthy and reachable.");
+      const streaming = isStreamingEnabled() ? "enabled" : "disabled";
+      const sttProvider = getSttProvider();
+      const stt = sttProvider ? `configured (${sttProvider})` : "not configured";
+      await ctx.reply(
+        `OpenCode server is healthy.\nStreaming: ${streaming}\nVoice STT: ${stt}`
+      );
     } catch (err: any) {
       await ctx.reply(`Server unreachable: ${err.message}`);
     }
@@ -130,6 +137,9 @@ export function registerAdminCommands(bot: Bot): void {
         "/find <query> — Find files by name\n" +
         "/symbols <query> — Find code symbols\n" +
         "/status — Git file status\n\n" +
+        "**Voice:**\n" +
+        "Send a voice message — auto-transcribed and sent to AI\n" +
+        "Send an audio file — transcribed if STT configured\n\n" +
         "**Shell:**\n" +
         "/shell <cmd> — Run shell command\n" +
         "/cmd <command> — Run OpenCode command\n\n" +

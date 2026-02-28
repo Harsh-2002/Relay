@@ -3,6 +3,7 @@ import { getClient } from "../client.js";
 import { getOrCreateSession, getSelectedModel } from "../session.js";
 import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
+import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { InputFile } from "grammy";
 
 export function registerChat(bot: Bot): void {
@@ -11,16 +12,22 @@ export function registerChat(bot: Bot): void {
     if (text.startsWith("/")) return;
 
     try {
-      await ctx.replyWithChatAction("typing");
-
       const sessionId = await getOrCreateSession();
-      const client = getClient();
       const model = getSelectedModel();
+      const parts = [{ type: "text" as const, text }];
+
+      if (isStreamingEnabled()) {
+        await streamPrompt({ ctx, sessionId, parts, model });
+        return;
+      }
+
+      await ctx.replyWithChatAction("typing");
+      const client = getClient();
 
       const result = await client.session.prompt({
         path: { id: sessionId },
         body: {
-          parts: [{ type: "text", text }],
+          parts,
           ...(model && { model }),
         },
       });

@@ -156,8 +156,62 @@ async function test() {
     }
   } catch (e: any) { console.log(`${FAIL} ${e.message}`); failed++; }
 
-  // 15. Session delete
-  console.log("[15] session.delete()");
+  // 15. Streaming: promptAsync + event.subscribe
+  console.log("[15] promptAsync() + event.subscribe() — streaming");
+  let streamSessionId = "";
+  try {
+    const sr = await client.session.create({ body: { title: "Stream Test" } });
+    streamSessionId = sr.data?.id ?? "";
+
+    // Start async prompt
+    await client.session.promptAsync({
+      path: { id: streamSessionId },
+      body: { parts: [{ type: "text", text: "Say 'stream ok' and nothing else." }] },
+    });
+
+    // Subscribe to events
+    const sseResult = await client.event.subscribe();
+    let gotPartUpdate = false;
+    let gotIdle = false;
+    let accumulatedText = "";
+
+    const sseTimeout = setTimeout(() => {
+      // Force break if stuck
+    }, 30000);
+
+    for await (const event of sseResult.stream) {
+      const evt = event as any;
+      if (evt.type === "message.part.updated") {
+        const props = evt.properties;
+        if (props.part?.sessionID === streamSessionId) {
+          gotPartUpdate = true;
+          if (props.delta) accumulatedText += props.delta;
+        }
+      } else if (evt.type === "session.idle") {
+        const props = evt.properties;
+        if (props.sessionID === streamSessionId) {
+          gotIdle = true;
+          break;
+        }
+      }
+    }
+    clearTimeout(sseTimeout);
+
+    console.log(`${PASS} partUpdate=${gotPartUpdate}, idle=${gotIdle}, text="${accumulatedText.slice(0, 50)}"`);
+    passed++;
+
+    // Clean up stream test session
+    await client.session.delete({ path: { id: streamSessionId } });
+  } catch (e: any) {
+    console.log(`${FAIL} ${e.message}`);
+    failed++;
+    if (streamSessionId) {
+      try { await client.session.delete({ path: { id: streamSessionId } }); } catch {}
+    }
+  }
+
+  // 16. Session delete (original session)
+  console.log("[16] session.delete()");
   try {
     const r = await client.session.delete({ path: { id: sessionId } });
     console.log(`${PASS} Deleted: ${r.data}`); passed++;

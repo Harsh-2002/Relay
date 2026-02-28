@@ -1,4 +1,5 @@
 import { clsx } from "clsx";
+import Link from "next/link";
 import { ButtonHTMLAttributes, AnchorHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost";
@@ -37,7 +38,12 @@ export function Button({ variant = "primary", size = "md", className, ...props }
   );
 
   if ("href" in props && props.href) {
-    return <a className={classes} {...(props as AnchorProps)} />;
+    const { href, ...rest } = props as AnchorProps;
+    const isExternal = href.startsWith("http") || href.startsWith("//");
+    if (isExternal) {
+      return <a href={href} className={classes} {...rest} />;
+    }
+    return <Link href={href} className={classes} {...rest} />;
   }
 
   return <button className={classes} {...(props as ButtonProps)} />;

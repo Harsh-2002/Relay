@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 
+
 export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary pt-16">

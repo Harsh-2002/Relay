@@ -1,4 +1,5 @@
 import type { MDXComponents } from "mdx/types";
+import Link from "next/link";
 
 function slugify(text: string): string {
   return text
@@ -28,11 +29,21 @@ export const mdxComponents: MDXComponents = {
       {children}
     </p>
   ),
-  a: ({ children, href, ...props }) => (
-    <a href={href} className="text-accent hover:underline font-medium" {...props}>
-      {children}
-    </a>
-  ),
+  a: ({ children, href, ...props }) => {
+    const isExternal = href?.startsWith("http") || href?.startsWith("//");
+    if (isExternal) {
+      return (
+        <a href={href} className="text-accent hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props}>
+          {children}
+        </a>
+      );
+    }
+    return (
+      <Link href={href || "#"} className="text-accent hover:underline font-medium" {...props}>
+        {children}
+      </Link>
+    );
+  },
   ul: ({ children, ...props }) => (
     <ul className="list-disc list-inside space-y-1 mb-4 text-text-secondary" {...props}>
       {children}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Logo } from "./logo";
@@ -8,9 +9,9 @@ import { Button } from "./ui/button";
 import { siteConfig } from "@/lib/metadata";
 
 const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "Providers", href: "#providers" },
-  { label: "Commands", href: "#commands" },
+  { label: "Features", href: "/#features" },
+  { label: "Providers", href: "/#providers" },
+  { label: "Commands", href: "/#commands" },
   { label: "Docs", href: "/docs/getting-started" },
 ];
 
@@ -37,14 +38,14 @@ export function MobileMenu() {
           >
             <nav className="flex flex-col gap-1 p-4">
               {navLinks.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="px-4 py-3 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-bg-card"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
               <div className="mt-2 pt-2 border-t border-border-primary">
                 <Button

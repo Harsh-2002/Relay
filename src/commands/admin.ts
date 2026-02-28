@@ -599,7 +599,8 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("help", async (ctx) => {
     const providerName = getProviderName();
-    const isOpencode = providerName === "opencode";
+    const provider = getProvider();
+    const caps = provider.capabilities;
 
     let text =
       `<b>Relay</b> — ${providerName} provider\n\n` +
@@ -612,46 +613,52 @@ export function registerAdminCommands(bot: Bot): void {
       `/sessions  —  List sessions\n` +
       `/switch <code>id</code>  —  Switch session\n` +
       `/delete <code>id</code>  —  Delete session\n` +
-      `/current  —  Active session\n` +
-      `/fork <code>[messageId]</code>  —  Fork session\n\n`;
+      `/current  —  Active session\n`;
 
-    if (isOpencode) {
-      text +=
-        `<b>Monitor</b>\n` +
-        `/todo  —  AI task checklist\n` +
-        `/diff  —  Session code changes\n` +
-        `/diff full  —  Download full diff\n\n`;
+    if (caps.fork) {
+      text += `/fork <code>[messageId]</code>  —  Fork session\n`;
     }
+    text += `\n`;
 
-    text +=
-      `<b>Files</b>\n` +
-      `/read <code>path</code>  —  Read file\n` +
-      `/find <code>query</code>  —  Find files\n` +
-      `/search <code>pattern</code>  —  Search in files\n` +
-      `/symbols <code>query</code>  —  Find symbols\n` +
-      `/status  —  Git status\n\n` +
-
-      `<b>History</b>\n` +
-      `/history  —  Conversation history\n` +
-      `/summarize  —  Summarize session\n` +
-      `/revert  —  Undo last change\n` +
-      `/abort  —  Cancel operation\n` +
-      `/share  —  Share session\n\n` +
-
-      `<b>Shell</b>\n` +
-      `/shell <code>cmd</code>  —  Run command\n`;
-
-    if (isOpencode) {
-      text +=
-        `/cmd <code>command</code>  —  OpenCode command\n` +
-        `/commands  —  List available commands\n\n`;
-    } else {
+    if (caps.todos || caps.diff) {
+      text += `<b>Monitor</b>\n`;
+      if (caps.todos) text += `/todo  —  AI task checklist\n`;
+      if (caps.diff) {
+        text += `/diff  —  Session code changes\n`;
+        text += `/diff full  —  Download full diff\n`;
+      }
       text += `\n`;
     }
 
-    const provider = getProvider();
+    if (caps.fileOps) {
+      text +=
+        `<b>Files</b>\n` +
+        `/read <code>path</code>  —  Read file\n` +
+        `/find <code>query</code>  —  Find files\n` +
+        `/search <code>pattern</code>  —  Search in files\n` +
+        `/symbols <code>query</code>  —  Find symbols\n` +
+        `/status  —  Git status\n\n`;
+    }
 
-    if (provider.capabilities.mcp) {
+    text += `<b>History</b>\n`;
+    if (caps.history) text += `/history  —  Conversation history\n`;
+    if (caps.summarize) text += `/summarize  —  Summarize session\n`;
+    if (caps.revert) text += `/revert  —  Undo last change\n`;
+    text += `/abort  —  Cancel operation\n`;
+    if (caps.share) text += `/share  —  Share session\n`;
+    text += `\n`;
+
+    if (caps.shell) {
+      text += `<b>Shell</b>\n`;
+      text += `/shell <code>cmd</code>  —  Run command\n`;
+      if (caps.commands) {
+        text += `/cmd <code>command</code>  —  OpenCode command\n`;
+        text += `/commands  —  List available commands\n`;
+      }
+      text += `\n`;
+    }
+
+    if (caps.mcp) {
       text +=
         `<b>MCP</b>\n` +
         `/mcp  —  MCP server status\n` +

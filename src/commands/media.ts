@@ -13,6 +13,8 @@ import { readFileSync } from "fs";
 import { getConfig } from "../config/index.js";
 import { chatLogger } from "../utils/logger.js";
 
+const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+
 function getBotToken(): string {
   return getConfig().botToken;
 }
@@ -49,9 +51,47 @@ export function registerMediaHandlers(bot: Bot): void {
           const omitted = content.length - 110_000;
           promptText = `${caption}\n\nFile: ${fileName} (${content.length} chars, truncated)\n\`\`\`\n${head}\n\n... [${omitted} characters omitted] ...\n\n${tail}\n\`\`\``;
         }
+
+        const sessionId = await getOrCreateSession();
+        const provider = getProvider();
+        const model = getSelectedModel();
+        const system = getSystemPrompt();
+        const parts: any[] = [{ type: "text" as const, text: promptText }];
+
+        if (isStreamingEnabled() && provider.promptStream) {
+          await streamPrompt({ ctx, sessionId, parts, model, system });
+        } else {
+          const result = await withTimeout(
+            provider.prompt(sessionId, promptText, {
+              parts,
+              ...(model && { model }),
+              system,
+            }),
+            getPromptTimeout(),
+            "Prompt"
+          );
+
+          if (!result.text.trim() || result.text === "(empty response)") {
+            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+            return;
+          }
+          await sendTextChunks(ctx, result.text);
+          await sendFiles(ctx, result.parts);
+        }
+        return;
       } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
         // Image or PDF document: read buffer and send as file part
         const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
+
+        if (buffer.length > MAX_ATTACHMENT_BYTES) {
+          const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+          await ctx.reply(
+            `File is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+
         const base64 = buffer.toString("base64");
         const mime = doc.mime_type!;
         const dataUrl = `data:${mime};base64,${base64}`;
@@ -129,6 +169,16 @@ export function registerMediaHandlers(bot: Bot): void {
       await ctx.replyWithChatAction("typing");
 
       const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
+
+      if (buffer.length > MAX_ATTACHMENT_BYTES) {
+        const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+        await ctx.reply(
+          `Photo is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
       const caption = ctx.message.caption ?? "I've shared a photo. Please review it.";
 
       // Send as FilePartInput with base64 data URL for vision models

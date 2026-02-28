@@ -174,9 +174,15 @@ export class CodexProvider implements Provider {
     }
 
     const inputs: any[] = [];
+    const skippedFiles: string[] = [];
 
-    // Add image inputs
+    // Add image inputs (Codex only supports image attachments)
     for (const part of fileParts) {
+      if (!part.mime.startsWith("image/")) {
+        skippedFiles.push(part.filename ?? "file");
+        continue;
+      }
+
       if (part.url.startsWith("data:")) {
         const match = part.url.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
@@ -190,9 +196,20 @@ export class CodexProvider implements Provider {
       }
     }
 
+    // Append note about skipped non-image files
+    let finalText = text;
+    if (skippedFiles.length > 0) {
+      finalText += `\n\n(Note: ${skippedFiles.join(", ")} could not be attached — Codex only supports image attachments.)`;
+    }
+
+    // If all file parts were skipped (no images added), return plain text
+    if (inputs.length === 0) {
+      return finalText;
+    }
+
     // Add text input
-    if (text) {
-      inputs.push({ type: "text", text });
+    if (finalText) {
+      inputs.push({ type: "text", text: finalText });
     }
 
     return inputs;

@@ -9,7 +9,8 @@ export function createBot(token: string): Bot {
   registerCommands(bot);
 
   bot.catch((err) => {
-    console.error("Bot error:", err.message);
+    const e = err.error;
+    console.error("Bot error:", e instanceof Error ? e.message : String(e));
   });
 
   return bot;

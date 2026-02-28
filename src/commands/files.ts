@@ -12,6 +12,7 @@ export function registerFileCommands(bot: Bot): void {
     }
 
     try {
+      await ctx.replyWithChatAction("typing");
       const client = getClient();
       const result = await client.file.read({ query: { path: filePath } });
 
@@ -53,11 +54,24 @@ export function registerFileCommands(bot: Bot): void {
     }
 
     try {
+      await ctx.replyWithChatAction("typing");
       const client = getClient();
-      const result = await client.find.text({ query: { pattern } });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
+      let result: any;
+      try {
+        result = await client.find.text({
+          query: { pattern },
+          signal: controller.signal,
+        } as any);
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (result.error) {
-        await ctx.reply(`Search failed.`);
+        await ctx.reply("Search failed.");
         return;
       }
 
@@ -69,7 +83,7 @@ export function registerFileCommands(bot: Bot): void {
 
       const text = matches
         .slice(0, 20)
-        .map((m) => `**${m.path.text}:${m.line_number}**\n\`${m.lines.text.trim()}\``)
+        .map((m: any) => `**${m.path.text}:${m.line_number}**\n\`${m.lines.text.trim()}\``)
         .join("\n\n");
 
       const header = `Found ${matches.length} match(es) for \`${pattern}\`:\n\n`;
@@ -82,7 +96,11 @@ export function registerFileCommands(bot: Bot): void {
         }
       }
     } catch (err: any) {
-      await ctx.reply(`Error: ${err.message}`);
+      if (err.name === "AbortError") {
+        await ctx.reply("Search timed out. Try a more specific pattern.");
+      } else {
+        await ctx.reply(`Error: ${err.message}`);
+      }
     }
   });
 
@@ -94,6 +112,7 @@ export function registerFileCommands(bot: Bot): void {
     }
 
     try {
+      await ctx.replyWithChatAction("typing");
       const client = getClient();
       const result = await client.find.files({ query: { query } });
 

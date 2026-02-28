@@ -106,7 +106,33 @@ export function registerHistoryCommands(bot: Bot): void {
       }
 
       const client = getClient();
-      await client.session.revert({ path: { id: sessionId } });
+
+      // Get the last assistant message ID to revert
+      const msgsResult = await client.session.messages({ path: { id: sessionId } });
+      const messages = msgsResult.data ?? [];
+      const lastAssistant = [...messages].reverse().find((m: any) => m.info?.role === "assistant");
+
+      if (!lastAssistant) {
+        await ctx.reply("No assistant message to revert.");
+        return;
+      }
+
+      const messageID = (lastAssistant as any).info?.id;
+      if (!messageID) {
+        await ctx.reply("Could not determine message ID to revert.");
+        return;
+      }
+
+      const result = await client.session.revert({
+        path: { id: sessionId },
+        body: { messageID },
+      });
+
+      if (result.error) {
+        await ctx.reply(`Revert failed: ${JSON.stringify(result.error)}`);
+        return;
+      }
+
       await ctx.reply("Last change reverted.");
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);

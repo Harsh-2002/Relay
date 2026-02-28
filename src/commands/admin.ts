@@ -1,13 +1,19 @@
 import type { Bot } from "grammy";
+import { InputFile } from "grammy";
 import { getClient } from "../client.js";
 import { setSelectedModel, getSelectedModel } from "../session.js";
+import { chunkMessage } from "../utils/chunker.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
     try {
       const client = getClient();
-      const result = await client.global.event();
-      await ctx.reply("OpenCode server is reachable.");
+      const result = await client.config.get();
+      if (result.error) {
+        await ctx.reply("Server responded with error.");
+        return;
+      }
+      await ctx.reply("OpenCode server is healthy and reachable.");
     } catch (err: any) {
       await ctx.reply(`Server unreachable: ${err.message}`);
     }
@@ -23,12 +29,7 @@ export function registerAdminCommands(bot: Bot): void {
         return;
       }
 
-      const text = "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-      try {
-        await ctx.reply(text, { parse_mode: "Markdown" });
-      } catch {
-        await ctx.reply(JSON.stringify(result.data, null, 2));
-      }
+      await sendJsonResponse(ctx, result.data, "config.json");
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);
     }
@@ -44,12 +45,7 @@ export function registerAdminCommands(bot: Bot): void {
         return;
       }
 
-      const text = "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-      try {
-        await ctx.reply(text, { parse_mode: "Markdown" });
-      } catch {
-        await ctx.reply(JSON.stringify(result.data, null, 2));
-      }
+      await sendJsonResponse(ctx, result.data, "providers.json");
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);
     }
@@ -71,12 +67,7 @@ export function registerAdminCommands(bot: Bot): void {
         return;
       }
 
-      const text = "```json\n" + JSON.stringify(agents, null, 2) + "\n```";
-      try {
-        await ctx.reply(text, { parse_mode: "Markdown" });
-      } catch {
-        await ctx.reply(JSON.stringify(agents, null, 2));
-      }
+      await sendJsonResponse(ctx, agents, "agents.json");
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);
     }
@@ -157,4 +148,24 @@ export function registerAdminCommands(bot: Bot): void {
       { parse_mode: "Markdown" }
     );
   });
+}
+
+async function sendJsonResponse(ctx: any, data: any, filename: string): Promise<void> {
+  const json = JSON.stringify(data, null, 2);
+
+  if (json.length > 3500) {
+    const buffer = Buffer.from(json, "utf-8");
+    await ctx.replyWithDocument(new InputFile(buffer, filename));
+    return;
+  }
+
+  const text = "```json\n" + json + "\n```";
+  const chunks = chunkMessage(text);
+  for (const chunk of chunks) {
+    try {
+      await ctx.reply(chunk, { parse_mode: "Markdown" });
+    } catch {
+      await ctx.reply(chunk);
+    }
+  }
 }

@@ -65,10 +65,11 @@ export class CodexProvider implements Provider {
       const sdk = await import("@openai/codex");
       CodexClass = sdk.Codex ?? sdk.default;
       codexInstance = new CodexClass();
-    } catch (err: any) {
+    } catch {
       throw new Error(
-        `Failed to load @openai/codex: ${err.message}\n` +
-          `Install it: bun add @openai/codex`
+        "OpenAI Codex SDK is not installed.\n\n" +
+          "  Install it with:\n\n" +
+          "    npm install @openai/codex\n"
       );
     }
   }

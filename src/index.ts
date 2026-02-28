@@ -6,22 +6,29 @@ import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
 import logger from "./utils/logger.js";
 
+function die(message: string): never {
+  console.error(`\n  ${message}\n`);
+  process.exit(1);
+}
+
 async function main() {
   const config = getConfig();
 
   if (!config.botToken) {
-    logger.fatal("BOT_TOKEN is required. Run 'relay onboard' to configure.");
-    process.exit(1);
+    die("Bot token is required. Run 'relay onboard' to configure.");
   }
 
   if (!initAuth(config.allowedUserId)) {
-    logger.fatal("ALLOWED_USER_ID is required (must be a valid Telegram user ID). Run 'relay onboard' to configure.");
-    process.exit(1);
+    die("Allowed user ID is required (must be a valid Telegram user ID). Run 'relay onboard' to configure.");
   }
 
   const providerName = getProviderName();
   logger.info({ provider: providerName }, "Initializing provider...");
-  await initProvider();
+  try {
+    await initProvider();
+  } catch (err: any) {
+    die(err?.message ?? `Failed to initialize provider "${providerName}".`);
+  }
   logger.info({ provider: providerName }, "Provider ready");
 
   // Clean up old uploads every 30 minutes
@@ -51,8 +58,7 @@ async function main() {
 
   if (botMode === "webhook") {
     if (!config.webhookUrl) {
-      logger.fatal("webhookUrl is required when botMode=webhook. Run 'relay onboard' to configure.");
-      process.exit(1);
+      die("webhookUrl is required when botMode=webhook. Run 'relay onboard' to configure.");
     }
 
     const { createServer } = await import("http");
@@ -82,6 +88,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.fatal({ err }, "Fatal error");
+  console.error(`\n  Fatal: ${err?.message ?? err}\n`);
   process.exit(1);
 });

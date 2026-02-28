@@ -61,10 +61,11 @@ export class ClaudeProvider implements Provider {
       const sdk = await import("@anthropic-ai/claude-code");
       queryFn = sdk.query;
       listSessionsFn = sdk.listSessions;
-    } catch (err: any) {
+    } catch {
       throw new Error(
-        `Failed to load @anthropic-ai/claude-code: ${err.message}\n` +
-          `Install it: bun add @anthropic-ai/claude-code`
+        "Claude Code SDK is not installed.\n\n" +
+          "  Install it with:\n\n" +
+          "    npm install @anthropic-ai/claude-code\n"
       );
     }
 

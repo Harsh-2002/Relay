@@ -194,7 +194,7 @@ export function loadConfig(): LoadResult {
   const needsSetup = !hasConfigFile && !config.botToken;
 
   if (Object.keys(envConfig).length > 0 && !hasConfigFile) {
-    configLogger.warn("Using environment variables for config. Run 'relay onboard' to create a config file.");
+    console.warn("\n  Note: Using environment variables for config. Run 'relay onboard' to create a config file.\n");
   }
 
   return {

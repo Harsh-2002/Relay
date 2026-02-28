@@ -1,10 +1,10 @@
 # Provider Setup
 
-OCBot supports three coding agent backends. Each provider connects the bot to a different AI coding tool. Set `PROVIDER` in your `.env` file to choose one.
+Relay supports three coding agent backends. Each provider connects the bot to a different AI coding tool. Set `PROVIDER` in your `.env` file to choose one.
 
 ## OpenCode
 
-[OpenCode](https://github.com/opencode-ai/opencode) is the recommended provider with the most complete feature set. It supports all OCBot features including file operations, todos, diffs, MCP management, and dynamic model listing.
+[OpenCode](https://github.com/opencode-ai/opencode) is the recommended provider with the most complete feature set. It supports all Relay features including file operations, todos, diffs, MCP management, and dynamic model listing.
 
 ### Installation
 
@@ -16,7 +16,7 @@ There are two modes of operation:
 
 #### Mode 1: Start (recommended)
 
-OCBot spawns and manages the OpenCode server automatically.
+Relay spawns and manages the OpenCode server automatically.
 
 ```env
 PROVIDER=opencode
@@ -64,7 +64,7 @@ OpenCode itself is configured through its own config file (typically `opencode.j
 
 ### Supported Features
 
-All OCBot features are supported:
+All Relay features are supported:
 - Sessions, streaming, file operations
 - Todo lists, diffs, session forking
 - Shell access, custom commands
@@ -121,7 +121,7 @@ The `CLAUDE_PERMISSION_MODE` controls how Claude handles file system operations:
 
 ### Working Directory
 
-Set `CLAUDE_CWD` to the project directory you want Claude to work in. Defaults to the directory where OCBot is running.
+Set `CLAUDE_CWD` to the project directory you want Claude to work in. Defaults to the directory where Relay is running.
 
 ### MCP Servers
 
@@ -132,7 +132,7 @@ Claude supports MCP servers configured at runtime through the bot:
 /mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
 ```
 
-MCP configs are persisted to `.ocbot/claude-mcp.json` and automatically restored on restart.
+MCP configs are persisted to `.relay/claude-mcp.json` and automatically restored on restart.
 
 ### Supported Features
 
@@ -188,7 +188,7 @@ Use `/models` to see all available models, and `/model <id>` to switch:
 
 ### Working Directory
 
-Set `CODEX_CWD` to the project directory. Defaults to the directory where OCBot is running.
+Set `CODEX_CWD` to the project directory. Defaults to the directory where Relay is running.
 
 ### Supported Features
 

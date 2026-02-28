@@ -13,7 +13,7 @@ dist/
 uploads/
 
 # Persisted bot state (sessions, MCP configs, thread maps)
-.ocbot/
+.relay/
 
 # OS files
 .DS_Store

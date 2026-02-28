@@ -1,12 +1,12 @@
 # Features
 
-Detailed guide to OCBot's key features.
+Detailed guide to Relay's key features.
 
 ---
 
 ## Streaming Responses
 
-OCBot streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced rather than waiting for the full response.
+Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced rather than waiting for the full response.
 
 ### How it works
 
@@ -45,7 +45,7 @@ When the AI generates files, takes screenshots, or creates artifacts, they are a
 
 ### How it works
 
-OpenCode returns structured file parts in its responses. OCBot extracts these automatically and sends them after the text response. No action is needed from the user.
+OpenCode returns structured file parts in its responses. Relay extracts these automatically and sends them after the text response. No action is needed from the user.
 
 Common scenarios where you receive file attachments:
 - The AI takes a browser screenshot (via MCP browser tool)
@@ -176,13 +176,13 @@ browser  failed
 | Feature | OpenCode | Claude | Codex |
 |---------|----------|--------|-------|
 | MCP support | Full API | Persisted to disk | No |
-| Persistence | Saved in config | Saved in `.ocbot/` | N/A |
+| Persistence | Saved in config | Saved in `.relay/` | N/A |
 | Local servers | Yes | Yes | No |
 | Remote servers | Yes | Yes | No |
 
 **OpenCode** manages MCP servers through its API. Servers persist across restarts.
 
-**Claude** stores MCP configs in `.ocbot/claude-mcp.json`. Servers are automatically restored on restart.
+**Claude** stores MCP configs in `.relay/claude-mcp.json`. Servers are automatically restored on restart.
 
 **Codex** does not support MCP.
 
@@ -190,7 +190,7 @@ browser  failed
 
 ## Model Selection
 
-OCBot supports switching between AI models at runtime.
+Relay supports switching between AI models at runtime.
 
 ### Listing available models
 
@@ -378,38 +378,38 @@ Run commands on the coding agent's machine:
 
 ## State Persistence
 
-OCBot automatically persists critical state to disk so it survives bot restarts and crashes.
+Relay automatically persists critical state to disk so it survives bot restarts and crashes.
 
 ### What is persisted
 
 | Data | File | Description |
 |------|------|-------------|
-| Active session | `.ocbot/session.json` | Current session ID and selected model |
-| Claude MCP servers | `.ocbot/claude-mcp.json` | MCP server configurations (Claude provider) |
-| Codex thread IDs | `.ocbot/codex-threads.json` | Thread ID mappings (Codex provider) |
+| Active session | `.relay/session.json` | Current session ID and selected model |
+| Claude MCP servers | `.relay/claude-mcp.json` | MCP server configurations (Claude provider) |
+| Codex thread IDs | `.relay/codex-threads.json` | Thread ID mappings (Codex provider) |
 
 ### How it works
 
 - State is written atomically (via temp file + rename) to prevent corruption
 - Files are loaded on startup and written immediately on change
 - If a state file is missing or corrupt, the bot starts fresh with defaults
-- The `.ocbot/` directory is created automatically and excluded from git
+- The `.relay/` directory is created automatically and excluded from git
 
 ### Configuration
 
 Override the data directory:
 
 ```env
-OCBOT_DATA_DIR=/path/to/custom/data
+RELAY_DATA_DIR=/path/to/custom/data
 ```
 
-Default: `.ocbot/` in the project root.
+Default: `.relay/` in the project root.
 
 ---
 
 ## Webhook Deployment
 
-For production deployments, you can run OCBot in webhook mode instead of long-polling.
+For production deployments, you can run Relay in webhook mode instead of long-polling.
 
 ### Setup
 
@@ -427,7 +427,7 @@ WEBHOOK_SECRET=your-random-secret
 
 ### How it works
 
-1. OCBot starts an HTTP server on the specified port
+1. Relay starts an HTTP server on the specified port
 2. It registers the webhook URL with Telegram
 3. Telegram pushes updates directly to your server
 4. On shutdown, the webhook is automatically cleaned up

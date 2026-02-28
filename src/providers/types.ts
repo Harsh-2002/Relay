@@ -1,5 +1,5 @@
 /**
- * Provider abstraction layer for OCBot.
+ * Provider abstraction layer for Relay.
  * Each coding agent platform (OpenCode, Claude, Codex) implements this interface.
  */
 

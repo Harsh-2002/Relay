@@ -22,7 +22,7 @@ Each provider requires its own credentials (see `.env.example` for all options).
 
 ## Architecture
 
-OCBot is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies user messages to AI coding agent backends. It's an ES module TypeScript project targeting Node.js >= 18.
+Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies user messages to AI coding agent backends. It's an ES module TypeScript project targeting Node.js >= 18.
 
 ### Provider Abstraction (`src/providers/`)
 
@@ -52,7 +52,7 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 
 ### Key Utilities (`src/utils/`)
 
-- **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `.ocbot/` directory)
+- **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `.relay/` directory)
 - **`stream.ts`** — Streaming response handler: sends placeholder message, updates it every N seconds as chunks arrive
 - **`chunker.ts`** — Splits messages at Telegram's 4096-char limit, breaking at paragraph/line/space boundaries
 - **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > AssemblyAI > OpenAI
@@ -62,14 +62,14 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 
 ### State & Session Management
 
-- **`src/session.ts`** — Tracks active session ID and selected model, persisted to `.ocbot/session.json`. Uses a mutex to prevent race conditions on concurrent messages.
+- **`src/session.ts`** — Tracks active session ID and selected model, persisted to `.relay/session.json`. Uses a mutex to prevent race conditions on concurrent messages.
 - **`src/auth.ts`** — Single-user auth via `ALLOWED_USER_ID` + rate limiting (30 req/min).
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
 - **`src/index.ts`** — Entry point: validates env, inits provider, starts bot in polling or webhook mode.
 
-### Persistence (`.ocbot/` directory)
+### Persistence (`.relay/` directory)
 
-State is persisted via `JsonStore` to `.ocbot/`:
+State is persisted via `JsonStore` to `.relay/`:
 - `session.json` — Active session ID and selected model
 - `claude-mcp.json` — Claude provider MCP server configs
 - `codex-threads.json` — Codex thread ID mappings

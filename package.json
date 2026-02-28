@@ -1,11 +1,11 @@
 {
-  "name": "ocbot",
+  "name": "relay",
   "version": "1.0.0",
   "description": "Telegram bot for AI coding agents — supports OpenCode, Claude Code, and OpenAI Codex",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ocbot": "dist/cli.js"
+    "relay": "dist/cli.js"
   },
   "files": [
     "dist",

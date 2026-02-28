@@ -77,9 +77,9 @@ Requirements:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OCBOT_DATA_DIR` | `.ocbot/` | Directory for persisted bot state |
+| `RELAY_DATA_DIR` | `.relay/` | Directory for persisted bot state |
 
-OCBot persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.ocbot/` directory is created automatically in the project root.
+Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.relay/` directory is created automatically in the project root.
 
 Files stored:
 - `session.json` — Active session ID and selected model

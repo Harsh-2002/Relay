@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through setting up OCBot from scratch.
+This guide walks you through setting up Relay from scratch.
 
 ## Prerequisites
 
@@ -14,14 +14,14 @@ This guide walks you through setting up OCBot from scratch.
 ### From npm (recommended)
 
 ```bash
-npm install -g ocbot
+npm install -g relay
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/Harsh-2002/ocbot.git
-cd ocbot
+git clone https://github.com/Harsh-2002/relay.git
+cd relay
 npm install
 npm run build
 ```
@@ -53,7 +53,7 @@ Start the bot:
 
 ```bash
 # If installed globally
-ocbot
+relay
 
 # If running from source
 npm start
@@ -79,7 +79,7 @@ Bot @YourBotName is running!
 ## Project Structure
 
 ```
-ocbot/
+relay/
   .env.example       -- Template for environment variables
   package.json        -- Dependencies and scripts
   src/

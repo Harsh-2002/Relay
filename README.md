@@ -1,4 +1,4 @@
-# OCBot
+# Relay
 
 Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https://github.com/opencode-ai/opencode), [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), and [OpenAI Codex](https://github.com/openai/codex).
 
@@ -36,22 +36,22 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 ### From npm
 
 ```bash
-npm install -g ocbot
+npm install -g relay
 ```
 
 Then create a `.env` file in your working directory (see [Configuration](docs/configuration.md)):
 
 ```bash
-curl -O https://raw.githubusercontent.com/Harsh-2002/ocbot/main/.env.example
+curl -O https://raw.githubusercontent.com/Harsh-2002/relay/main/.env.example
 # Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
-ocbot
+relay
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/Harsh-2002/ocbot.git
-cd ocbot
+git clone https://github.com/Harsh-2002/relay.git
+cd relay
 npm install
 npm run build
 cp .env.example .env
@@ -62,7 +62,7 @@ npm start
 ### With npx (no install)
 
 ```bash
-npx ocbot
+npx relay
 ```
 
 ### Prerequisites
@@ -221,7 +221,7 @@ src/
     shell.ts       -- Shell and command execution
     mcp.ts         -- MCP server management
   utils/
-    store.ts       -- JSON file-backed persistence (.ocbot/)
+    store.ts       -- JSON file-backed persistence (.relay/)
     stream.ts      -- Streaming response handler
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- Telegram message chunking

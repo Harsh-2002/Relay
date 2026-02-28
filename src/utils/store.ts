@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "fs";
 import { dirname, join } from "path";
 
-const DATA_DIR = process.env.OCBOT_DATA_DIR ?? join(process.cwd(), ".ocbot");
+const DATA_DIR = process.env.RELAY_DATA_DIR ?? join(process.cwd(), ".relay");
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {

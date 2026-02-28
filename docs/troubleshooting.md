@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and solutions when running OCBot.
+Common issues and solutions when running Relay.
 
 ---
 
@@ -46,7 +46,7 @@ npm install @openai/codex
 
 ### Bot doesn't respond to messages
 
-OCBot only responds to authorized users. Check your `ALLOWED_USER_ID`:
+Relay only responds to authorized users. Check your `ALLOWED_USER_ID`:
 
 ```env
 ALLOWED_USER_ID=123456789
@@ -79,7 +79,7 @@ The OpenCode server isn't running or isn't reachable at the configured URL:
 
 ### "Failed to start OpenCode server" in start mode
 
-OCBot couldn't spawn the OpenCode server. Check:
+Relay couldn't spawn the OpenCode server. Check:
 
 1. OpenCode is installed and in your PATH
 2. The port isn't already in use:
@@ -133,7 +133,7 @@ Claude operates in the directory specified by `CLAUDE_CWD`. If files aren't foun
 CLAUDE_CWD=/path/to/your/project
 ```
 
-Defaults to the directory where OCBot is running.
+Defaults to the directory where Relay is running.
 
 ---
 
@@ -215,7 +215,7 @@ OpenCode servers persist across restarts since they're saved in the OpenCode con
 
 ### Messages appear jumpy or laggy
 
-Telegram rate limits message edits. OCBot batches updates to avoid hitting limits, but on slow connections you may notice slight delays. This is normal behavior.
+Telegram rate limits message edits. Relay batches updates to avoid hitting limits, but on slow connections you may notice slight delays. This is normal behavior.
 
 ### "Message is not modified" warnings in logs
 
@@ -223,7 +223,7 @@ This happens when a stream update has the same content as the current message. I
 
 ### Very long responses get cut off
 
-Telegram messages have a 4096-character limit. OCBot automatically splits long responses into multiple messages. If a response seems incomplete, it may still be generating — wait for the stream to finish.
+Telegram messages have a 4096-character limit. Relay automatically splits long responses into multiple messages. If a response seems incomplete, it may still be generating — wait for the stream to finish.
 
 ---
 
@@ -284,4 +284,4 @@ The AI took too long to respond. This can happen with complex requests. Try:
 
 ### Telegram message formatting looks wrong
 
-OCBot sends messages in HTML format. If you see raw HTML tags, there may be an escaping issue. Report it as a bug.
+Relay sends messages in HTML format. If you see raw HTML tags, there may be an escaping issue. Report it as a bug.

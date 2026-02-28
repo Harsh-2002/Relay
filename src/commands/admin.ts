@@ -390,7 +390,7 @@ export function registerAdminCommands(bot: Bot): void {
     const isOpencode = providerName === "opencode";
 
     let text =
-      `<b>OCBot</b> — ${providerName} provider\n\n` +
+      `<b>Relay</b> — ${providerName} provider\n\n` +
 
       `<b>Chat</b>\n` +
       `Just send any text, voice, photo, or file\n\n` +

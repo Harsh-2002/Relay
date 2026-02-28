@@ -1,6 +1,6 @@
 # Command Reference
 
-Complete reference for all OCBot Telegram commands. Commands marked with a provider name are only available when using that provider.
+Complete reference for all Relay Telegram commands. Commands marked with a provider name are only available when using that provider.
 
 ## Chat
 
@@ -299,7 +299,7 @@ Remove and disconnect an MCP server.
 
 **Provider differences:**
 - **OpenCode:** Full runtime management. Servers persist in the OpenCode configuration.
-- **Claude:** Persisted to `.ocbot/claude-mcp.json`. Servers are restored on restart.
+- **Claude:** Persisted to `.relay/claude-mcp.json`. Servers are restored on restart.
 - **Codex:** Not supported.
 
 ---

@@ -10,7 +10,7 @@ const steps = [
   {
     step: 1,
     title: "Install",
-    code: "npm install -g relay",
+    code: "npm install -g @4via6/relay",
   },
   {
     step: 2,

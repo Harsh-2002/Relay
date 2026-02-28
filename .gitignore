@@ -1,5 +1,35 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Environment variables (contains secrets)
 .env
+.env.local
+.env.*.local
+
+# Uploads directory (runtime files)
 uploads/
+
+# Lock files
 bun.lock
+bun.lockb
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Runtime / Debug
+*.log
+*.pid
+
+# Skill file (user-specific system prompt)
+skill.md

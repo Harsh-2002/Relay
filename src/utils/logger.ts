@@ -16,4 +16,3 @@ export const botLogger = logger.child({ component: "bot" });
 export const providerLogger = logger.child({ component: "provider" });
 export const sttLogger = logger.child({ component: "stt" });
 export const streamLogger = logger.child({ component: "stream" });
-export const configLogger = logger.child({ component: "config" });

@@ -22,7 +22,7 @@ At minimum, you need:
 
 Provider API keys (like `ANTHROPIC_API_KEY`) are configured in the coding agent's environment, not in Relay.
 
-Config resolution order: CLI flags > config file > environment variables > defaults.
+Config resolution order: CLI flags > config file > defaults.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 ### Config System (`src/config/`)
 
 - **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`
-- **`loader.ts`** — Config resolution: CLI args > config file > env vars > defaults
+- **`loader.ts`** — Config resolution: CLI args > config file > defaults
 - **`setup.ts`** — Interactive setup wizard using `@inquirer/prompts`
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
 
@@ -104,7 +104,7 @@ State is persisted via `JsonStore` to `.relay/`:
 
 ## Key Patterns
 
-- **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly (except in `src/config/loader.ts` for backward compatibility).
+- **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
 - **Optional dependencies**: `@anthropic-ai/claude-code` and `@openai/codex` are optional deps. Provider files use dynamic `import()` and handle import failures gracefully.
 - **Streaming**: When `streamingEnabled` is true in config, `src/utils/stream.ts` sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`.

@@ -3,13 +3,12 @@ import { join } from "path";
 import { parseArgs } from "util";
 import type { RelayConfig } from "./schema.js";
 import { CONFIG_DEFAULTS } from "./schema.js";
-import { configLogger } from "../utils/logger.js";
 
 const CONFIG_FILENAME = "config.json";
 
 /** Resolve the data directory (bootstrap — no config dependency). */
 function resolveDataDir(cliDataDir?: string): string {
-  return cliDataDir || process.env.RELAY_DATA_DIR || join(process.cwd(), ".relay");
+  return cliDataDir || join(process.cwd(), ".relay");
 }
 
 /** Parse CLI args into a partial config. */
@@ -97,51 +96,9 @@ function readConfigFile(dataDir: string): Partial<RelayConfig> {
     const raw = readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as Partial<RelayConfig>;
   } catch {
-    configLogger.warn({ filePath }, "Failed to parse config file, using defaults");
+    console.warn(`\n  Warning: Failed to parse ${filePath}, using defaults.\n`);
     return {};
   }
-}
-
-/** Map old env vars to config fields for backward compatibility. */
-function readEnvFallback(): Partial<RelayConfig> {
-  const env: Partial<RelayConfig> = {};
-
-  if (process.env.BOT_TOKEN) env.botToken = process.env.BOT_TOKEN;
-  if (process.env.ALLOWED_USER_ID) env.allowedUserId = Number(process.env.ALLOWED_USER_ID);
-  if (process.env.PROVIDER) env.provider = process.env.PROVIDER.toLowerCase() as RelayConfig["provider"];
-  if (process.env.BOT_MODE) env.botMode = process.env.BOT_MODE.toLowerCase() as RelayConfig["botMode"];
-  if (process.env.WEBHOOK_URL) env.webhookUrl = process.env.WEBHOOK_URL;
-  if (process.env.WEBHOOK_PORT) env.webhookPort = Number(process.env.WEBHOOK_PORT);
-  if (process.env.WEBHOOK_SECRET) env.webhookSecret = process.env.WEBHOOK_SECRET;
-
-  if (process.env.OPENCODE_MODE) env.opencodeMode = process.env.OPENCODE_MODE as RelayConfig["opencodeMode"];
-  if (process.env.OPENCODE_URL) env.opencodeUrl = process.env.OPENCODE_URL;
-  if (process.env.OPENCODE_HOSTNAME) env.opencodeHostname = process.env.OPENCODE_HOSTNAME;
-  if (process.env.OPENCODE_PORT) env.opencodePort = Number(process.env.OPENCODE_PORT);
-  if (process.env.OPENCODE_MODEL) env.opencodeModel = process.env.OPENCODE_MODEL;
-
-  if (process.env.CLAUDE_MODEL) env.claudeModel = process.env.CLAUDE_MODEL;
-  if (process.env.CLAUDE_PERMISSION_MODE) env.claudePermissionMode = process.env.CLAUDE_PERMISSION_MODE;
-  if (process.env.CLAUDE_CWD) env.claudeCwd = process.env.CLAUDE_CWD;
-
-  if (process.env.CODEX_MODEL) env.codexModel = process.env.CODEX_MODEL;
-  if (process.env.CODEX_CWD) env.codexCwd = process.env.CODEX_CWD;
-
-  if (process.env.STT_PROVIDER) env.sttProvider = process.env.STT_PROVIDER as RelayConfig["sttProvider"];
-  if (process.env.GROQ_API_KEY) env.groqApiKey = process.env.GROQ_API_KEY;
-  if (process.env.OPENAI_API_KEY) env.openaiSttApiKey = process.env.OPENAI_API_KEY;
-  if (process.env.ASSEMBLYAI_API_KEY) env.assemblyaiApiKey = process.env.ASSEMBLYAI_API_KEY;
-  if (process.env.GROQ_STT_MODEL) env.groqSttModel = process.env.GROQ_STT_MODEL;
-  if (process.env.OPENAI_STT_MODEL) env.openaiSttModel = process.env.OPENAI_STT_MODEL;
-
-  if (process.env.STREAMING_ENABLED) env.streamingEnabled = process.env.STREAMING_ENABLED === "true";
-  if (process.env.STREAM_EDIT_INTERVAL_MS) env.streamEditIntervalMs = Number(process.env.STREAM_EDIT_INTERVAL_MS);
-  if (process.env.PROMPT_TIMEOUT_MS) env.promptTimeoutMs = Number(process.env.PROMPT_TIMEOUT_MS);
-  if (process.env.LOG_LEVEL) env.logLevel = process.env.LOG_LEVEL;
-  if (process.env.RELAY_DATA_DIR) env.dataDir = process.env.RELAY_DATA_DIR;
-  if (process.env.SYSTEM_PROMPT_FILE) env.systemPromptFile = process.env.SYSTEM_PROMPT_FILE;
-
-  return env;
 }
 
 export interface LoadResult {
@@ -152,23 +109,15 @@ export interface LoadResult {
 }
 
 /**
- * Load config with resolution order: CLI args > config file > env vars > defaults.
+ * Load config with resolution order: CLI flags > config file > defaults.
  */
 export function loadConfig(): LoadResult {
   const cli = parseCli();
   const dataDir = resolveDataDir(cli.flags.dataDir);
   const fileConfig = readConfigFile(dataDir);
-  const envConfig = readEnvFallback();
 
-  // Merge: CLI > file > env > defaults
+  // Merge: CLI > file > defaults
   const config: RelayConfig = { ...CONFIG_DEFAULTS };
-
-  // Apply env fallback first
-  for (const [key, value] of Object.entries(envConfig)) {
-    if (value !== undefined && value !== "") {
-      (config as any)[key] = value;
-    }
-  }
 
   // Apply file config
   for (const [key, value] of Object.entries(fileConfig)) {
@@ -189,13 +138,9 @@ export function loadConfig(): LoadResult {
     config.dataDir = dataDir;
   }
 
-  // Detect if setup is needed (no config file and no bot token from any source)
+  // Detect if setup is needed (no config file and no bot token)
   const hasConfigFile = Object.keys(fileConfig).length > 0;
   const needsSetup = !hasConfigFile && !config.botToken;
-
-  if (Object.keys(envConfig).length > 0 && !hasConfigFile) {
-    console.warn("\n  Note: Using environment variables for config. Run 'relay onboard' to create a config file.\n");
-  }
 
   return {
     config,

@@ -31,7 +31,7 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, prerequisites, first steps |
-| [Configuration](docs/configuration.md) | All environment variables and options |
+| [Configuration](docs/configuration.md) | All config options and CLI flags |
 | [Providers](docs/providers.md) | Detailed setup for each provider |
 | [Commands](docs/commands.md) | Full command reference with examples |
 | [Features](docs/features.md) | Streaming, file attachments, voice, MCP, models |
@@ -134,7 +134,6 @@ relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
 | `--data-dir` | Data directory (default: `.relay/`) |
 | `--system-prompt-file` | Custom system prompt file |
 
-Environment variables are supported for backward compatibility. Run `relay onboard` to migrate to the config file.
 
 ## Providers
 

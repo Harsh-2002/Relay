@@ -9,9 +9,7 @@ relay onboard                    # Interactive wizard
 relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
 ```
 
-Config resolution order: **CLI flags > config file > environment variables > defaults**.
-
-Environment variables are supported for backward compatibility. If no config file exists and env vars are detected, Relay will warn you to run `relay onboard`.
+Config resolution order: **CLI flags > config file > defaults**.
 
 ## Subcommands
 

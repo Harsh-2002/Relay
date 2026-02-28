@@ -26,21 +26,13 @@ The `provider` value in your config is not one of `opencode`, `claude`, or `code
 }
 ```
 
-### "Cannot find package '@anthropic-ai/claude-code'"
+### "Could not load the Claude Code SDK"
 
-The Claude Code SDK is not installed. Install it:
+Claude Code is not installed or not accessible from this environment. Make sure it's installed — see the [Claude Code docs](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) for installation methods.
 
-```bash
-npm install @anthropic-ai/claude-code
-```
+### "Could not load the Codex SDK"
 
-### "Cannot find package '@openai/codex'"
-
-The Codex SDK is not installed. Install it:
-
-```bash
-npm install @openai/codex
-```
+OpenAI Codex is not installed or not accessible from this environment. Make sure it's installed — see the [Codex repo](https://github.com/openai/codex) for installation methods.
 
 ---
 

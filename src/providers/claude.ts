@@ -63,9 +63,9 @@ export class ClaudeProvider implements Provider {
       listSessionsFn = sdk.listSessions;
     } catch {
       throw new Error(
-        "Claude Code SDK is not installed.\n\n" +
-          "  Install it with:\n\n" +
-          "    npm install @anthropic-ai/claude-code\n"
+        "Could not load the Claude Code SDK (@anthropic-ai/claude-code).\n\n" +
+          "  Make sure Claude Code is installed and accessible from this environment.\n" +
+          "  See: https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview"
       );
     }
 

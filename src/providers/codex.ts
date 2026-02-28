@@ -67,9 +67,11 @@ export class CodexProvider implements Provider {
       codexInstance = new CodexClass();
     } catch {
       throw new Error(
-        "Could not load the Codex SDK (@openai/codex).\n\n" +
-          "  Make sure OpenAI Codex is installed and accessible from this environment.\n" +
-          "  See: https://github.com/openai/codex"
+        "Could not load the Codex SDK.\n\n" +
+          "  Relay uses the Codex Node.js SDK for native session management,\n" +
+          "  streaming, and tool integration. The CLI alone is not sufficient.\n\n" +
+          "  Install the SDK:\n\n" +
+          "    npm install -g @openai/codex"
       );
     }
   }

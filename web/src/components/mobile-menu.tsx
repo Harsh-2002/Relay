@@ -1,0 +1,65 @@
+"use client";
+
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Logo } from "./logo";
+import { Button } from "./ui/button";
+import { siteConfig } from "@/lib/metadata";
+
+const navLinks = [
+  { label: "Features", href: "#features" },
+  { label: "Providers", href: "#providers" },
+  { label: "Commands", href: "#commands" },
+  { label: "Docs", href: "/docs/getting-started" },
+];
+
+export function MobileMenu() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(!open)}
+        className="lg:hidden p-2 text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+        aria-label="Toggle menu"
+      >
+        {open ? <X size={20} /> : <Menu size={20} />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-full left-0 right-0 bg-bg-primary border-b border-border-primary lg:hidden overflow-hidden"
+          >
+            <nav className="flex flex-col gap-1 p-4">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="px-4 py-3 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-bg-card"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <div className="mt-2 pt-2 border-t border-border-primary">
+                <Button
+                  href={`${siteConfig.github}#getting-started`}
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                >
+                  Get Started
+                </Button>
+              </div>
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}

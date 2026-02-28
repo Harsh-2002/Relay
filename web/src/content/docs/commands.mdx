@@ -1,0 +1,254 @@
+---
+title: "Commands"
+description: "Complete reference for all Relay Telegram commands"
+order: 4
+---
+
+Complete reference for all Relay Telegram commands. Commands marked with a provider name are only available when using that provider.
+
+## Chat
+
+No command needed — just send a message.
+
+**Supported input types:**
+- Text messages
+- Voice notes (requires STT configuration)
+- Photos (sent to vision-capable models)
+- File attachments (text files are embedded, binary files referenced)
+
+**Input limit:** 32,000 characters for text messages. Send longer content as a file.
+
+---
+
+## Session Management
+
+### /new [title]
+
+Create a new session.
+
+```
+/new
+/new Refactoring auth module
+```
+
+The new session becomes the active session. All subsequent messages go to this session.
+
+### /sessions
+
+List all sessions, sorted by last modified date. Shows the session ID, title, and a marker for the active session.
+
+### /switch
+
+Switch to an existing session by its ID.
+
+```
+/switch abc123
+```
+
+### /delete
+
+Delete a session. If you delete the active session, it is cleared.
+
+```
+/delete abc123
+```
+
+### /current
+
+Show the currently active session's ID and title.
+
+### /fork [messageId]
+
+Fork the current session, creating a copy. Optionally specify a message ID to fork from a specific point. Supported by OpenCode and Claude.
+
+```
+/fork
+/fork msg_abc123
+```
+
+---
+
+## Monitor
+
+### /todo (OpenCode)
+
+View the AI's task checklist with status icons: completed, in progress, pending, and cancelled.
+
+### /diff
+
+Show a summary of code changes in the current session. OpenCode shows structured file-level changes; Claude and Codex delegate to `git diff`.
+
+### /diff full
+
+Download the full diff as a text file, including before/after content for each changed file.
+
+---
+
+## File Operations
+
+### /read
+
+Read a file and display its contents. Files larger than 15KB are sent as a downloadable attachment.
+
+```
+/read src/index.ts
+/read package.json
+```
+
+### /find
+
+Find files by name pattern. Shows up to 50 matching files.
+
+```
+/find index.ts
+/find *.json
+```
+
+### /search
+
+Search file contents with a text pattern (regex supported). Shows up to 20 matching lines with file paths and line numbers.
+
+```
+/search TODO
+/search function.*auth
+```
+
+### /symbols
+
+Find code symbols (functions, classes, variables) by name. Shows up to 30 matching symbols with their locations.
+
+```
+/symbols authenticate
+/symbols UserService
+```
+
+### /status
+
+Show git file status (modified, added, deleted files).
+
+---
+
+## History
+
+### /history
+
+View the last 10 messages in the current session.
+
+### /summarize
+
+Generate a summary of the current session. OpenCode only.
+
+### /revert
+
+Undo the last AI change. OpenCode only.
+
+### /unrevert
+
+Redo a previously reverted change. OpenCode only.
+
+### /abort
+
+Cancel the currently running operation. Stops streaming or processing.
+
+### /share
+
+Get a shareable URL for the current session. OpenCode only.
+
+---
+
+## Shell
+
+### /shell
+
+Run a shell command on the coding agent's machine.
+
+```
+/shell ls -la
+/shell git log --oneline -5
+/shell npm test
+```
+
+On OpenCode, this runs natively. On Claude and Codex, the command is sent as a prompt asking the AI to execute it.
+
+### /cmd (OpenCode)
+
+Run an OpenCode-specific command.
+
+```
+/cmd compact
+/cmd agent_cycle
+```
+
+### /commands (OpenCode)
+
+List all available OpenCode commands that can be used with `/cmd`.
+
+---
+
+## Models
+
+### /models
+
+List all available models grouped by provider. Each model shows capability badges:
+
+- `[reasoning]` — Extended thinking/reasoning support
+- `[vision]` — Image input support
+- `[active]` — Currently selected model
+
+### /model [provider/model]
+
+View or change the current model.
+
+```
+/model                                        -- View current
+/model anthropic/claude-sonnet-4-20250514     -- Set by full path
+/model sonnet                                  -- Set by partial match
+```
+
+---
+
+## MCP (Model Context Protocol)
+
+MCP servers extend the AI's capabilities with additional tools. Supported by OpenCode and Claude.
+
+### /mcp
+
+Show the status of all configured MCP servers.
+
+### /mcp add
+
+Add an MCP server:
+
+```
+/mcp add memory local npx -y @modelcontextprotocol/server-memory
+/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
+/mcp add api remote https://mcp.example.com/sse
+```
+
+### /mcp remove
+
+Remove and disconnect an MCP server.
+
+```
+/mcp remove browser
+```
+
+---
+
+## Settings
+
+### /health
+
+Show a dashboard with server status, current model, streaming status, voice provider, and project details.
+
+### /config
+
+Show the full provider configuration as JSON.
+
+### /system
+
+View the current system prompt info. Use `/system reload` to force-reload from file.
+
+### /help
+
+Show a compact reference of all available commands.

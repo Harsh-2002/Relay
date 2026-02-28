@@ -1,0 +1,44 @@
+import { clsx } from "clsx";
+import { ButtonHTMLAttributes, AnchorHTMLAttributes } from "react";
+
+type Variant = "primary" | "secondary" | "ghost";
+
+interface BaseProps {
+  variant?: Variant;
+  size?: "sm" | "md" | "lg";
+}
+
+type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement> & { href?: undefined };
+type AnchorProps = BaseProps & AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
+
+type Props = ButtonProps | AnchorProps;
+
+const variants: Record<Variant, string> = {
+  primary:
+    "bg-accent text-black font-medium hover:bg-accent-hover",
+  secondary:
+    "bg-bg-card border border-border-primary text-text-primary hover:bg-bg-card-hover hover:border-border-hover",
+  ghost:
+    "border border-border-primary text-text-primary hover:bg-bg-card hover:border-border-hover",
+};
+
+const sizes = {
+  sm: "px-3 py-1.5 text-sm",
+  md: "px-5 py-2.5 text-sm",
+  lg: "px-6 py-3 text-base",
+};
+
+export function Button({ variant = "primary", size = "md", className, ...props }: Props) {
+  const classes = clsx(
+    "inline-flex items-center justify-center gap-2 rounded-lg transition-colors duration-200 cursor-pointer",
+    variants[variant],
+    sizes[size],
+    className
+  );
+
+  if ("href" in props && props.href) {
+    return <a className={classes} {...(props as AnchorProps)} />;
+  }
+
+  return <button className={classes} {...(props as ButtonProps)} />;
+}

@@ -1,88 +1,110 @@
 # Configuration Reference
 
-All configuration is done through environment variables in the `.env` file. Copy `.env.example` to `.env` to get started.
+Relay uses a JSON config file at `.relay/config.json`. Run `relay onboard` for the interactive wizard, or pass settings via CLI flags.
 
-## Required Variables
+## Setup
 
-| Variable | Description |
-|----------|-------------|
-| `BOT_TOKEN` | Telegram bot token from [@BotFather](https://t.me/BotFather) |
-| `ALLOWED_USER_ID` | Your Telegram user ID (only this user can interact with the bot) |
-| `PROVIDER` | Which coding agent to use: `opencode`, `claude`, or `codex` |
+```bash
+relay onboard                    # Interactive wizard
+relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
+```
+
+Config resolution order: **CLI flags > config file > environment variables > defaults**.
+
+Environment variables are supported for backward compatibility. If no config file exists and env vars are detected, Relay will warn you to run `relay onboard`.
+
+## Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `relay onboard` | Interactive configuration wizard |
+| `relay start` | Start the bot as a background daemon |
+| `relay stop` | Stop the background daemon |
+| `relay restart` | Restart the background daemon |
+| `relay logs` | Tail daemon logs (Ctrl+C to exit) |
+| `relay status` | Show daemon status (PID, uptime, memory) |
+| `relay update` | Update Relay to the latest version |
+
+## CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--help`, `-h` | Show help |
+| `--version`, `-v` | Show version |
+| `--bot-token` | Telegram bot token |
+| `--allowed-user-id` | Telegram user ID |
+| `--provider` | Provider: `opencode`, `claude`, `codex` |
+| `--bot-mode` | `polling` or `webhook` |
+| `--webhook-url` | Webhook URL (when `--bot-mode=webhook`) |
+| `--webhook-port` | Webhook port (default: 3000) |
+| `--webhook-secret` | Webhook secret token |
+| `--streaming-enabled` | `true` or `false` |
+| `--stream-edit-interval-ms` | Stream edit interval in ms |
+| `--prompt-timeout-ms` | Prompt timeout in ms |
+| `--log-level` | `debug`, `info`, `warn`, `error` |
+| `--data-dir` | Data directory (default: `.relay/`) |
+| `--system-prompt-file` | Custom system prompt file path |
+
+## Core Settings
+
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `botToken` | `--bot-token` | -- | Telegram bot token from [@BotFather](https://t.me/BotFather) |
+| `allowedUserId` | `--allowed-user-id` | -- | Your Telegram user ID |
+| `provider` | `--provider` | `opencode` | Coding agent: `opencode`, `claude`, or `codex` |
 
 ## Provider Configuration
 
-Each provider has its own set of required and optional variables. See [Providers](providers.md) for detailed setup.
+Each provider has its own settings. Provider API keys (like `ANTHROPIC_API_KEY`) are configured in your coding agent's environment, not in Relay.
+
+See [Providers](providers.md) for detailed setup.
 
 ### OpenCode
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENCODE_MODE` | No | `start` | `start` spawns a local server, `connect` connects to a remote URL |
-| `OPENCODE_URL` | No | `http://localhost:4096` | Server URL (used when `MODE=connect`) |
-| `OPENCODE_HOSTNAME` | No | `127.0.0.1` | Bind address (used when `MODE=start`) |
-| `OPENCODE_PORT` | No | `4096` | Port number (used when `MODE=start`) |
-| `OPENCODE_MODEL` | No | Server default | Model override, e.g. `anthropic/claude-sonnet-4-20250514` |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `opencodeMode` | `--opencode-mode` | `start` | `start` spawns a local server, `connect` connects to a remote URL |
+| `opencodeUrl` | `--opencode-url` | `http://localhost:4096` | Server URL (used when mode=`connect`) |
+| `opencodeHostname` | `--opencode-hostname` | `127.0.0.1` | Bind address (used when mode=`start`) |
+| `opencodePort` | `--opencode-port` | `4096` | Port number (used when mode=`start`) |
+| `opencodeModel` | `--opencode-model` | Server default | Model override, e.g. `anthropic/claude-sonnet-4-20250514` |
 
 ### Claude Code
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | -- | Anthropic API key |
-| `CLAUDE_MODEL` | No | `sonnet` | Model name or ID (use `/models` to see all available) |
-| `CLAUDE_PERMISSION_MODE` | No | `acceptEdits` | How Claude handles file edits |
-| `CLAUDE_CWD` | No | Current directory | Working directory for Claude |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `claudeModel` | `--claude-model` | `sonnet` | Model name or ID |
+| `claudePermissionMode` | `--claude-permission-mode` | `acceptEdits` | How Claude handles file edits |
+| `claudeCwd` | `--claude-cwd` | Current directory | Working directory |
 
 ### OpenAI Codex
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `CODEX_API_KEY` | Yes* | -- | OpenAI API key (*or use `OPENAI_API_KEY`) |
-| `CODEX_MODEL` | No | `o3` | Model name or ID (use `/models` to see all available) |
-| `CODEX_CWD` | No | Current directory | Working directory for Codex |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `codexModel` | `--codex-model` | `o3` | Model name or ID |
+| `codexCwd` | `--codex-cwd` | Current directory | Working directory |
 
 ## Bot Mode
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BOT_MODE` | `polling` | `polling` for long-polling, `webhook` for webhook mode |
-| `WEBHOOK_URL` | -- | Public URL for receiving Telegram updates (required when `BOT_MODE=webhook`) |
-| `WEBHOOK_PORT` | `3000` | Port for the webhook HTTP server |
-| `WEBHOOK_SECRET` | -- | Optional secret token for webhook verification |
-
-### Long Polling (default)
-
-The bot connects to Telegram and pulls updates. Simple to set up, works behind NATs/firewalls.
-
-```env
-BOT_MODE=polling
-```
-
-### Webhook Mode
-
-The bot runs an HTTP server and Telegram pushes updates to it. Lower latency and better for production deployments.
-
-```env
-BOT_MODE=webhook
-WEBHOOK_URL=https://your-server.com/bot
-WEBHOOK_PORT=3000
-WEBHOOK_SECRET=your-random-secret
-```
-
-Requirements:
-- A public HTTPS URL that Telegram can reach
-- The port must be accessible (default: 3000)
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `botMode` | `--bot-mode` | `polling` | `polling` or `webhook` |
+| `webhookUrl` | `--webhook-url` | -- | Public URL for webhook (required when mode=`webhook`) |
+| `webhookPort` | `--webhook-port` | `3000` | Webhook HTTP server port |
+| `webhookSecret` | `--webhook-secret` | -- | Secret token for webhook verification |
 
 ## Data Persistence
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RELAY_DATA_DIR` | `.relay/` | Directory for persisted bot state |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `dataDir` | `--data-dir` | `.relay/` | Directory for persisted bot state |
 
-Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.relay/` directory is created automatically in the project root.
+Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.relay/` directory is created automatically.
 
 Files stored:
+- `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
+- `SKILL.md` — Custom system prompt (optional, create manually)
 - `claude-mcp.json` — Claude provider MCP server configurations
 - `codex-threads.json` — Codex provider thread ID mappings
 
@@ -90,71 +112,65 @@ The directory is excluded from git via `.gitignore`.
 
 ## Streaming
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `STREAMING_ENABLED` | `false` | Enable progressive message editing during AI responses |
-| `STREAM_EDIT_INTERVAL_MS` | `2000` | How often (in ms) to update the Telegram message while streaming |
-
-When streaming is enabled, the bot sends a "Thinking..." placeholder and progressively updates it as the AI generates its response. This works with all three providers.
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `streamingEnabled` | `--streaming-enabled` | `false` | Enable progressive message editing |
+| `streamEditIntervalMs` | `--stream-edit-interval-ms` | `2000` | Update interval (ms) while streaming |
 
 ## Timeout
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROMPT_TIMEOUT_MS` | `300000` | Maximum time (in ms) to wait for a provider response. Default is 5 minutes. |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `promptTimeoutMs` | `--prompt-timeout-ms` | `300000` | Max wait time for provider response (5 min) |
 
-If the AI takes longer than this to respond, the request is cancelled and an error message is shown.
+## Logging
+
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `logLevel` | `--log-level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+
+Relay uses structured JSON logging via pino. Set to `debug` for verbose output when troubleshooting.
 
 ## System Prompt
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SYSTEM_PROMPT_FILE` | `skill.md` | Path to your custom system prompt file |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `systemPromptFile` | `--system-prompt-file` | -- | Path to custom system prompt file |
 
-The bot looks for a file named `skill.md` in the project root. If found, its contents are prepended to every message sent to the AI. If the file doesn't exist, a built-in default prompt is used.
+The bot looks for a system prompt in this order:
+1. Explicit path from `systemPromptFile` config
+2. `.relay/SKILL.md` if it exists
+3. `./SKILL.md` in the current directory (backward compatibility)
+4. Built-in default prompt
 
-The file is watched for changes and reloaded automatically. You can also force a reload with `/system reload`.
-
-See [Features > System Prompt](features.md#system-prompt) for details on customizing the prompt.
+The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
 
 ## Voice / Speech-to-Text
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `STT_PROVIDER` | `auto` | STT provider: `groq`, `openai`, `assemblyai`, or `auto` |
-| `GROQ_API_KEY` | -- | Groq API key for Whisper |
-| `GROQ_STT_MODEL` | `whisper-large-v3-turbo` | Groq transcription model |
-| `OPENAI_API_KEY` | -- | OpenAI API key for Whisper |
-| `OPENAI_STT_MODEL` | `gpt-4o-mini-transcribe` | OpenAI transcription model |
-| `ASSEMBLYAI_API_KEY` | -- | AssemblyAI API key |
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `sttProvider` | `--stt-provider` | `auto` | STT provider: `groq`, `openai`, `assemblyai`, or `auto` |
+| `groqApiKey` | `--groq-api-key` | -- | Groq API key for Whisper |
+| `openaiSttApiKey` | `--openai-stt-api-key` | -- | OpenAI API key for speech-to-text |
+| `assemblyaiApiKey` | `--assemblyai-api-key` | -- | AssemblyAI API key |
+| `groqSttModel` | -- | `whisper-large-v3-turbo` | Groq transcription model |
+| `openaiSttModel` | -- | `gpt-4o-mini-transcribe` | OpenAI transcription model |
 
-Set at least one API key to enable voice message support. When `STT_PROVIDER=auto` (default), the cheapest available provider is selected automatically:
+Set at least one API key during `relay onboard` to enable voice message support. When `sttProvider` is `auto` (default), the cheapest available provider is selected:
 
 1. **Groq** (fastest, has a free tier)
 2. **AssemblyAI**
 3. **OpenAI**
 
-## Example `.env` File
+## Example Config
 
-```env
-# Telegram
-BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
-ALLOWED_USER_ID=987654321
-
-# Provider
-PROVIDER=opencode
-OPENCODE_MODE=start
-
-# Bot mode (polling or webhook)
-BOT_MODE=polling
-
-# Streaming
-STREAMING_ENABLED=true
-STREAM_EDIT_INTERVAL_MS=2000
-
-# Timeout
-PROMPT_TIMEOUT_MS=300000
-
-# Voice (set at least one for voice support)
-GROQ_API_KEY=gsk_...
+```json
+{
+  "botToken": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+  "allowedUserId": 987654321,
+  "provider": "opencode",
+  "streamingEnabled": true,
+  "logLevel": "info",
+  "groqApiKey": "gsk_..."
+}
 ```

@@ -1,5 +1,6 @@
 import type { Bot } from "grammy";
-import { InputFile } from "grammy";
+import { InputFile, InlineKeyboard } from "grammy";
+import type { ModelDetail } from "../providers/types.js";
 import { getProvider, getProviderName } from "../providers/index.js";
 import { setSelectedModel, getSelectedModel } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
@@ -8,6 +9,91 @@ import { isStreamingEnabled } from "../utils/stream.js";
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+
+const MODELS_PER_PAGE = 8;
+
+function buildModelKeyboard(
+  models: ModelDetail[],
+  page: number,
+  selectedModel?: { providerID: string; modelID: string } | null,
+): { keyboard: InlineKeyboard; text: string } {
+  // Group by provider
+  const grouped = new Map<string, ModelDetail[]>();
+  for (const m of models) {
+    const list = grouped.get(m.provider) ?? [];
+    list.push(m);
+    grouped.set(m.provider, list);
+  }
+
+  // Flatten into display order with provider headers
+  const items: { type: "header"; provider: string }[] | { type: "model"; model: ModelDetail }[] = [];
+  const allItems: ({ type: "header"; provider: string } | { type: "model"; model: ModelDetail })[] = [];
+  for (const [provId, provModels] of grouped) {
+    allItems.push({ type: "header", provider: provId });
+    for (const m of provModels) {
+      allItems.push({ type: "model", model: m });
+    }
+  }
+
+  // Count total model items (excluding headers) for pagination
+  const modelItems = allItems.filter(i => i.type === "model");
+  const totalPages = Math.max(1, Math.ceil(modelItems.length / MODELS_PER_PAGE));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+
+  // Get the slice of models for this page
+  const pageModels = modelItems.slice(safePage * MODELS_PER_PAGE, (safePage + 1) * MODELS_PER_PAGE);
+  const pageModelIds = new Set(pageModels.map(i => i.type === "model" ? i.model.id : ""));
+
+  // Build keyboard
+  const kb = new InlineKeyboard();
+  let headerText = `<b>Available Models</b>  (${modelItems.length})`;
+  if (totalPages > 1) headerText += `  —  page ${safePage + 1}/${totalPages}`;
+
+  // Figure out which providers appear on this page
+  const pageProviders = new Set<string>();
+  for (const item of pageModels) {
+    if (item.type === "model") pageProviders.add(item.model.provider);
+  }
+
+  let lastProvider = "";
+  for (const item of pageModels) {
+    if (item.type !== "model") continue;
+    const m = item.model;
+
+    // Add provider header row if new provider
+    if (m.provider !== lastProvider) {
+      kb.row().text(`— ${m.provider} —`, "mdl_noop");
+      lastProvider = m.provider;
+    }
+
+    const isActive =
+      selectedModel?.providerID === m.provider && selectedModel?.modelID === m.id;
+
+    const badges: string[] = [];
+    if (m.reasoning) badges.push("reasoning");
+    if (m.attachment) badges.push("vision");
+    const badgeStr = badges.length > 0 ? "  [" + badges.join(", ") + "]" : "";
+
+    const label = isActive ? `✓ ${m.name}${badgeStr}` : `${m.name}${badgeStr}`;
+    const callbackData = `mdl:${m.provider}/${m.id}`;
+
+    kb.row().text(label, callbackData);
+  }
+
+  // Pagination row
+  if (totalPages > 1) {
+    kb.row();
+    if (safePage > 0) {
+      kb.text("« Prev", `mdl_pg:${safePage - 1}`);
+    }
+    kb.text(`${safePage + 1}/${totalPages}`, "mdl_noop");
+    if (safePage < totalPages - 1) {
+      kb.text("Next »", `mdl_pg:${safePage + 1}`);
+    }
+  }
+
+  return { keyboard: kb, text: headerText };
+}
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
@@ -228,35 +314,8 @@ export function registerAdminCommands(bot: Bot): void {
         }
       }
 
-      // Group by provider
-      const grouped = new Map<string, typeof models>();
-      for (const m of models) {
-        const list = grouped.get(m.provider) ?? [];
-        list.push(m);
-        grouped.set(m.provider, list);
-      }
-
-      let text = `<b>Available Models</b>\n`;
-
-      for (const [provId, provModels] of grouped) {
-        text += `\n<b>${escapeHtml(provId)}</b>\n`;
-        for (const m of provModels) {
-          const badges: string[] = [];
-          if (m.reasoning) badges.push("reasoning");
-          if (m.attachment) badges.push("vision");
-          if (m.active) badges.push("active");
-
-          const badgeStr = badges.length > 0 ? "  " + badges.map(b => `[${b}]`).join(" ") : "";
-          text += `  <code>${escapeHtml(m.id)}</code>${badgeStr}\n`;
-        }
-      }
-
-      text += `\n<i>Use /model provider/model to switch</i>`;
-
-      const chunks = chunkMessage(text);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
+      const { keyboard, text } = buildModelKeyboard(models, 0, selected);
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing models"), { parse_mode: "HTML" });
     }
@@ -351,6 +410,73 @@ export function registerAdminCommands(bot: Bot): void {
     );
   });
 
+  // --- Callback query handlers for model selection ---
+
+  bot.callbackQuery(/^mdl:(.+)$/, async (ctx) => {
+    try {
+      const data = ctx.match[1];
+      const slashIdx = data.indexOf("/");
+      if (slashIdx === -1) {
+        await ctx.answerCallbackQuery({ text: "Invalid model" });
+        return;
+      }
+
+      const providerID = data.slice(0, slashIdx);
+      const modelID = data.slice(slashIdx + 1);
+      setSelectedModel(providerID, modelID);
+
+      // Build capability string
+      let capStr = "";
+      try {
+        const provider = getProvider();
+        const models = await provider.listModels();
+        const match = models.find(m => m.id === modelID && m.provider === providerID);
+        if (match) {
+          const caps: string[] = [];
+          if (match.reasoning) caps.push("reasoning");
+          if (match.attachment) caps.push("vision");
+          capStr = caps.length > 0 ? `\n<b>Capabilities:</b>  ${caps.join(", ")}` : "";
+        }
+      } catch {
+        // Ignore — capabilities are optional info
+      }
+
+      await ctx.editMessageText(
+        `Model set to <code>${escapeHtml(providerID)}/${escapeHtml(modelID)}</code>${capStr}`,
+        { parse_mode: "HTML" },
+      );
+      await ctx.answerCallbackQuery({ text: "Model selected!" });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to set model" });
+    }
+  });
+
+  bot.callbackQuery(/^mdl_pg:(\d+)$/, async (ctx) => {
+    try {
+      const page = parseInt(ctx.match[1], 10);
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      // Mark active
+      for (const m of models) {
+        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
+          m.active = true;
+        }
+      }
+
+      const { keyboard, text } = buildModelKeyboard(models, page, selected);
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to load page" });
+    }
+  });
+
+  bot.callbackQuery("mdl_noop", async (ctx) => {
+    await ctx.answerCallbackQuery();
+  });
+
   bot.command("system", async (ctx) => {
     const action = ctx.match?.trim();
 
@@ -365,7 +491,7 @@ export function registerAdminCommands(bot: Bot): void {
     }
 
     const prompt = getSystemPrompt();
-    const source = isUsingCustomPrompt() ? "Custom (skill.md)" : "Default (built-in)";
+    const source = isUsingCustomPrompt() ? "Custom (SKILL.md)" : "Default (built-in)";
     const escaped = escapeHtml(prompt.length > 500 ? prompt.slice(0, 500) + "\n\n...(truncated)" : prompt);
     await ctx.reply(
       `<b>System Prompt</b>\n` +

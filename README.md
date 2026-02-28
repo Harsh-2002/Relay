@@ -8,7 +8,9 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 
 ## Features
 
-- **Multi-provider** -- switch between OpenCode, Claude Code, and Codex with a single env var
+- **Multi-provider** -- switch between OpenCode, Claude Code, and Codex
+- **Interactive setup** -- `relay onboard` wizard for first-time configuration
+- **Structured logging** -- pino-based JSON logging with configurable levels
 - **Text, voice, photo, and file input** -- send messages in any format
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments (OpenCode)
 - **Streaming responses** -- progressive message editing for real-time output
@@ -17,7 +19,7 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 - **MCP servers** -- add, remove, and monitor MCP servers at runtime (OpenCode, Claude)
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
-- **Custom system prompts** -- load from file, hot-reload on change
+- **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
 - **File operations** -- read, find, search, and browse project files (all providers)
 - **Code diffs** -- view git diffs from sessions (all providers)
 - **State persistence** -- sessions, model selection, and MCP configs survive restarts
@@ -41,15 +43,10 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 
 ```bash
 npm install -g @4via6/relay
+relay onboard
 ```
 
-Then create a `.env` file in your working directory (see [Configuration](docs/configuration.md)):
-
-```bash
-curl -O https://raw.githubusercontent.com/Harsh-2002/Relay/main/.env.example
-# Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
-relay
-```
+The setup wizard will ask for your bot token, user ID, and provider config, then save everything to `.relay/config.json`.
 
 ### From source
 
@@ -58,15 +55,13 @@ git clone https://github.com/Harsh-2002/Relay.git
 cd Relay
 npm install
 npm run build
-cp .env.example .env
-# Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
-npm start
+npm start -- onboard
 ```
 
 ### With npx (no install)
 
 ```bash
-npx @4via6/relay
+npx @4via6/relay onboard
 ```
 
 ### Prerequisites
@@ -75,40 +70,83 @@ npx @4via6/relay
 - A Telegram bot token (from [@BotFather](https://t.me/BotFather))
 - Provider credentials (see below)
 
+## Running
+
+### Foreground (default)
+
+```bash
+relay
+```
+
+Close the terminal and the bot stops.
+
+### Background (daemon)
+
+```bash
+relay start                  # Start as background daemon
+relay status                 # Show PID, uptime, memory
+relay logs                   # Tail logs (Ctrl+C to exit)
+relay restart                # Restart the daemon
+relay stop                   # Stop the daemon
+```
+
+The daemon uses [pm2](https://pm2.keymetrics.io/) under the hood (auto-installed on first `relay start`). CLI flags are forwarded — e.g. `relay start --provider=claude` works as expected.
+
+### Updating
+
+```bash
+relay update
+```
+
+Detects how Relay was installed (npm global or git source) and updates accordingly. If the daemon is running, it's automatically restarted after the update.
+
+## Configuration
+
+Config is stored in `.relay/config.json`. Use the setup wizard or CLI flags:
+
+```bash
+relay onboard                    # Interactive wizard
+relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
+```
+
+### CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--help` | Show help |
+| `--version` | Show version |
+| `--bot-token` | Telegram bot token |
+| `--allowed-user-id` | Telegram user ID |
+| `--provider` | Provider: `opencode`, `claude`, `codex` |
+| `--bot-mode` | `polling` or `webhook` |
+| `--streaming-enabled` | `true` or `false` |
+| `--log-level` | `debug`, `info`, `warn`, `error` |
+| `--data-dir` | Data directory (default: `.relay/`) |
+| `--system-prompt-file` | Custom system prompt file |
+
+Environment variables are supported for backward compatibility. Run `relay onboard` to migrate to the config file.
+
 ## Providers
 
-Set `PROVIDER` in `.env` to select your coding agent backend.
+| Provider | Install |
+|----------|---------|
+| OpenCode | included |
+| Claude Code | `npm install @anthropic-ai/claude-code` |
+| OpenAI Codex | `npm install @openai/codex` |
 
-| Provider | `PROVIDER=` | Required env vars | Install |
-|----------|-------------|-------------------|---------|
-| OpenCode | `opencode` | `OPENCODE_MODE` | included |
-| Claude Code | `claude` | `ANTHROPIC_API_KEY` | `npm install @anthropic-ai/claude-code` |
-| OpenAI Codex | `codex` | `CODEX_API_KEY` or `OPENAI_API_KEY` | `npm install @openai/codex` |
+Provider API keys (like `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) are configured in your coding agent's environment, not in Relay.
 
 ### OpenCode
 
-```env
-PROVIDER=opencode
-OPENCODE_MODE=start           # "start" (spawn server) or "connect" (remote URL)
-OPENCODE_URL=http://localhost:4096
-```
+Select during `relay onboard` or pass `--provider=opencode`. Supports both `start` mode (spawns local server) and `connect` mode (remote URL).
 
 ### Claude Code
 
-```env
-PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-...
-CLAUDE_MODEL=sonnet           # use /models to see all available
-CLAUDE_PERMISSION_MODE=acceptEdits
-```
+Select during `relay onboard` or pass `--provider=claude`. Requires `@anthropic-ai/claude-code` to be installed. API key must be set in the environment where Claude Code runs.
 
 ### OpenAI Codex
 
-```env
-PROVIDER=codex
-CODEX_API_KEY=sk-...
-CODEX_MODEL=o3                # use /models to see all available
-```
+Select during `relay onboard` or pass `--provider=codex`. Requires `@openai/codex` to be installed. API key must be set in the environment where Codex runs.
 
 ## Commands
 
@@ -192,25 +230,24 @@ MCP servers extend the AI's capabilities with additional tools (browsers, databa
 
 ## Voice / STT
 
-Configure one or more speech-to-text providers for voice message support. The cheapest available provider is auto-selected.
-
-```env
-GROQ_API_KEY=...          # Groq Whisper (fastest, free tier)
-OPENAI_API_KEY=...        # OpenAI Whisper
-ASSEMBLYAI_API_KEY=...    # AssemblyAI
-```
+Configure speech-to-text providers during `relay onboard` or pass API keys via CLI flags. The cheapest available provider is auto-selected.
 
 ## System Prompt
 
-The bot loads a system prompt from `skill.md` in the project root (or the path set in `SYSTEM_PROMPT_FILE`). If the file doesn't exist, a default prompt is used. The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
+The bot loads a system prompt from `.relay/SKILL.md` (or `./SKILL.md` in cwd for backward compatibility, or a custom path via `--system-prompt-file`). If no file exists, a default prompt is used. The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
 
 ## Architecture
 
 ```
 src/
+  config/
+    schema.ts      -- Config type definitions
+    loader.ts      -- Config resolution (CLI > file > env > defaults)
+    setup.ts       -- Interactive setup wizard
+    index.ts       -- Config singleton
   providers/
     types.ts       -- Provider interface, capabilities, MCP/model types
-    index.ts       -- Provider factory (selects based on PROVIDER env var)
+    index.ts       -- Provider factory
     opencode.ts    -- OpenCode SDK provider
     claude.ts      -- Claude Code / Agent SDK provider
     codex.ts       -- OpenAI Codex SDK provider
@@ -225,6 +262,7 @@ src/
     shell.ts       -- Shell and command execution
     mcp.ts         -- MCP server management
   utils/
+    logger.ts      -- Pino-based structured logging
     store.ts       -- JSON file-backed persistence (.relay/)
     stream.ts      -- Streaming response handler
     files.ts       -- Outbound file attachment handling

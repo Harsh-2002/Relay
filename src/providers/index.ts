@@ -1,9 +1,10 @@
 import type { Provider, ProviderName } from "./types.js";
+import { getConfig } from "../config/index.js";
 
 let activeProvider: Provider | null = null;
 
 export function getProviderName(): ProviderName {
-  const name = (process.env.PROVIDER ?? "opencode").toLowerCase();
+  const name = getConfig().provider;
   if (name === "opencode" || name === "claude" || name === "codex") {
     return name;
   }

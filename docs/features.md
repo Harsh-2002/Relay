@@ -24,13 +24,21 @@ Relay streams AI responses in real time. As the AI generates text, the Telegram 
 
 ### Configuration
 
-Streaming is enabled by default. To disable it:
+Streaming is configured during `relay onboard`, or via CLI flag:
 
-```env
-STREAMING=false
+```bash
+relay --streaming-enabled=true
 ```
 
-When disabled, the bot waits for the complete response before sending a single message.
+Or set it in `.relay/config.json`:
+
+```json
+{
+  "streamingEnabled": true
+}
+```
+
+When disabled (default), the bot waits for the complete response before sending a single message.
 
 ---
 
@@ -68,12 +76,14 @@ Send voice notes to the bot and they'll be transcribed and processed as text inp
 
 ### Setup
 
-Configure at least one speech-to-text provider:
+Configure at least one speech-to-text provider during `relay onboard`, or set keys in `.relay/config.json`:
 
-```env
-GROQ_API_KEY=gsk_...          # Groq Whisper (fastest, has free tier)
-OPENAI_API_KEY=sk-...          # OpenAI Whisper
-ASSEMBLYAI_API_KEY=...         # AssemblyAI
+```json
+{
+  "groqApiKey": "gsk_...",
+  "openaiSttApiKey": "sk-...",
+  "assemblyaiApiKey": "..."
+}
 ```
 
 If multiple providers are configured, the cheapest available one is selected automatically.
@@ -194,25 +204,17 @@ Relay supports switching between AI models at runtime.
 
 ### Listing available models
 
-Use `/models` to see all configured models:
+Use `/models` to see all available models as an interactive inline keyboard. Models are grouped by provider, with capability badges shown next to each name. The currently active model is marked with a `✓` prefix.
 
-```
-Available Models
+Tap any model button to switch to it instantly — no need to type a command.
 
-anthropic
-  claude-sonnet-4-20250514  [reasoning] [active]
-  claude-opus-4-20250514  [reasoning]
-  claude-haiku-4-20250514
-
-openrouter
-  deepseek/deepseek-r1  [reasoning]
-```
+If there are more than 8 models, pagination buttons (`« Prev` / `Next »`) appear at the bottom.
 
 ### Capability badges
 
 - `[reasoning]` — The model supports extended thinking/reasoning
 - `[vision]` — The model accepts image input
-- `[active]` — Currently selected model
+- `✓` prefix — Currently selected model
 
 ### Switching models
 
@@ -236,8 +238,10 @@ Capabilities: reasoning, vision
 ### Provider behavior
 
 - **OpenCode**: Lists all models from all configured providers dynamically
-- **Claude**: Fetches available models dynamically from the Anthropic API (`GET /v1/models`)
-- **Codex**: Fetches available models dynamically from the OpenAI API (`GET /v1/models`)
+- **Claude**: Fetches available models dynamically from the Anthropic API — requires `ANTHROPIC_API_KEY` in the environment
+- **Codex**: Fetches available models dynamically from the OpenAI API — requires `CODEX_API_KEY` or `OPENAI_API_KEY` in the environment
+
+If the provider API key is not set or the API call fails, no models are listed.
 
 ---
 
@@ -247,14 +251,26 @@ Customize the AI's behavior with a system prompt file.
 
 ### Default behavior
 
-The bot loads a system prompt from `skill.md` in the project root. If the file doesn't exist, a built-in default prompt is used.
+The bot looks for a system prompt in this order:
+1. Explicit path from `systemPromptFile` in config
+2. `.relay/SKILL.md` if it exists
+3. `./SKILL.md` in the current directory (backward compatibility)
+4. Built-in default prompt
 
 ### Custom prompt file
 
-Set a custom path:
+Set a custom path in `.relay/config.json`:
 
-```env
-SYSTEM_PROMPT_FILE=prompts/my-prompt.md
+```json
+{
+  "systemPromptFile": "prompts/my-prompt.md"
+}
+```
+
+Or via CLI flag:
+
+```bash
+relay --system-prompt-file=prompts/my-prompt.md
 ```
 
 ### Hot reload
@@ -397,10 +413,18 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 
 ### Configuration
 
-Override the data directory:
+Override the data directory in `.relay/config.json`:
 
-```env
-RELAY_DATA_DIR=/path/to/custom/data
+```json
+{
+  "dataDir": "/path/to/custom/data"
+}
+```
+
+Or via CLI flag:
+
+```bash
+relay --data-dir=/path/to/custom/data
 ```
 
 Default: `.relay/` in the project root.
@@ -413,11 +437,21 @@ For production deployments, you can run Relay in webhook mode instead of long-po
 
 ### Setup
 
-```env
-BOT_MODE=webhook
-WEBHOOK_URL=https://your-server.com/bot
-WEBHOOK_PORT=3000
-WEBHOOK_SECRET=your-random-secret
+Configure webhook mode during `relay onboard`, or set it in `.relay/config.json`:
+
+```json
+{
+  "botMode": "webhook",
+  "webhookUrl": "https://your-server.com/bot",
+  "webhookPort": 3000,
+  "webhookSecret": "your-random-secret"
+}
+```
+
+Or via CLI flags:
+
+```bash
+relay --bot-mode=webhook --webhook-url=https://your-server.com/bot --webhook-port=3000
 ```
 
 ### Requirements
@@ -434,7 +468,7 @@ WEBHOOK_SECRET=your-random-secret
 
 ### Switching back to polling
 
-Set `BOT_MODE=polling` (or remove the variable). The bot will clear any stale webhook before starting long-polling.
+Set `botMode` to `polling` in your config (or remove it — polling is the default). The bot will clear any stale webhook before starting long-polling.
 
 ### Benefits over polling
 

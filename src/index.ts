@@ -1,36 +1,39 @@
+import { getConfig } from "./config/index.js";
 import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
-import { isAuthConfigured } from "./auth.js";
+import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
+import logger from "./utils/logger.js";
 
 async function main() {
-  const botToken = process.env.BOT_TOKEN;
-  if (!botToken) {
-    console.error("BOT_TOKEN environment variable is required.");
+  const config = getConfig();
+
+  if (!config.botToken) {
+    logger.fatal("BOT_TOKEN is required. Run 'relay onboard' to configure.");
     process.exit(1);
   }
 
-  if (!isAuthConfigured()) {
-    console.error("ALLOWED_USER_ID environment variable is required (must be a valid Telegram user ID).");
+  if (!initAuth(config.allowedUserId)) {
+    logger.fatal("ALLOWED_USER_ID is required (must be a valid Telegram user ID). Run 'relay onboard' to configure.");
     process.exit(1);
   }
 
   const providerName = getProviderName();
-  console.log(`Initializing ${providerName} provider...`);
+  logger.info({ provider: providerName }, "Initializing provider...");
   await initProvider();
-  console.log(`${providerName} provider ready.`);
+  logger.info({ provider: providerName }, "Provider ready");
 
   // Clean up old uploads every 30 minutes
   startUploadCleanup();
 
-  const bot = createBot(botToken);
+  const bot = createBot(config.botToken);
 
-  const botMode = (process.env.BOT_MODE ?? "polling").toLowerCase();
+  const botMode = config.botMode;
   let httpServer: import("http").Server | null = null;
 
   async function gracefulShutdown(signal: string) {
-    console.log(`\n${signal} received. Shutting down...`);
+    logger.info({ signal }, "Shutting down...");
     if (httpServer) {
       httpServer.close();
       try { await bot.api.deleteWebhook(); } catch {}
@@ -47,43 +50,38 @@ async function main() {
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
   if (botMode === "webhook") {
-    const webhookUrl = process.env.WEBHOOK_URL;
-    if (!webhookUrl) {
-      console.error("WEBHOOK_URL is required when BOT_MODE=webhook.");
+    if (!config.webhookUrl) {
+      logger.fatal("webhookUrl is required when botMode=webhook. Run 'relay onboard' to configure.");
       process.exit(1);
     }
-
-    const webhookPort = Number(process.env.WEBHOOK_PORT ?? "3000");
-    const webhookSecret = process.env.WEBHOOK_SECRET;
 
     const { createServer } = await import("http");
     const { webhookCallback } = await import("grammy");
 
-    await bot.api.setWebhook(webhookUrl, {
-      ...(webhookSecret && { secret_token: webhookSecret }),
+    await bot.api.setWebhook(config.webhookUrl, {
+      ...(config.webhookSecret && { secret_token: config.webhookSecret }),
     });
 
     const handler = webhookCallback(bot, "http", {
-      ...(webhookSecret && { secretToken: webhookSecret }),
+      ...(config.webhookSecret && { secretToken: config.webhookSecret }),
     });
 
     httpServer = createServer(handler);
-    httpServer.listen(webhookPort, () => {
-      console.log(`Webhook server listening on port ${webhookPort}`);
-      console.log(`Webhook URL: ${webhookUrl}`);
+    httpServer.listen(config.webhookPort, () => {
+      logger.info({ port: config.webhookPort, url: config.webhookUrl }, "Webhook server listening");
     });
   } else {
     // Clear any stale webhook before starting long-polling
     try { await bot.api.deleteWebhook(); } catch {}
 
-    console.log("Starting Telegram bot (long polling)...");
+    logger.info("Starting Telegram bot (long polling)...");
     await bot.start({
-      onStart: (info) => console.log(`Bot @${info.username} is running!`),
+      onStart: (info) => logger.info({ username: info.username }, "Bot is running"),
     });
   }
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  logger.fatal({ err }, "Fatal error");
   process.exit(1);
 });

@@ -1,8 +1,7 @@
-const DEFAULT_PROMPT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+import { getConfig } from "../config/index.js";
 
 export function getPromptTimeout(): number {
-  const env = process.env.PROMPT_TIMEOUT_MS;
-  return env ? Number(env) : DEFAULT_PROMPT_TIMEOUT;
+  return getConfig().promptTimeoutMs;
 }
 
 export async function withTimeout<T>(

@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import { InputFile } from "grammy";
+import logger from "./logger.js";
 
 export interface ResponseFile {
   mime: string;
@@ -70,7 +71,7 @@ export async function sendResponseFiles(
       }
     } catch (err: any) {
       // Log but don't fail the whole response for one bad file
-      console.error(`Failed to send file ${file.filename}:`, err?.message ?? err);
+      logger.error({ filename: file.filename, err: err?.message ?? err }, "Failed to send file");
     }
   }
 }

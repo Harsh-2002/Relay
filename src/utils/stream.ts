@@ -4,11 +4,14 @@ import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import { sendResponseFiles, type ResponseFile } from "./files.js";
+import { getConfig } from "../config/index.js";
 
-const EDIT_INTERVAL = Number(process.env.STREAM_EDIT_INTERVAL_MS) || 2000;
+function getEditInterval(): number {
+  return getConfig().streamEditIntervalMs;
+}
 
 export function isStreamingEnabled(): boolean {
-  return process.env.STREAMING_ENABLED === "true";
+  return getConfig().streamingEnabled;
 }
 
 export interface StreamPromptOptions {
@@ -75,7 +78,7 @@ export async function streamPrompt({
 
       // Throttled edit
       const now = Date.now();
-      if (now - lastEditTime >= EDIT_INTERVAL) {
+      if (now - lastEditTime >= getEditInterval()) {
         const display = buildDisplayText(accumulated, toolStatus);
         await safeEditMessage(ctx, chatId, messageId, display);
         lastEditTime = now;

@@ -202,27 +202,19 @@ List all available OpenCode commands that can be used with `/cmd`.
 
 ### `/models`
 
-List all available models grouped by provider. Each model shows capability badges:
+List all available models with an interactive inline keyboard. Tap a model button to select it instantly.
+
+Each model shows capability badges:
 
 - `[reasoning]` -- The model supports extended thinking/reasoning
 - `[vision]` -- The model accepts image input
-- `[active]` -- Currently selected model
+- `✓` prefix -- Currently selected model
 
-Example output:
+Models are grouped by provider with header rows. If there are more than 8 models, pagination buttons (`« Prev` / `Next »`) appear at the bottom.
 
-```
-Available Models
+Tapping a model button switches to that model immediately and shows a confirmation with capabilities.
 
-anthropic
-  claude-sonnet-4-20250514  [reasoning] [active]
-  claude-opus-4-20250514  [reasoning]
-  claude-haiku-4-20250514
-
-openrouter
-  deepseek/deepseek-r1  [reasoning]
-```
-
-All providers fetch models dynamically from their respective APIs.
+All providers fetch models dynamically from their respective APIs. If the provider API key is not set, no models are listed.
 
 ### `/model [provider/model]`
 

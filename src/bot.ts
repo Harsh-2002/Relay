@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { authMiddleware } from "./auth.js";
 import { registerCommands } from "./commands/index.js";
+import { botLogger } from "./utils/logger.js";
 
 export function createBot(token: string): Bot {
   const bot = new Bot(token);
@@ -10,7 +11,7 @@ export function createBot(token: string): Bot {
 
   bot.catch((err) => {
     const e = err.error;
-    console.error("Bot error:", e instanceof Error ? e.message : String(e));
+    botLogger.error({ err: e instanceof Error ? e.message : String(e) }, "Bot error");
   });
 
   return bot;

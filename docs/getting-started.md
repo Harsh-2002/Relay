@@ -36,28 +36,33 @@ npm run build
 
 ## Configuration
 
-Copy the example environment file and edit it:
+Run the interactive setup wizard:
 
 ```bash
-cp .env.example .env
+relay onboard
 ```
 
-Open `.env` and set the required values:
+The wizard will ask for:
+1. Your Telegram bot token
+2. Your Telegram user ID
+3. Your preferred AI provider (OpenCode, Claude Code, or Codex)
+4. Provider-specific settings
+5. Optional voice transcription (STT) keys
+6. Streaming and logging preferences
 
-```env
-# Required for all providers
-BOT_TOKEN=your-telegram-bot-token
-ALLOWED_USER_ID=your-telegram-user-id
+Config is saved to `.relay/config.json`.
 
-# Select your provider
-PROVIDER=opencode
+You can also pass settings as CLI flags:
+
+```bash
+relay --bot-token=xxx --allowed-user-id=123 --provider=opencode
 ```
 
-Then configure your chosen provider. See [Providers](providers.md) for detailed setup instructions.
+See [Configuration](configuration.md) for all available options.
 
 ## Running the Bot
 
-Start the bot:
+### Foreground (default)
 
 ```bash
 # If installed globally
@@ -67,14 +72,29 @@ relay
 npm start
 ```
 
-You should see output like:
+On first run with no config, the setup wizard starts automatically.
 
+### Background (daemon mode)
+
+Run the bot as a background service that survives terminal closure:
+
+```bash
+relay start                  # Start as background daemon
+relay status                 # Check if running (PID, uptime, memory)
+relay logs                   # Tail daemon logs (Ctrl+C to exit)
+relay restart                # Restart the daemon
+relay stop                   # Stop the daemon
 ```
-Initializing opencode provider...
-opencode provider ready.
-Starting Telegram bot (long polling)...
-Bot @YourBotName is running!
+
+pm2 is auto-installed on first `relay start`. CLI flags are forwarded — e.g. `relay start --provider=claude`.
+
+### Updating
+
+```bash
+relay update
 ```
+
+Auto-detects your install method (npm or git source) and updates to the latest version. Restarts the daemon automatically if it's running.
 
 ## First Steps
 
@@ -88,22 +108,27 @@ Bot @YourBotName is running!
 
 ```
 relay/
-  .env.example       -- Template for environment variables
-  package.json        -- Dependencies and scripts
+  .relay/               -- Config and persisted state (auto-created)
+    config.json         -- Your configuration
+    session.json        -- Active session state
+    SKILL.md            -- Custom system prompt (optional)
+  package.json          -- Dependencies and scripts
   src/
-    index.ts          -- Entry point
-    bot.ts            -- Bot setup and middleware
-    auth.ts           -- User authentication
-    session.ts        -- Session state management
-    providers/        -- Provider implementations
-    commands/         -- Telegram command handlers
-    utils/            -- Shared utilities
-  docs/               -- This documentation
+    cli.ts              -- CLI entry point (onboard, --help, --version)
+    index.ts            -- Bot startup
+    bot.ts              -- Bot setup and middleware
+    auth.ts             -- User authentication
+    session.ts          -- Session state management
+    config/             -- Config schema, loader, setup wizard
+    providers/          -- Provider implementations
+    commands/           -- Telegram command handlers
+    utils/              -- Shared utilities (logger, store, stream, etc.)
+  docs/                 -- This documentation
 ```
 
 ## Next Steps
 
-- [Configuration Reference](configuration.md) -- All environment variables
+- [Configuration Reference](configuration.md) -- All config options and CLI flags
 - [Provider Setup](providers.md) -- Detailed provider configuration
 - [Commands](commands.md) -- Full command reference
 - [Features](features.md) -- File attachments, streaming, MCP, voice

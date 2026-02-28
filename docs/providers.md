@@ -1,6 +1,6 @@
 # Provider Setup
 
-Relay supports three coding agent backends. Each provider connects the bot to a different AI coding tool. Set `PROVIDER` in your `.env` file to choose one.
+Relay supports three coding agent backends. Each provider connects the bot to a different AI coding tool. Select your provider during `relay onboard` or pass `--provider=<name>`.
 
 ## OpenCode
 
@@ -16,24 +16,11 @@ There are two modes of operation:
 
 #### Mode 1: Start (recommended)
 
-Relay spawns and manages the OpenCode server automatically.
-
-```env
-PROVIDER=opencode
-OPENCODE_MODE=start
-OPENCODE_HOSTNAME=127.0.0.1
-OPENCODE_PORT=4096
-```
+Relay spawns and manages the OpenCode server automatically. This is the default.
 
 #### Mode 2: Connect
 
-Connect to an already-running OpenCode server. Use this when the server is running on a different machine or managed separately.
-
-```env
-PROVIDER=opencode
-OPENCODE_MODE=connect
-OPENCODE_URL=http://localhost:4096
-```
+Connect to an already-running OpenCode server. Use this when the server is running on a different machine or managed separately. Pass `--opencode-mode=connect --opencode-url=http://your-server:4096`.
 
 If you connect to a remote server over HTTP, the bot will show a warning. Use HTTPS for production deployments.
 
@@ -88,17 +75,15 @@ npm install @anthropic-ai/claude-code
 
 ### Configuration
 
-```env
-PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-api03-...
-CLAUDE_MODEL=sonnet
-CLAUDE_PERMISSION_MODE=acceptEdits
-CLAUDE_CWD=/path/to/your/project
+Select Claude during `relay onboard`, or pass:
+
+```bash
+relay --provider=claude --claude-model=sonnet
 ```
 
 ### API Key
 
-Get your API key from the [Anthropic Console](https://console.anthropic.com/). The key must have access to the Claude Code API.
+Your `ANTHROPIC_API_KEY` must be set in the environment where Claude Code runs — this is the coding agent's responsibility, not Relay's. Get your API key from the [Anthropic Console](https://console.anthropic.com/).
 
 ### Models
 
@@ -165,14 +150,15 @@ npm install @openai/codex
 
 ### Configuration
 
-```env
-PROVIDER=codex
-CODEX_API_KEY=sk-...
-CODEX_MODEL=o3
-CODEX_CWD=/path/to/your/project
+Select Codex during `relay onboard`, or pass:
+
+```bash
+relay --provider=codex --codex-model=o3
 ```
 
-You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_API_KEY` takes priority.
+### API Key
+
+Your `CODEX_API_KEY` or `OPENAI_API_KEY` must be set in the environment where Codex runs — this is the coding agent's responsibility, not Relay's.
 
 ### Models
 
@@ -227,10 +213,10 @@ Set `CODEX_CWD` to the project directory. Defaults to the directory where Relay 
 
 ## Switching Providers
 
-To switch providers, update the `PROVIDER` variable in `.env` and restart the bot:
+To switch providers, run `relay onboard` and select a different provider, or pass `--provider=<name>`:
 
-```env
-PROVIDER=claude  # or opencode, codex
+```bash
+relay --provider=claude
 ```
 
 Sessions are provider-specific and not shared between providers. Switching providers starts fresh.

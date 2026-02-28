@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, watchFile, unwatchFile } from "fs";
-import { resolve } from "path";
+import { resolve, join } from "path";
+import { getConfig } from "../config/index.js";
 
 const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant accessed through a Telegram bot. Your responses are delivered as Telegram messages, so keep them concise and under 4000 characters when possible — use Markdown formatting (bold, inline code, code blocks) for readability. Focus on actionable, practical answers: provide code, commands, or direct solutions rather than lengthy explanations. Messages may originate from voice transcriptions, so interpret the user's intent generously even if the wording is imprecise or contains transcription artifacts.`;
 
@@ -59,7 +60,19 @@ export function unwatchSystemPrompt(): void {
 }
 
 function resolvePromptPath(): string | null {
-  const envPath = process.env.SYSTEM_PROMPT_FILE;
-  if (envPath) return resolve(envPath);
-  return resolve("skill.md");
+  const config = getConfig();
+
+  // 1. Explicit path from config
+  if (config.systemPromptFile) return resolve(config.systemPromptFile);
+
+  // 2. .relay/SKILL.md
+  const relaySkill = join(config.dataDir || ".relay", "SKILL.md");
+  if (existsSync(relaySkill)) return resolve(relaySkill);
+
+  // 3. ./SKILL.md in cwd (backward compat)
+  const cwdSkill = resolve("SKILL.md");
+  if (existsSync(cwdSkill)) return cwdSkill;
+
+  // 4. Return the .relay/SKILL.md path anyway (for watch setup)
+  return resolve(relaySkill);
 }

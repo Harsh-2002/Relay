@@ -6,22 +6,24 @@ Common issues and solutions when running Relay.
 
 ## Bot won't start
 
-### "BOT_TOKEN is required"
+### "No config found" / setup wizard starts automatically
 
-You haven't set the Telegram bot token. Add it to your `.env` file:
+No configuration file exists. Run the interactive setup wizard:
 
-```env
-BOT_TOKEN=123456:ABC-DEF...
+```bash
+relay onboard
 ```
 
-Get a token from [@BotFather](https://t.me/BotFather) on Telegram.
+This creates `.relay/config.json` with your bot token, user ID, and provider settings.
 
 ### "Unknown provider: xyz"
 
-The `PROVIDER` value in `.env` is not one of `opencode`, `claude`, or `codex`. Check for typos:
+The `provider` value in your config is not one of `opencode`, `claude`, or `codex`. Run `relay onboard` to reconfigure, or check `.relay/config.json`:
 
-```env
-PROVIDER=opencode
+```json
+{
+  "provider": "opencode"
+}
 ```
 
 ### "Cannot find package '@anthropic-ai/claude-code'"
@@ -46,21 +48,15 @@ npm install @openai/codex
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Check your `ALLOWED_USER_ID`:
+Relay only responds to authorized users. Check `allowedUserId` in `.relay/config.json`:
 
-```env
-ALLOWED_USER_ID=123456789
+```json
+{
+  "allowedUserId": 123456789
+}
 ```
 
 To find your Telegram user ID, send a message to [@userinfobot](https://t.me/userinfobot).
-
-### Multiple users
-
-Separate multiple user IDs with commas:
-
-```env
-ALLOWED_USER_ID=123456789,987654321
-```
 
 ---
 
@@ -71,9 +67,12 @@ ALLOWED_USER_ID=123456789,987654321
 The OpenCode server isn't running or isn't reachable at the configured URL:
 
 1. Check that the OpenCode server is running
-2. Verify the URL in your `.env`:
-   ```env
-   OPENCODE_URL=http://localhost:4096
+2. Verify the URL in `.relay/config.json`:
+   ```json
+   {
+     "opencodeMode": "connect",
+     "opencodeUrl": "http://localhost:4096"
+   }
    ```
 3. If the server is on a different machine, ensure the port is open and the host is correct
 
@@ -86,18 +85,22 @@ Relay couldn't spawn the OpenCode server. Check:
    ```bash
    lsof -i :4096
    ```
-3. Check the configured host and port:
-   ```env
-   OPENCODE_HOSTNAME=127.0.0.1
-   OPENCODE_PORT=4096
+3. Check the configured host and port in `.relay/config.json`:
+   ```json
+   {
+     "opencodeHostname": "127.0.0.1",
+     "opencodePort": 4096
+   }
    ```
 
 ### HTTP warning for remote OpenCode
 
-If you see a warning about connecting over HTTP, it means your `OPENCODE_URL` uses `http://` instead of `https://`. This is fine for local development but use HTTPS for production:
+If you see a warning about connecting over HTTP, it means your `opencodeUrl` uses `http://` instead of `https://`. This is fine for local development but use HTTPS for production:
 
-```env
-OPENCODE_URL=https://your-server.example.com:4096
+```json
+{
+  "opencodeUrl": "https://your-server.example.com:4096"
+}
 ```
 
 ---
@@ -106,31 +109,31 @@ OPENCODE_URL=https://your-server.example.com:4096
 
 ### "Invalid API key"
 
-Your Anthropic API key is invalid or expired:
+Your Anthropic API key is invalid or expired. The `ANTHROPIC_API_KEY` environment variable must be set in the environment where Claude Code runs — this is configured in your coding agent's environment, not in Relay.
 
-1. Check the key in `.env`:
-   ```env
-   ANTHROPIC_API_KEY=sk-ant-api03-...
-   ```
-2. Verify the key at [console.anthropic.com](https://console.anthropic.com/)
-3. Ensure the key has Claude Code API access
+1. Verify the key at [console.anthropic.com](https://console.anthropic.com/)
+2. Ensure the key has Claude Code API access
 
 ### Claude doesn't modify files
 
-Claude Code requires the `acceptEdits` permission mode to automatically accept file operations in a bot context:
+Claude Code requires the `acceptEdits` permission mode to automatically accept file operations in a bot context. Set it in `.relay/config.json`:
 
-```env
-CLAUDE_PERMISSION_MODE=acceptEdits
+```json
+{
+  "claudePermissionMode": "acceptEdits"
+}
 ```
 
 Without this, Claude may prompt for interactive approval, which doesn't work in a Telegram bot.
 
 ### Wrong working directory
 
-Claude operates in the directory specified by `CLAUDE_CWD`. If files aren't found, check the path:
+Claude operates in the directory specified by `claudeCwd`. If files aren't found, check the path in `.relay/config.json`:
 
-```env
-CLAUDE_CWD=/path/to/your/project
+```json
+{
+  "claudeCwd": "/path/to/your/project"
+}
 ```
 
 Defaults to the directory where Relay is running.
@@ -141,20 +144,16 @@ Defaults to the directory where Relay is running.
 
 ### "Invalid API key"
 
-Check your OpenAI API key:
-
-```env
-CODEX_API_KEY=sk-...
-```
-
-You can use either `CODEX_API_KEY` or `OPENAI_API_KEY`. If both are set, `CODEX_API_KEY` takes priority.
+Your OpenAI API key must be set in the environment where Codex runs — this is configured in your coding agent's environment, not in Relay. Set `CODEX_API_KEY` or `OPENAI_API_KEY` in your environment.
 
 ### Wrong working directory
 
-Set the project directory:
+Set the project directory in `.relay/config.json`:
 
-```env
-CODEX_CWD=/path/to/your/project
+```json
+{
+  "codexCwd": "/path/to/your/project"
+}
 ```
 
 ---
@@ -163,13 +162,17 @@ CODEX_CWD=/path/to/your/project
 
 ### "No STT provider available"
 
-No speech-to-text provider is configured. Add at least one API key:
+No speech-to-text provider is configured. Run `relay onboard` and enable voice transcription, or add API keys to `.relay/config.json`:
 
-```env
-GROQ_API_KEY=gsk_...          # Recommended (fastest, free tier)
-OPENAI_API_KEY=sk-...          # Alternative
-ASSEMBLYAI_API_KEY=...         # Alternative
+```json
+{
+  "groqApiKey": "gsk_...",
+  "openaiSttApiKey": "sk-...",
+  "assemblyaiApiKey": "..."
+}
 ```
+
+At least one key is required. Groq is recommended (fastest, has a free tier).
 
 ### Voice transcription is inaccurate
 
@@ -242,26 +245,68 @@ Use `/models` to see all available model IDs.
 ### No models listed
 
 - **OpenCode**: Check that your OpenCode config has providers and models configured
-- **Claude/Codex**: Models are a static list and should always appear
+- **Claude**: Ensure `ANTHROPIC_API_KEY` is set in the environment — models are fetched dynamically from the API
+- **Codex**: Ensure `CODEX_API_KEY` or `OPENAI_API_KEY` is set in the environment — models are fetched dynamically from the API
 
 ---
 
 ## System Prompt
 
-### Changes to skill.md aren't picked up
+### Changes to SKILL.md aren't picked up
 
 The file watcher should detect changes automatically. If it doesn't:
 
 1. Use `/system reload` to force a reload
-2. Check that the file path is correct:
-   ```env
-   SYSTEM_PROMPT_FILE=skill.md
+2. Check that the file path is correct in `.relay/config.json`:
+   ```json
+   {
+     "systemPromptFile": "path/to/SKILL.md"
+   }
    ```
 3. Verify the file exists and is readable
 
 ### "/system" shows "default prompt"
 
-No custom prompt file was found. Create `skill.md` in the project root or set `SYSTEM_PROMPT_FILE` to your prompt file path.
+No custom prompt file was found. Create `.relay/SKILL.md` or set `systemPromptFile` in your config to point to your prompt file.
+
+---
+
+## Daemon Mode
+
+### pm2 fails to install
+
+If `relay start` can't install pm2 automatically, install it manually:
+
+```bash
+sudo npm install -g pm2
+```
+
+On some systems you may need to fix npm's global prefix permissions instead of using `sudo`. See the [npm docs](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally) for details.
+
+### Daemon won't start
+
+1. Make sure the project is built: `npm run build`
+2. Check if another instance is already running: `relay status`
+3. Check logs for errors: `relay logs`
+
+### "Relay daemon is not running" but the bot was started
+
+The bot may be running in foreground mode (plain `relay`), not as a daemon. Daemon commands only manage the background pm2 process. Stop the foreground process and use `relay start` instead.
+
+### Where are daemon logs?
+
+pm2 stores logs in `~/.pm2/logs/`. You can view them with:
+
+```bash
+relay logs                   # Tail recent output
+```
+
+Or access the raw files directly:
+
+```
+~/.pm2/logs/relay-out.log    # stdout
+~/.pm2/logs/relay-error.log  # stderr
+```
 
 ---
 

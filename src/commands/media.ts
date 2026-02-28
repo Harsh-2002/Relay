@@ -10,8 +10,11 @@ import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
 import { readFileSync } from "fs";
+import { getConfig } from "../config/index.js";
 
-const botToken = process.env.BOT_TOKEN ?? "";
+function getBotToken(): string {
+  return getConfig().botToken;
+}
 
 export function registerMediaHandlers(bot: Bot): void {
   bot.on("message:document", async (ctx) => {
@@ -22,7 +25,7 @@ export function registerMediaHandlers(bot: Bot): void {
 
       await ctx.replyWithChatAction("typing");
 
-      const localPath = await downloadTelegramFile(botToken, file.file_path!, fileName);
+      const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
       const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
 
       const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
@@ -78,7 +81,7 @@ export function registerMediaHandlers(bot: Bot): void {
 
       await ctx.replyWithChatAction("typing");
 
-      const buffer = await downloadTelegramFileBuffer(botToken, file.file_path!);
+      const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
       const caption = ctx.message.caption ?? "I've shared a photo. Please review it.";
 
       // Send as FilePartInput with base64 data URL for vision models
@@ -96,7 +99,7 @@ export function registerMediaHandlers(bot: Bot): void {
       ];
 
       // Also save locally for reference
-      await downloadTelegramFile(botToken, file.file_path!, fileName);
+      await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
 
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
@@ -142,7 +145,7 @@ export function registerMediaHandlers(bot: Bot): void {
       const file = await ctx.getFile();
       const fileName = `voice_${Date.now()}.ogg`;
 
-      const buffer = await downloadTelegramFileBuffer(botToken, file.file_path!);
+      const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
       const result = await transcribeAudio(buffer, fileName);
 
       if (!result.text || result.text.trim().length === 0) {
@@ -192,7 +195,7 @@ export function registerMediaHandlers(bot: Bot): void {
       await ctx.replyWithChatAction("typing");
 
       if (isSttAvailable()) {
-        const buffer = await downloadTelegramFileBuffer(botToken, file.file_path!);
+        const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
         const result = await transcribeAudio(buffer, fileName);
 
         if (result.text && result.text.trim().length > 0) {
@@ -224,7 +227,7 @@ export function registerMediaHandlers(bot: Bot): void {
       }
 
       // Fallback: download and reference as file
-      await downloadTelegramFile(botToken, file.file_path!, fileName);
+      await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
       const caption = ctx.message.caption ?? `Audio file: ${fileName}`;
 
       const sessionId = await getOrCreateSession();

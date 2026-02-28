@@ -18,6 +18,7 @@ import type {
   McpServerStatus,
 } from "./types.js";
 import { JsonStore } from "../utils/store.js";
+import { getConfig } from "../config/index.js";
 
 // Dynamic import — only loads when PROVIDER=codex
 let CodexClass: any;
@@ -54,17 +55,12 @@ export class CodexProvider implements Provider {
   private cwd: string;
 
   constructor() {
-    this.model = process.env.CODEX_MODEL ?? "o3";
-    this.cwd = process.env.CODEX_CWD ?? process.cwd();
+    const config = getConfig();
+    this.model = config.codexModel;
+    this.cwd = config.codexCwd || process.cwd();
   }
 
   async init(): Promise<void> {
-    if (!process.env.CODEX_API_KEY && !process.env.OPENAI_API_KEY) {
-      throw new Error(
-        "CODEX_API_KEY or OPENAI_API_KEY is required for Codex provider."
-      );
-    }
-
     try {
       const sdk = await import("@openai/codex");
       CodexClass = sdk.Codex ?? sdk.default;
@@ -454,35 +450,34 @@ export class CodexProvider implements Provider {
 
   async listModels(): Promise<ModelDetail[]> {
     const apiKey = process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("CODEX_API_KEY or OPENAI_API_KEY is required to list models.");
+
+    if (apiKey) {
+      try {
+        const res = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+
+        if (res.ok) {
+          const body = await res.json() as any;
+          const models: ModelDetail[] = (body.data ?? [])
+            .map((m: any) => ({
+              id: m.id,
+              name: m.id,
+              provider: "openai",
+              reasoning: /^(o[0-9]|gpt-5)/i.test(m.id),
+              attachment: false,
+              active: this.model === m.id,
+            }))
+            .sort((a: ModelDetail, b: ModelDetail) => a.id.localeCompare(b.id));
+
+          if (models.length > 0) return models;
+        }
+      } catch {
+        // API unavailable — return empty list
+      }
     }
 
-    const res = await fetch("https://api.openai.com/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch models from OpenAI API (HTTP ${res.status}). Check your API key.`);
-    }
-
-    const body = await res.json() as any;
-    const models: ModelDetail[] = (body.data ?? [])
-      .map((m: any) => ({
-        id: m.id,
-        name: m.id,
-        provider: "openai",
-        reasoning: /^(o[0-9]|gpt-5)/i.test(m.id),
-        attachment: false,
-        active: this.model === m.id,
-      }))
-      .sort((a: ModelDetail, b: ModelDetail) => a.id.localeCompare(b.id));
-
-    if (models.length === 0) {
-      throw new Error("No models returned from OpenAI API. Check your API key permissions.");
-    }
-
-    return models;
+    return [];
   }
 
   // --- MCP (not supported) ---

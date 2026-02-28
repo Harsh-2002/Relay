@@ -1,3 +1,6 @@
+import { getConfig } from "../config/index.js";
+import { sttLogger } from "./logger.js";
+
 export interface TranscriptionResult {
   text: string;
   provider: "openai" | "groq" | "assemblyai";
@@ -6,29 +9,31 @@ export interface TranscriptionResult {
 type SttProvider = "openai" | "groq" | "assemblyai" | "auto";
 
 export function isSttAvailable(): boolean {
+  const config = getConfig();
   return !!(
-    process.env.OPENAI_API_KEY ||
-    process.env.GROQ_API_KEY ||
-    process.env.ASSEMBLYAI_API_KEY
+    config.openaiSttApiKey ||
+    config.groqApiKey ||
+    config.assemblyaiApiKey
   );
 }
 
 export function getSttProvider(): string | null {
-  const provider = (process.env.STT_PROVIDER ?? "auto") as SttProvider;
+  const config = getConfig();
+  const provider = config.sttProvider as SttProvider;
 
   if (provider !== "auto") {
     const keyMap: Record<string, string | undefined> = {
-      groq: process.env.GROQ_API_KEY,
-      openai: process.env.OPENAI_API_KEY,
-      assemblyai: process.env.ASSEMBLYAI_API_KEY,
+      groq: config.groqApiKey,
+      openai: config.openaiSttApiKey,
+      assemblyai: config.assemblyaiApiKey,
     };
     return keyMap[provider] ? provider : null;
   }
 
   // Auto-detect: cheapest first (Groq > AssemblyAI > OpenAI)
-  if (process.env.GROQ_API_KEY) return "groq";
-  if (process.env.ASSEMBLYAI_API_KEY) return "assemblyai";
-  if (process.env.OPENAI_API_KEY) return "openai";
+  if (config.groqApiKey) return "groq";
+  if (config.assemblyaiApiKey) return "assemblyai";
+  if (config.openaiSttApiKey) return "openai";
   return null;
 }
 
@@ -39,9 +44,11 @@ export async function transcribeAudio(
   const provider = getSttProvider();
   if (!provider) {
     throw new Error(
-      "No STT provider configured. Set GROQ_API_KEY, OPENAI_API_KEY, or ASSEMBLYAI_API_KEY."
+      "No STT provider configured. Run 'relay onboard' to add STT API keys."
     );
   }
+
+  sttLogger.debug({ provider, filename }, "Transcribing audio");
 
   switch (provider) {
     case "groq":
@@ -59,8 +66,9 @@ async function transcribeWithOpenAI(
   buffer: Buffer,
   filename: string
 ): Promise<TranscriptionResult> {
-  const apiKey = process.env.OPENAI_API_KEY!;
-  const model = process.env.OPENAI_STT_MODEL ?? "gpt-4o-mini-transcribe";
+  const config = getConfig();
+  const apiKey = config.openaiSttApiKey;
+  const model = config.openaiSttModel;
 
   const formData = new FormData();
   formData.append("file", new Blob([new Uint8Array(buffer)]), filename);
@@ -80,6 +88,7 @@ async function transcribeWithOpenAI(
   }
 
   const data = (await response.json()) as { text: string };
+  sttLogger.debug({ provider: "openai", chars: data.text.length }, "Transcription complete");
   return { text: data.text, provider: "openai" };
 }
 
@@ -87,8 +96,9 @@ async function transcribeWithGroq(
   buffer: Buffer,
   filename: string
 ): Promise<TranscriptionResult> {
-  const apiKey = process.env.GROQ_API_KEY!;
-  const model = process.env.GROQ_STT_MODEL ?? "whisper-large-v3-turbo";
+  const config = getConfig();
+  const apiKey = config.groqApiKey;
+  const model = config.groqSttModel;
 
   const formData = new FormData();
   formData.append("file", new Blob([new Uint8Array(buffer)]), filename);
@@ -108,13 +118,15 @@ async function transcribeWithGroq(
   }
 
   const data = (await response.json()) as { text: string };
+  sttLogger.debug({ provider: "groq", chars: data.text.length }, "Transcription complete");
   return { text: data.text, provider: "groq" };
 }
 
 async function transcribeWithAssemblyAI(
   buffer: Buffer
 ): Promise<TranscriptionResult> {
-  const apiKey = process.env.ASSEMBLYAI_API_KEY!;
+  const config = getConfig();
+  const apiKey = config.assemblyaiApiKey;
 
   // Step 1: Upload audio
   const uploadResp = await fetch("https://api.assemblyai.com/v2/upload", {
@@ -166,6 +178,7 @@ async function transcribeWithAssemblyAI(
     };
 
     if (result.status === "completed") {
+      sttLogger.debug({ provider: "assemblyai", chars: result.text?.length ?? 0 }, "Transcription complete");
       return { text: result.text ?? "", provider: "assemblyai" };
     }
     if (result.status === "error") {

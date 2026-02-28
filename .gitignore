@@ -34,4 +34,4 @@ Thumbs.db
 test-*.ts
 
 # Skill file (user-specific system prompt)
-skill.md
+SKILL.md

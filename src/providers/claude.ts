@@ -18,6 +18,7 @@ import type {
   McpServerStatus,
 } from "./types.js";
 import { JsonStore } from "../utils/store.js";
+import { getConfig } from "../config/index.js";
 
 // Dynamic import — only loads when PROVIDER=claude
 let queryFn: any;
@@ -49,18 +50,13 @@ export class ClaudeProvider implements Provider {
   private mcpStore = new JsonStore<Record<string, any>>("claude-mcp.json", {});
 
   constructor() {
-    this.model = process.env.CLAUDE_MODEL ?? "sonnet";
-    this.permissionMode = process.env.CLAUDE_PERMISSION_MODE ?? "acceptEdits";
-    this.cwd = process.env.CLAUDE_CWD ?? process.cwd();
+    const config = getConfig();
+    this.model = config.claudeModel;
+    this.permissionMode = config.claudePermissionMode;
+    this.cwd = config.claudeCwd || process.cwd();
   }
 
   async init(): Promise<void> {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error(
-        "ANTHROPIC_API_KEY is required for Claude provider. Set it in your environment."
-      );
-    }
-
     try {
       const sdk = await import("@anthropic-ai/claude-code");
       queryFn = sdk.query;
@@ -474,36 +470,35 @@ export class ClaudeProvider implements Provider {
 
   async listModels(): Promise<ModelDetail[]> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is required to list models.");
+
+    if (apiKey) {
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+        });
+
+        if (res.ok) {
+          const body = await res.json() as any;
+          const models: ModelDetail[] = (body.data ?? []).map((m: any) => ({
+            id: m.id,
+            name: m.display_name ?? m.id,
+            provider: "anthropic",
+            reasoning: /opus|sonnet-4/i.test(m.id),
+            attachment: false,
+            active: this.model === m.id,
+          }));
+
+          if (models.length > 0) return models;
+        }
+      } catch {
+        // API unavailable — return empty list
+      }
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch models from Anthropic API (HTTP ${res.status}). Check your ANTHROPIC_API_KEY.`);
-    }
-
-    const body = await res.json() as any;
-    const models: ModelDetail[] = (body.data ?? []).map((m: any) => ({
-      id: m.id,
-      name: m.display_name ?? m.id,
-      provider: "anthropic",
-      reasoning: /opus|sonnet-4/i.test(m.id),
-      attachment: false,
-      active: this.model === m.id,
-    }));
-
-    if (models.length === 0) {
-      throw new Error("No models returned from Anthropic API. Check your ANTHROPIC_API_KEY permissions.");
-    }
-
-    return models;
+    return [];
   }
 
   // --- MCP ---

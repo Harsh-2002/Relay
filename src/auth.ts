@@ -1,12 +1,16 @@
 import type { Context, NextFunction } from "grammy";
 
-// Parse ALLOWED_USER_ID — fail-secure: NaN means "block all"
-const raw = process.env.ALLOWED_USER_ID;
-const allowedUserId = raw ? Number(raw) : NaN;
+// Initialized by initAuth() from index.ts
+let allowedUserId = NaN;
 
 // Simple in-memory rate limiter: max requests per minute per user
 const RATE_LIMIT = 30;
 const rateBuckets = new Map<number, number[]>();
+
+export function initAuth(userId: number): boolean {
+  allowedUserId = userId;
+  return isAuthConfigured();
+}
 
 export function isAuthConfigured(): boolean {
   return !isNaN(allowedUserId) && allowedUserId > 0;

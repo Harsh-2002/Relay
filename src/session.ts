@@ -1,5 +1,6 @@
 import { getProvider } from "./providers/index.js";
 import { JsonStore } from "./utils/store.js";
+import { getConfig } from "./config/index.js";
 
 interface SessionState {
   activeSessionId: string | null;
@@ -11,12 +12,12 @@ const store = new JsonStore<SessionState>("session.json", {
   selectedModel: null,
 });
 
-// Load persisted state (or fall back to env var for model)
+// Load persisted state (or fall back to config for model)
 const persisted = store.load();
 
 let activeSessionId: string | null = persisted.activeSessionId;
 let selectedModel: { providerID: string; modelID: string } | null = persisted.selectedModel ?? (() => {
-  const envModel = process.env.OPENCODE_MODEL;
+  const envModel = getConfig().opencodeModel;
   if (envModel && envModel.includes("/")) {
     const [providerID, ...rest] = envModel.split("/");
     return { providerID, modelID: rest.join("/") };

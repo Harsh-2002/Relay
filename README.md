@@ -137,13 +137,13 @@ relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
 
 ## Providers
 
-| Provider | Requirement |
-|----------|-------------|
-| [OpenCode](https://github.com/opencode-ai/opencode) | included |
-| [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) | must be installed separately |
-| [OpenAI Codex](https://github.com/openai/codex) | must be installed separately |
+| Provider | SDK |
+|----------|-----|
+| [OpenCode](https://github.com/opencode-ai/opencode) | `@opencode-ai/sdk` (bundled) |
+| [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) | `@anthropic-ai/claude-code` (bundled) |
+| [OpenAI Codex](https://github.com/openai/codex) | `@openai/codex-sdk` (bundled) |
 
-Each provider must be installed on the system where Relay runs. Relay calls the tool directly — how you install it (npm, pip, binary, etc.) is up to you.
+All provider SDKs are bundled with Relay — no extra installation needed.
 
 ### OpenCode
 
@@ -151,11 +151,11 @@ Select during `relay onboard` or pass `--provider=opencode`. Supports both `star
 
 ### Claude Code
 
-Select during `relay onboard` or pass `--provider=claude`. Claude Code must be installed and accessible. API key must be set in the environment where Claude Code runs.
+Select during `relay onboard` or pass `--provider=claude`. Set `ANTHROPIC_API_KEY` in your environment.
 
 ### OpenAI Codex
 
-Select during `relay onboard` or pass `--provider=codex`. Codex must be installed and accessible. API key must be set in the environment where Codex runs.
+Select during `relay onboard` or pass `--provider=codex`. Set `CODEX_API_KEY` or `OPENAI_API_KEY` in your environment.
 
 ## Commands
 

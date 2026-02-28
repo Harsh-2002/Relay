@@ -62,16 +62,16 @@ export class CodexProvider implements Provider {
 
   async init(): Promise<void> {
     try {
-      const sdk = await import("@openai/codex");
-      CodexClass = sdk.Codex ?? sdk.default;
+      const sdk = await import("@openai/codex-sdk");
+      CodexClass = sdk.Codex;
       codexInstance = new CodexClass();
-    } catch {
+    } catch (err: any) {
       throw new Error(
-        "Could not load the Codex SDK.\n\n" +
-          "  Relay uses the Codex Node.js SDK for native session management,\n" +
-          "  streaming, and tool integration. The CLI alone is not sufficient.\n\n" +
-          "  Install the SDK:\n\n" +
-          "    npm install -g @openai/codex"
+        "Could not load the Codex SDK (@openai/codex-sdk).\n\n" +
+          "  This SDK is bundled with Relay and should work out of the box.\n" +
+          "  Try reinstalling Relay:\n\n" +
+          "    npm install -g @4via6/relay@latest\n\n" +
+          (err?.message ? `  Cause: ${err.message}` : "")
       );
     }
   }

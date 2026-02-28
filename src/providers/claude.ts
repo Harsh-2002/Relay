@@ -61,13 +61,13 @@ export class ClaudeProvider implements Provider {
       const sdk = await import("@anthropic-ai/claude-code");
       queryFn = sdk.query;
       listSessionsFn = sdk.listSessions;
-    } catch {
+    } catch (err: any) {
       throw new Error(
-        "Could not load the Claude Code SDK.\n\n" +
-          "  Relay uses the Claude Code Node.js SDK for native session management,\n" +
-          "  streaming, and tool integration. The CLI alone is not sufficient.\n\n" +
-          "  Install the SDK:\n\n" +
-          "    npm install -g @anthropic-ai/claude-code"
+        "Could not load the Claude Code SDK (@anthropic-ai/claude-code).\n\n" +
+          "  This SDK is bundled with Relay and should work out of the box.\n" +
+          "  Try reinstalling Relay:\n\n" +
+          "    npm install -g @4via6/relay@latest\n\n" +
+          (err?.message ? `  Cause: ${err.message}` : "")
       );
     }
 

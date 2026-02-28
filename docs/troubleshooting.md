@@ -26,13 +26,13 @@ The `provider` value in your config is not one of `opencode`, `claude`, or `code
 }
 ```
 
-### "Could not load the Claude Code SDK"
+### "Could not load the Claude Code SDK" / "Could not load the Codex SDK"
 
-Claude Code is not installed or not accessible from this environment. Make sure it's installed — see the [Claude Code docs](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) for installation methods.
+All provider SDKs are bundled with Relay. If you see this error, your installation may be corrupted. Reinstall:
 
-### "Could not load the Codex SDK"
-
-OpenAI Codex is not installed or not accessible from this environment. Make sure it's installed — see the [Codex repo](https://github.com/openai/codex) for installation methods.
+```bash
+npm install -g @4via6/relay@latest
+```
 
 ---
 

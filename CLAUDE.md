@@ -106,7 +106,7 @@ State is persisted via `JsonStore` to `.relay/`:
 
 - **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
-- **Optional dependencies**: `@anthropic-ai/claude-code` and `@openai/codex` are optional deps. Provider files use dynamic `import()` and handle import failures gracefully.
+- **Bundled SDKs**: All provider SDKs (`@anthropic-ai/claude-code`, `@openai/codex-sdk`, `@opencode-ai/sdk`) are bundled as dependencies. Provider files still use dynamic `import()` to only load the active provider.
 - **Streaming**: When `streamingEnabled` is true in config, `src/utils/stream.ts` sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`.
 - **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts`). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

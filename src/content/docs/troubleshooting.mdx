@@ -150,6 +150,18 @@ pm2 stores logs in `~/.pm2/logs/`. View them with `relay logs` or access the raw
 - `~/.pm2/logs/relay-out.log` — stdout
 - `~/.pm2/logs/relay-error.log` — stderr
 
+### "relay update" / "relay start" — command not found
+
+These commands were added in v1.1.0. Update manually first:
+
+```bash
+# npm
+npm install -g @4via6/relay@latest
+
+# From source
+git pull && npm install && npm run build
+```
+
 ---
 
 ## General

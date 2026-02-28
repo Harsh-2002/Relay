@@ -12,11 +12,17 @@ export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
     try {
       const client = getClient();
-      const result = await client.config.get();
-      if (result.error) {
-        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+      const [configResult, projResult, vcsResult] = await Promise.all([
+        client.config.get(),
+        client.project.current(),
+        client.vcs.get(),
+      ]);
+
+      if (configResult.error) {
+        await ctx.reply(formatSdkError(configResult.error), { parse_mode: "HTML" });
         return;
       }
+
       const streaming = isStreamingEnabled() ? "Enabled" : "Disabled";
       const sttProvider = getSttProvider();
       const stt = sttProvider ? `${sttProvider}` : "Not configured";
@@ -24,15 +30,26 @@ export function registerAdminCommands(bot: Bot): void {
       const promptSource = isUsingCustomPrompt() ? "Custom" : "Default";
       const model = getSelectedModel();
       const modelStr = model ? `${model.providerID}/${model.modelID}` : "Server default";
-      await ctx.reply(
+
+      const proj = projResult.data as any;
+      const vcs = vcsResult.data as any;
+
+      let text =
         `<b>Server Status</b>\n\n` +
         `<b>Status:</b>  Healthy\n` +
         `<b>Model:</b>  <code>${modelStr}</code>\n` +
         `<b>Streaming:</b>  ${streaming}\n` +
         `<b>Voice STT:</b>  ${stt}\n` +
-        `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`,
-        { parse_mode: "HTML" }
-      );
+        `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
+
+      if (proj?.worktree) {
+        text += `\n\n<b>Project:</b>  <code>${escapeHtml(proj.worktree)}</code>`;
+      }
+      if (vcs?.branch) {
+        text += `\n<b>Branch:</b>  <code>${escapeHtml(vcs.branch)}</code>`;
+      }
+
+      await ctx.reply(text, { parse_mode: "HTML" });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "checking server health"), { parse_mode: "HTML" });
     }
@@ -89,6 +106,118 @@ export function registerAdminCommands(bot: Bot): void {
       await sendJsonResponse(ctx, agents, "agents.json");
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing agents"), { parse_mode: "HTML" });
+    }
+  });
+
+  bot.command("project", async (ctx) => {
+    try {
+      const client = getClient();
+      const [projResult, pathResult, vcsResult] = await Promise.all([
+        client.project.current(),
+        client.path.get(),
+        client.vcs.get(),
+      ]);
+
+      if (projResult.error) {
+        await ctx.reply(formatSdkError(projResult.error), { parse_mode: "HTML" });
+        return;
+      }
+
+      const proj = projResult.data as any;
+      const paths = pathResult.data as any;
+      const vcs = vcsResult.data as any;
+
+      let text =
+        `<b>Project Info</b>\n\n` +
+        `<b>ID:</b>  <code>${escapeHtml(proj?.id ?? "unknown")}</code>\n` +
+        `<b>Worktree:</b>  <code>${escapeHtml(proj?.worktree ?? "unknown")}</code>\n` +
+        `<b>VCS:</b>  ${proj?.vcs ?? "none"}`;
+
+      if (vcs?.branch) {
+        text += `\n<b>Branch:</b>  <code>${escapeHtml(vcs.branch)}</code>`;
+      }
+      if (paths?.directory) {
+        text += `\n<b>Directory:</b>  <code>${escapeHtml(paths.directory)}</code>`;
+      }
+
+      await ctx.reply(text, { parse_mode: "HTML" });
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "fetching project info"), { parse_mode: "HTML" });
+    }
+  });
+
+  bot.command("git", async (ctx) => {
+    try {
+      const client = getClient();
+      const [vcsResult, statusResult] = await Promise.all([
+        client.vcs.get(),
+        client.file.status(),
+      ]);
+
+      if (vcsResult.error) {
+        await ctx.reply(formatSdkError(vcsResult.error), { parse_mode: "HTML" });
+        return;
+      }
+
+      const vcs = vcsResult.data as any;
+      const files = ((statusResult.data ?? []) as any[]);
+
+      let text =
+        `<b>Git Info</b>\n\n` +
+        `<b>Branch:</b>  <code>${escapeHtml(vcs?.branch ?? "unknown")}</code>\n`;
+
+      if (files.length === 0) {
+        text += `<b>Status:</b>  Clean working tree`;
+      } else {
+        text += `<b>Changed files:</b>  ${files.length}\n\n`;
+        text += files
+          .slice(0, 30)
+          .map((f: any) => {
+            const status = f.status ?? "?";
+            const path = f.path ?? String(f);
+            return `<code>${escapeHtml(status)}</code>  ${escapeHtml(path)}`;
+          })
+          .join("\n");
+        if (files.length > 30) {
+          text += `\n\n<i>...and ${files.length - 30} more</i>`;
+        }
+      }
+
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "fetching git info"), { parse_mode: "HTML" });
+    }
+  });
+
+  bot.command("tools", async (ctx) => {
+    try {
+      const client = getClient();
+      const result = await client.tool.ids();
+
+      if (result.error) {
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+        return;
+      }
+
+      const ids = (result.data ?? []) as string[];
+      if (ids.length === 0) {
+        await ctx.reply("No tools available.");
+        return;
+      }
+
+      const text =
+        `<b>Available Tools</b>  (${ids.length})\n\n` +
+        ids.map((id) => `<code>${escapeHtml(id)}</code>`).join("\n");
+
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "listing tools"), { parse_mode: "HTML" });
     }
   });
 
@@ -170,7 +299,13 @@ export function registerAdminCommands(bot: Bot): void {
       `/sessions  —  List sessions\n` +
       `/switch <code>id</code>  —  Switch session\n` +
       `/delete <code>id</code>  —  Delete session\n` +
-      `/current  —  Active session\n\n` +
+      `/current  —  Active session\n` +
+      `/fork <code>[messageId]</code>  —  Fork session\n\n` +
+
+      `<b>Monitor</b>\n` +
+      `/todo  —  AI task checklist\n` +
+      `/diff  —  Session code changes\n` +
+      `/diff full  —  Download full diff\n\n` +
 
       `<b>Files</b>\n` +
       `/read <code>path</code>  —  Read file\n` +
@@ -188,7 +323,8 @@ export function registerAdminCommands(bot: Bot): void {
 
       `<b>Shell</b>\n` +
       `/shell <code>cmd</code>  —  Run command\n` +
-      `/cmd <code>command</code>  —  OpenCode command\n\n` +
+      `/cmd <code>command</code>  —  OpenCode command\n` +
+      `/commands  —  List available commands\n\n` +
 
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
@@ -197,7 +333,10 @@ export function registerAdminCommands(bot: Bot): void {
       `/health  —  Server status\n` +
       `/config  —  Show config\n` +
       `/providers  —  List providers\n` +
-      `/agents  —  List agents`,
+      `/agents  —  List agents\n` +
+      `/tools  —  Available tools\n` +
+      `/project  —  Project info\n` +
+      `/git  —  Git branch + status`,
       { parse_mode: "HTML" }
     );
   });

@@ -77,4 +77,46 @@ export function registerShellCommands(bot: Bot): void {
       await ctx.reply(formatCatchError(err, "running command"), { parse_mode: "HTML" });
     }
   });
+
+  bot.command("commands", async (ctx) => {
+    try {
+      const client = getClient();
+      const result = await client.command.list();
+
+      if (result.error) {
+        await ctx.reply(formatSdkError(result.error), { parse_mode: "HTML" });
+        return;
+      }
+
+      const commands = (result.data ?? []) as any[];
+      if (commands.length === 0) {
+        await ctx.reply("No commands available.");
+        return;
+      }
+
+      const text =
+        `<b>OpenCode Commands</b>  (${commands.length})\n` +
+        `<i>Use with /cmd &lt;command&gt;</i>\n\n` +
+        commands
+          .map((c: any) => {
+            const desc = c.description ? ` — ${escapeHtml(c.description)}` : "";
+            return `<code>${escapeHtml(c.name)}</code>${desc}`;
+          })
+          .join("\n");
+
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "listing commands"), { parse_mode: "HTML" });
+    }
+  });
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }

@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Relay Docs
 
-## Getting Started
+Documentation website for [Relay](https://github.com/Harsh-2002/Relay) — a Telegram bot for managing AI coding agents remotely.
 
-First, run the development server:
+Built with [Next.js](https://nextjs.org) and deployed to GitHub Pages.
+
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to preview the docs.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+```
 
-## Learn More
+Static output is generated to `out/` for GitHub Pages deployment.
 
-To learn more about Next.js, take a look at the following resources:
+## Documentation Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Docs are written as `.mdx` files in `src/content/docs/`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| File | Topic |
+|------|-------|
+| `getting-started.mdx` | Installation, setup wizard, first steps |
+| `configuration.mdx` | Config fields, CLI flags, `.relay/config.json` |
+| `providers.mdx` | OpenCode, Claude Code, Codex setup |
+| `commands.mdx` | Full command reference |
+| `features.mdx` | Streaming, voice, MCP, model selection, SKILL.md |
+| `troubleshooting.mdx` | Common issues and solutions |
 
-## Deploy on Vercel
+## Relay
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Relay supports three AI coding agent backends:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **[OpenCode](https://github.com/opencode-ai/opencode)** — full feature set, recommended
+- **[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)** — Anthropic Claude with coding agent capabilities
+- **[OpenAI Codex](https://github.com/openai/codex)** — OpenAI reasoning models
+
+Get started:
+
+```bash
+npm install -g @4via6/relay
+relay onboard
+```
+
+## License
+
+MIT

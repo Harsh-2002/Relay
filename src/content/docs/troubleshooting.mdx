@@ -8,17 +8,17 @@ order: 6
 
 ### "BOT_TOKEN is required"
 
-Add your Telegram bot token to `.env`:
+Run `relay onboard` to set up your config, or add your Telegram bot token to `.relay/config.json`:
 
-```env
-BOT_TOKEN=123456:ABC-DEF...
+```json
+"botToken": "123456:ABC-DEF..."
 ```
 
 Get a token from [@BotFather](https://t.me/BotFather).
 
 ### "Unknown provider: xyz"
 
-Check `PROVIDER` in `.env` for typos. Must be `opencode`, `claude`, or `codex`.
+Check `provider` in `.relay/config.json` for typos. Must be `opencode`, `claude`, or `codex`.
 
 ### "Cannot find package '@anthropic-ai/claude-code'"
 
@@ -38,12 +38,12 @@ npm install @openai/codex
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Verify `ALLOWED_USER_ID` in `.env`. Get your ID from [@userinfobot](https://t.me/userinfobot).
+Relay only responds to authorized users. Verify `allowedUserId` in `.relay/config.json`. Get your ID from [@userinfobot](https://t.me/userinfobot).
 
 For multiple users, separate IDs with commas:
 
-```env
-ALLOWED_USER_ID=123456789,987654321
+```json
+"allowedUserId": "123456789,987654321"
 ```
 
 ---
@@ -54,7 +54,7 @@ ALLOWED_USER_ID=123456789,987654321
 
 The OpenCode server isn't running or isn't reachable. Check:
 1. The server is running
-2. `OPENCODE_URL` is correct in `.env`
+2. `opencodeUrl` is correct in `.relay/config.json`
 3. If remote, the port is open
 
 ### "Failed to start OpenCode server"
@@ -67,11 +67,15 @@ Check that OpenCode is installed and the port isn't already in use.
 
 ### "Invalid API key"
 
-Verify your key at [console.anthropic.com](https://console.anthropic.com/) and ensure it has Claude Code API access.
+Verify your `ANTHROPIC_API_KEY` environment variable at [console.anthropic.com](https://console.anthropic.com/) and ensure it has Claude Code API access. This key must be set in the coding agent's environment, not in `.relay/config.json`.
+
+### No models listed for Claude
+
+Claude fetches models dynamically from the Anthropic API. If the API key is unavailable or invalid, no models will be listed. Ensure `ANTHROPIC_API_KEY` is set correctly in the environment.
 
 ### Claude doesn't modify files
 
-Set `CLAUDE_PERMISSION_MODE=acceptEdits` in `.env`. Without this, Claude prompts for interactive approval which doesn't work in a bot.
+Set `claudePermissionMode` to `acceptEdits` in `.relay/config.json`. Without this, Claude prompts for interactive approval which doesn't work in a bot.
 
 ---
 
@@ -79,7 +83,11 @@ Set `CLAUDE_PERMISSION_MODE=acceptEdits` in `.env`. Without this, Claude prompts
 
 ### "Invalid API key"
 
-Check your OpenAI API key. Either `CODEX_API_KEY` or `OPENAI_API_KEY` works.
+Check your OpenAI API key environment variable. Either `CODEX_API_KEY` or `OPENAI_API_KEY` works. These must be set in the coding agent's environment, not in `.relay/config.json`.
+
+### No models listed for Codex
+
+Codex fetches models dynamically from the OpenAI API. If the API key is unavailable or invalid, no models will be listed. Ensure `CODEX_API_KEY` or `OPENAI_API_KEY` is set correctly in the environment.
 
 ---
 
@@ -87,10 +95,10 @@ Check your OpenAI API key. Either `CODEX_API_KEY` or `OPENAI_API_KEY` works.
 
 ### "No STT provider available"
 
-Add at least one speech-to-text API key:
+Add at least one speech-to-text API key to `.relay/config.json`:
 
-```env
-GROQ_API_KEY=gsk_...
+```json
+"groqApiKey": "gsk_..."
 ```
 
 ---
@@ -116,6 +124,31 @@ Telegram rate-limits message edits. Relay batches updates to stay within limits,
 ### Long responses get cut off
 
 Telegram has a 4096-character limit per message. Relay splits long responses automatically. If a response seems incomplete, wait for the stream to finish.
+
+---
+
+## Daemon Mode
+
+### pm2 fails to install
+
+If `relay start` can't install pm2 automatically, install it manually:
+
+```bash
+sudo npm install -g pm2
+```
+
+### Daemon won't start
+
+1. Make sure the project is built: `npm run build`
+2. Check if another instance is already running: `relay status`
+3. Check logs for errors: `relay logs`
+
+### Where are daemon logs?
+
+pm2 stores logs in `~/.pm2/logs/`. View them with `relay logs` or access the raw files:
+
+- `~/.pm2/logs/relay-out.log` — stdout
+- `~/.pm2/logs/relay-error.log` — stderr
 
 ---
 

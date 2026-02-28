@@ -30,25 +30,23 @@ npm run build
 
 ## Configuration
 
-Copy the example environment file and fill in your values:
+Run the interactive setup wizard to create your config at `.relay/config.json`:
 
 ```bash
-cp .env.example .env
+relay onboard
 ```
 
-```env
-BOT_TOKEN=your-telegram-bot-token
-ALLOWED_USER_ID=your-telegram-user-id
-PROVIDER=opencode
-```
+The wizard will prompt you for:
 
-- `BOT_TOKEN` — from [@BotFather](https://t.me/BotFather)
-- `ALLOWED_USER_ID` — your Telegram user ID
-- `PROVIDER` — `opencode`, `claude`, or `codex`
+- **Bot token** — from [@BotFather](https://t.me/BotFather)
+- **Allowed user ID** — your Telegram user ID
+- **Provider** — `opencode`, `claude`, or `codex`
 
 Then configure your chosen provider. See [Providers](/docs/providers) for details.
 
 ## Run
+
+### Foreground (default)
 
 ```bash
 relay
@@ -60,11 +58,33 @@ Or from source:
 npm start
 ```
 
+### Background (daemon mode)
+
+Run as a background service that survives terminal closure:
+
+```bash
+relay start                  # Start as background daemon
+relay status                 # Check status (PID, uptime, memory)
+relay logs                   # Tail daemon logs (Ctrl+C to exit)
+relay restart                # Restart the daemon
+relay stop                   # Stop the daemon
+```
+
+pm2 is auto-installed on first `relay start`. CLI flags are forwarded — e.g. `relay start --provider=claude`.
+
+### Updating
+
+```bash
+relay update
+```
+
+Auto-detects your install method (npm or git source) and updates to the latest version. Restarts the daemon if it's running.
+
 Open your bot in Telegram and send `/start` to verify the connection. Use `/help` to see all available commands.
 
 ## Next Steps
 
-- [Configuration](/docs/configuration) — All environment variables
+- [Configuration](/docs/configuration) — All config options
 - [Providers](/docs/providers) — Provider setup
 - [Commands](/docs/commands) — Full command reference
 - [Features](/docs/features) — Streaming, voice, MCP, file attachments

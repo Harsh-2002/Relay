@@ -4,7 +4,7 @@ description: "Detailed setup for OpenCode, Claude Code, and Codex providers"
 order: 3
 ---
 
-Relay supports three coding agent backends. Set `PROVIDER` in `.env` to choose one.
+Relay supports three coding agent backends. Set `provider` in `.relay/config.json` (or run `relay onboard`) to choose one.
 
 ## OpenCode
 
@@ -14,29 +14,29 @@ Relay supports three coding agent backends. Set `PROVIDER` in `.env` to choose o
 
 Relay spawns and manages the OpenCode server automatically.
 
-```env
-PROVIDER=opencode
-OPENCODE_MODE=start
-OPENCODE_HOSTNAME=127.0.0.1
-OPENCODE_PORT=4096
+```json
+"provider": "opencode",
+"opencodeMode": "start",
+"opencodeHostname": "127.0.0.1",
+"opencodePort": 4096
 ```
 
 ### Connect mode
 
 Connect to an already-running OpenCode server.
 
-```env
-PROVIDER=opencode
-OPENCODE_MODE=connect
-OPENCODE_URL=http://localhost:4096
+```json
+"provider": "opencode",
+"opencodeMode": "connect",
+"opencodeUrl": "http://localhost:4096"
 ```
 
 ### Model selection
 
 Set a default model:
 
-```env
-OPENCODE_MODEL=anthropic/claude-sonnet-4-20250514
+```json
+"opencodeModel": "anthropic/claude-sonnet-4-20250514"
 ```
 
 Or change at runtime with `/models` and `/model sonnet`.
@@ -59,15 +59,16 @@ npm install @anthropic-ai/claude-code
 
 ### Configuration
 
-```env
-PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-api03-...
-CLAUDE_MODEL=sonnet
-CLAUDE_PERMISSION_MODE=acceptEdits
-CLAUDE_CWD=/path/to/your/project
+Set the provider in `.relay/config.json`:
+
+```json
+"provider": "claude",
+"claudeModel": "sonnet",
+"claudePermissionMode": "acceptEdits",
+"claudeCwd": "/path/to/your/project"
 ```
 
-`CLAUDE_PERMISSION_MODE=acceptEdits` is required — other modes require interactive approval that doesn't work in a bot.
+The `ANTHROPIC_API_KEY` environment variable must be set in the coding agent's environment. `claudePermissionMode: "acceptEdits"` is required — other modes require interactive approval that doesn't work in a bot.
 
 ### Supported features
 
@@ -75,7 +76,7 @@ CLAUDE_CWD=/path/to/your/project
 - Sessions — Create, list, delete, fork
 - Shell access — Via prompt
 - MCP management — Persisted to disk
-- Model selection — Dynamic via Anthropic API
+- Model selection — Fetched dynamically via Anthropic API; if the API key is unavailable, no models are listed
 - File operations and diffs — Via prompt
 - History — Yes
 - Todos and sharing — Not supported
@@ -94,21 +95,22 @@ npm install @openai/codex
 
 ### Configuration
 
-```env
-PROVIDER=codex
-CODEX_API_KEY=sk-...
-CODEX_MODEL=o3
-CODEX_CWD=/path/to/your/project
+Set the provider in `.relay/config.json`:
+
+```json
+"provider": "codex",
+"codexModel": "o3",
+"codexCwd": "/path/to/your/project"
 ```
 
-Either `CODEX_API_KEY` or `OPENAI_API_KEY` works. If both are set, `CODEX_API_KEY` takes priority.
+Either `CODEX_API_KEY` or `OPENAI_API_KEY` must be set in the coding agent's environment. If both are set, `CODEX_API_KEY` takes priority.
 
 ### Supported features
 
 - Chat and streaming — Yes
 - Sessions — Create, list, delete
 - Shell access — Via prompt
-- Model selection — Dynamic via OpenAI API
+- Model selection — Fetched dynamically via OpenAI API; if the API key is unavailable, no models are listed
 - File operations and diffs — Via prompt
 - MCP, todos, and sharing — Not supported
 
@@ -129,4 +131,4 @@ All three providers support chat, streaming, sessions, and dynamic model listing
 
 ## Switching Providers
 
-Update `PROVIDER` in `.env` and restart the bot. Sessions are provider-specific and not shared between providers.
+Update `provider` in `.relay/config.json` (or re-run `relay onboard`) and restart the bot. Sessions are provider-specific and not shared between providers.

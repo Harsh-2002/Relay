@@ -52,7 +52,7 @@ export default async function DocPage({ params }: Props) {
   const toc = extractToc(doc.content);
 
   return (
-    <div className="flex gap-8">
+    <div className="flex gap-4 lg:gap-8">
       <article className="flex-1 min-w-0 max-w-3xl">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-text-primary">

@@ -2,20 +2,6 @@ import { Section, SectionHeader } from "@/components/ui/section";
 import { AnimateIn } from "@/components/ui/animate-in";
 import { MessageSquare, ArrowRight, Cpu } from "lucide-react";
 
-const codeSnippet = `interface Provider {
-  // Core messaging
-  prompt(sessionId: string, text: string): Promise<PromptResult>;
-  promptStream?(sessionId: string, text: string): AsyncGenerator<StreamChunk>;
-
-  // Session management
-  createSession(title?: string): Promise<SessionInfo>;
-  listSessions(): Promise<SessionInfo[]>;
-  deleteSession(id: string): Promise<void>;
-
-  // File operations, shell, MCP, models...
-  // 30+ methods adapting to each backend
-}`;
-
 export function Architecture() {
   return (
     <Section id="architecture" background="primary">
@@ -56,23 +42,6 @@ export function Architecture() {
               OpenCode, Claude Code, or Codex processes & responds
             </p>
           </div>
-        </div>
-      </AnimateIn>
-
-      {/* Code snippet */}
-      <AnimateIn delay={0.1}>
-        <div className="max-w-3xl mx-auto rounded-xl border border-border-primary bg-bg-code overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border-primary">
-            <div className="w-3 h-3 rounded-full bg-border-hover" />
-            <div className="w-3 h-3 rounded-full bg-border-hover" />
-            <div className="w-3 h-3 rounded-full bg-border-hover" />
-            <span className="ml-2 text-xs text-text-tertiary font-mono">
-              src/providers/types.ts
-            </span>
-          </div>
-          <pre className="p-4 overflow-x-auto text-sm font-mono leading-relaxed">
-            <code className="text-text-secondary">{codeSnippet}</code>
-          </pre>
         </div>
       </AnimateIn>
     </Section>

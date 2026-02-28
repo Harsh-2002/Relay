@@ -15,10 +15,10 @@ Relay streams AI responses in real time. As the AI generates text, the Telegram 
 
 Messages are updated roughly every second to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
 
-Streaming is enabled by default. To disable:
+Streaming is enabled by default. To disable, set in `.relay/config.json`:
 
-```env
-STREAMING=false
+```json
+"streamingEnabled": false
 ```
 
 ---
@@ -35,15 +35,15 @@ Supported types:
 
 ## Voice Messages
 
-Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text provider:
+Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text API key in `.relay/config.json`:
 
-```env
-GROQ_API_KEY=gsk_...
-OPENAI_API_KEY=sk-...
-ASSEMBLYAI_API_KEY=...
+```json
+"groqApiKey": "gsk_...",
+"openaiApiKey": "sk-...",
+"assemblyaiApiKey": "..."
 ```
 
-Provider priority (when `STT_PROVIDER=auto`): Groq > OpenAI > AssemblyAI.
+Provider priority (when `sttProvider` is `auto`): Groq > OpenAI > AssemblyAI.
 
 ---
 
@@ -80,23 +80,23 @@ Connect via URL: `/mcp add api remote https://mcp.example.com/sse`
 
 ## Model Selection
 
-Switch between AI models at runtime. `/models` lists all configured models with capability badges: `[reasoning]`, `[vision]`, `[active]`.
+Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[active]`. Tap a button to select a model directly.
 
-Switch models with `/model sonnet`, `/model deepseek`, or use a full path like `/model anthropic/claude-sonnet-4-20250514`.
+For text-based selection, use `/model sonnet`, `/model deepseek`, or a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
 Provider behavior:
 - OpenCode — lists all models from all configured providers
-- Claude — fetches available models from the Anthropic API
-- Codex — fetches available models from the OpenAI API
+- Claude — fetches available models dynamically from the Anthropic API; if the API key is unavailable, no models are listed
+- Codex — fetches available models dynamically from the OpenAI API; if the API key is unavailable, no models are listed
 
 ---
 
 ## System Prompt
 
-Customize the AI's behavior with a system prompt file. The bot loads `skill.md` from the project root by default. Change the path with:
+Customize the AI's behavior with a system prompt file. The bot loads `SKILL.md` from the project root by default. Change the path in `.relay/config.json`:
 
-```env
-SYSTEM_PROMPT_FILE=prompts/my-prompt.md
+```json
+"systemPromptFile": "prompts/my-prompt.md"
 ```
 
 The file is watched for changes and reloaded automatically. Force reload with `/system reload`.
@@ -127,11 +127,11 @@ State is written atomically (temp file + rename) to prevent corruption.
 
 For production, run Relay in webhook mode instead of long-polling.
 
-```env
-BOT_MODE=webhook
-WEBHOOK_URL=https://your-server.com/bot
-WEBHOOK_PORT=3000
-WEBHOOK_SECRET=your-random-secret
+```json
+"botMode": "webhook",
+"webhookUrl": "https://your-server.com/bot",
+"webhookPort": 3000,
+"webhookSecret": "your-random-secret"
 ```
 
 Benefits: lower latency, reduced resource usage, better for containerized deployments.

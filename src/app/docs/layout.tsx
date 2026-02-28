@@ -1,5 +1,6 @@
 import { getAllDocs } from "@/lib/mdx";
 import { Sidebar } from "@/components/docs/sidebar";
+import { MobileSidebar } from "@/components/docs/mobile-sidebar";
 
 export default function DocsLayout({
   children,
@@ -26,6 +27,9 @@ export default function DocsLayout({
           <div className="flex-1 min-w-0 py-8">{children}</div>
         </div>
       </div>
+
+      {/* Mobile sidebar drawer */}
+      <MobileSidebar docs={docs} />
     </div>
   );
 }

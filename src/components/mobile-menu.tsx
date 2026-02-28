@@ -33,7 +33,7 @@ export function MobileMenu() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-full left-0 right-0 bg-bg-primary border-b border-border-primary lg:hidden overflow-hidden"
+            className="absolute top-full left-0 right-0 bg-black/60 backdrop-blur-xl border-b border-white/[0.06] lg:hidden overflow-hidden"
           >
             <nav className="flex flex-col gap-1 p-4">
               {navLinks.map((link) => (

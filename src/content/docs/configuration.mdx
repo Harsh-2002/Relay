@@ -1,112 +1,131 @@
 ---
 title: "Configuration"
-description: "All environment variables and configuration options for Relay"
+description: "All configuration options for Relay"
 order: 2
 ---
 
-All configuration is done through environment variables in `.env`. Copy `.env.example` to get started.
+All configuration is stored in `.relay/config.json`. Run `relay onboard` to create it interactively, or edit the file directly.
 
-## Required Variables
+Config resolution order: CLI flags > config file > environment variables > defaults.
 
-- `BOT_TOKEN` — Telegram bot token from [@BotFather](https://t.me/BotFather)
-- `ALLOWED_USER_ID` — Your Telegram user ID (only this user can interact with the bot)
-- `PROVIDER` — Which coding agent to use: `opencode`, `claude`, or `codex`
+## Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `relay` | Start the bot in the foreground |
+| `relay onboard` | Interactive configuration wizard |
+| `relay start` | Start the bot as a background daemon |
+| `relay stop` | Stop the background daemon |
+| `relay restart` | Restart the background daemon |
+| `relay logs` | Tail daemon logs (Ctrl+C to exit) |
+| `relay status` | Show daemon status (PID, uptime, memory) |
+| `relay update` | Update Relay to the latest version |
+
+## Required Fields
+
+- `botToken` — Telegram bot token from [@BotFather](https://t.me/BotFather)
+- `allowedUserId` — Your Telegram user ID (only this user can interact with the bot)
+- `provider` — Which coding agent to use: `opencode`, `claude`, or `codex`
 
 ## Provider Configuration
 
-Each provider has its own variables. See [Providers](/docs/providers) for detailed setup.
+Each provider has its own config fields. See [Providers](/docs/providers) for detailed setup.
 
 ### OpenCode
 
-- `OPENCODE_MODE` — `start` (default) spawns a local server, `connect` uses a remote URL
-- `OPENCODE_URL` — Server URL when using connect mode (default: `http://localhost:4096`)
-- `OPENCODE_HOSTNAME` — Bind address when using start mode (default: `127.0.0.1`)
-- `OPENCODE_PORT` — Port number when using start mode (default: `4096`)
-- `OPENCODE_MODEL` — Model override, e.g. `anthropic/claude-sonnet-4-20250514`
+- `opencodeMode` — `start` (default) spawns a local server, `connect` uses a remote URL
+- `opencodeUrl` — Server URL when using connect mode (default: `http://localhost:4096`)
+- `opencodeHostname` — Bind address when using start mode (default: `127.0.0.1`)
+- `opencodePort` — Port number when using start mode (default: `4096`)
+- `opencodeModel` — Model override, e.g. `anthropic/claude-sonnet-4-20250514`
 
 ### Claude Code
 
-- `ANTHROPIC_API_KEY` (required) — Anthropic API key
-- `CLAUDE_MODEL` — Model name or ID (default: `sonnet`)
-- `CLAUDE_PERMISSION_MODE` — How Claude handles file edits (default: `acceptEdits`)
-- `CLAUDE_CWD` — Working directory for Claude (default: current directory)
+- `claudeModel` — Model name or ID (default: `sonnet`)
+- `claudePermissionMode` — How Claude handles file edits (default: `acceptEdits`)
+- `claudeCwd` — Working directory for Claude (default: current directory)
+
+The `ANTHROPIC_API_KEY` environment variable must be set in the coding agent's environment.
 
 ### OpenAI Codex
 
-- `CODEX_API_KEY` (required) — OpenAI API key (or use `OPENAI_API_KEY`)
-- `CODEX_MODEL` — Model name or ID (default: `o3`)
-- `CODEX_CWD` — Working directory for Codex (default: current directory)
+- `codexModel` — Model name or ID (default: `o3`)
+- `codexCwd` — Working directory for Codex (default: current directory)
+
+The `CODEX_API_KEY` or `OPENAI_API_KEY` environment variable must be set in the coding agent's environment.
 
 ## Bot Mode
 
-- `BOT_MODE` — `polling` (default) or `webhook`
-- `WEBHOOK_URL` — Public URL for receiving updates (required for webhook)
-- `WEBHOOK_PORT` — Port for the webhook HTTP server (default: `3000`)
-- `WEBHOOK_SECRET` — Optional secret for webhook verification
+- `botMode` — `polling` (default) or `webhook`
+- `webhookUrl` — Public URL for receiving updates (required for webhook)
+- `webhookPort` — Port for the webhook HTTP server (default: `3000`)
+- `webhookSecret` — Optional secret for webhook verification
 
 ### Long Polling (default)
 
 Connects to Telegram and pulls updates. Works behind NATs and firewalls.
 
-```env
-BOT_MODE=polling
+```json
+"botMode": "polling"
 ```
 
 ### Webhook Mode
 
 Runs an HTTP server; Telegram pushes updates to it. Lower latency, better for production.
 
-```env
-BOT_MODE=webhook
-WEBHOOK_URL=https://your-server.com/bot
-WEBHOOK_PORT=3000
-WEBHOOK_SECRET=your-random-secret
+```json
+"botMode": "webhook",
+"webhookUrl": "https://your-server.com/bot",
+"webhookPort": 3000,
+"webhookSecret": "your-random-secret"
 ```
 
 Requires a public HTTPS URL that Telegram can reach.
 
 ## Data Persistence
 
-- `RELAY_DATA_DIR` — Directory for persisted bot state (default: `.relay/`)
+- `dataDir` — Directory for persisted bot state (default: `.relay/`)
 
 Relay persists session state, model selection, and provider data to disk so they survive restarts. The `.relay/` directory is created automatically and excluded from git.
 
 ## Streaming
 
-- `STREAMING_ENABLED` — Enable progressive message editing during responses (default: `false`)
-- `STREAM_EDIT_INTERVAL_MS` — How often in ms to update the Telegram message while streaming (default: `2000`)
+- `streamingEnabled` — Enable progressive message editing during responses (default: `false`)
+- `streamEditIntervalMs` — How often in ms to update the Telegram message while streaming (default: `2000`)
 
 ## Timeout
 
-- `PROMPT_TIMEOUT_MS` — Max time in ms to wait for a provider response (default: `300000`, 5 minutes)
+- `promptTimeoutMs` — Max time in ms to wait for a provider response (default: `300000`, 5 minutes)
 
 ## System Prompt
 
-- `SYSTEM_PROMPT_FILE` — Path to your custom system prompt file (default: `skill.md`)
+- `systemPromptFile` — Path to your custom system prompt file (default: `SKILL.md`)
 
-The bot loads `skill.md` from the project root if it exists, otherwise uses a built-in default. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
+The bot loads `SKILL.md` from the project root if it exists, otherwise uses a built-in default. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
 
 ## Voice / Speech-to-Text
 
-- `STT_PROVIDER` — STT provider: `groq`, `openai`, `assemblyai`, or `auto` (default: `auto`)
-- `GROQ_API_KEY` — Groq API key for Whisper
-- `GROQ_STT_MODEL` — Groq transcription model (default: `whisper-large-v3-turbo`)
-- `OPENAI_API_KEY` — OpenAI API key for Whisper
-- `OPENAI_STT_MODEL` — OpenAI transcription model (default: `gpt-4o-mini-transcribe`)
-- `ASSEMBLYAI_API_KEY` — AssemblyAI API key
+- `sttProvider` — STT provider: `groq`, `openai`, `assemblyai`, or `auto` (default: `auto`)
+- `groqApiKey` — Groq API key for Whisper
+- `groqSttModel` — Groq transcription model (default: `whisper-large-v3-turbo`)
+- `openaiApiKey` — OpenAI API key for Whisper
+- `openaiSttModel` — OpenAI transcription model (default: `gpt-4o-mini-transcribe`)
+- `assemblyaiApiKey` — AssemblyAI API key
 
 Set at least one API key to enable voice support. When `auto`, the cheapest available provider is selected: Groq > AssemblyAI > OpenAI.
 
-## Example .env
+## Example config.json
 
-```env
-BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
-ALLOWED_USER_ID=987654321
-PROVIDER=opencode
-OPENCODE_MODE=start
-BOT_MODE=polling
-STREAMING_ENABLED=true
-STREAM_EDIT_INTERVAL_MS=2000
-PROMPT_TIMEOUT_MS=300000
-GROQ_API_KEY=gsk_...
+```json
+{
+  "botToken": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+  "allowedUserId": "987654321",
+  "provider": "opencode",
+  "opencodeMode": "start",
+  "botMode": "polling",
+  "streamingEnabled": true,
+  "streamEditIntervalMs": 2000,
+  "promptTimeoutMs": 300000,
+  "groqApiKey": "gsk_..."
+}
 ```

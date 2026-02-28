@@ -38,28 +38,6 @@ export function formatCatchError(err: unknown, context: string): string {
     );
   }
 
-  // Claude Code subprocess crash
-  if (matchesAny(msg, ["process exited with code", "process terminated by signal"])) {
-    // If stderr was captured (via enrichError), extract and show the real reason
-    const stderrMatch = msg.match(/Claude Code stderr:\n([\s\S]+)/);
-    const stderr = stderrMatch?.[1]?.trim();
-    if (stderr) {
-      return (
-        `<b>Claude Code error</b>\n\n` +
-        `<code>${escapeHtml(truncate(stderr, 500))}</code>`
-      );
-    }
-    return (
-      `<b>Claude Code process crashed</b>\n\n` +
-      `The underlying Claude Code process failed to run.\n\n` +
-      `Common causes:\n` +
-      `• Invalid permission mode in config\n` +
-      `• Missing or expired API key / OAuth session\n` +
-      `• Claude Code CLI not installed or broken\n\n` +
-      `Run <code>relay logs</code> for details, or check your config with <code>relay onboard</code>.`
-    );
-  }
-
   // Model not found from exceptions
   if (matchesAny(msg, ["model not found", "ProviderModelNotFoundError"])) {
     return (

@@ -31,11 +31,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
         "opencode-hostname": { type: "string" },
         "opencode-port": { type: "string" },
         "opencode-model": { type: "string" },
-        "claude-model": { type: "string" },
-        "claude-permission-mode": { type: "string" },
-        "claude-cwd": { type: "string" },
-        "codex-model": { type: "string" },
-        "codex-cwd": { type: "string" },
         "stt-provider": { type: "string" },
         "groq-api-key": { type: "string" },
         "openai-stt-api-key": { type: "string" },
@@ -62,11 +57,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
     if (values["opencode-hostname"]) flags.opencodeHostname = values["opencode-hostname"] as string;
     if (values["opencode-port"]) flags.opencodePort = Number(values["opencode-port"]);
     if (values["opencode-model"]) flags.opencodeModel = values["opencode-model"] as string;
-    if (values["claude-model"]) flags.claudeModel = values["claude-model"] as string;
-    if (values["claude-permission-mode"]) flags.claudePermissionMode = values["claude-permission-mode"] as string;
-    if (values["claude-cwd"]) flags.claudeCwd = values["claude-cwd"] as string;
-    if (values["codex-model"]) flags.codexModel = values["codex-model"] as string;
-    if (values["codex-cwd"]) flags.codexCwd = values["codex-cwd"] as string;
     if (values["stt-provider"]) flags.sttProvider = values["stt-provider"] as RelayConfig["sttProvider"];
     if (values["groq-api-key"]) flags.groqApiKey = values["groq-api-key"] as string;
     if (values["openai-stt-api-key"]) flags.openaiSttApiKey = values["openai-stt-api-key"] as string;

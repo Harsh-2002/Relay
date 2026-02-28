@@ -1,6 +1,6 @@
 /**
  * Provider abstraction layer for Relay.
- * Each coding agent platform (OpenCode, Claude, Codex) implements this interface.
+ * OpenCode is the sole backend — it supports 75+ AI providers through a single interface.
  */
 
 // --- Common data types ---
@@ -142,7 +142,7 @@ export interface ProviderCapabilities {
 
 export interface Provider {
   /** Provider identifier */
-  readonly name: "opencode" | "claude" | "codex";
+  readonly name: "opencode";
 
   /** Declared capabilities for this provider */
   readonly capabilities: ProviderCapabilities;

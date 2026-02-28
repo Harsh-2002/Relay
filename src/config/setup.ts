@@ -25,60 +25,28 @@ export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
   });
   const allowedUserId = Number(allowedUserIdStr);
 
-  // 3. Provider
-  const provider = await select({
-    message: "AI provider:",
-    choices: [
-      { value: "opencode" as const, name: "OpenCode (default)" },
-      { value: "claude" as const, name: "Claude Code" },
-      { value: "codex" as const, name: "OpenAI Codex" },
-    ],
-  });
-
-  // 4. Provider-specific settings
+  // 3. Provider settings (OpenCode)
   const config: RelayConfig = {
     ...CONFIG_DEFAULTS,
     botToken,
     allowedUserId,
-    provider,
+    provider: "opencode",
     dataDir,
   };
 
-  if (provider === "opencode") {
-    const opencodeMode = await select({
-      message: "OpenCode mode:",
-      choices: [
-        { value: "start" as const, name: "Start (spawn local server)" },
-        { value: "connect" as const, name: "Connect (remote server)" },
-      ],
-    });
-    config.opencodeMode = opencodeMode;
+  const opencodeMode = await select({
+    message: "OpenCode mode:",
+    choices: [
+      { value: "start" as const, name: "Start (spawn local server)" },
+      { value: "connect" as const, name: "Connect (remote server)" },
+    ],
+  });
+  config.opencodeMode = opencodeMode;
 
-    if (opencodeMode === "connect") {
-      config.opencodeUrl = await input({
-        message: "OpenCode server URL:",
-        default: "http://localhost:4096",
-      });
-    }
-  } else if (provider === "claude") {
-    config.claudeModel = await input({
-      message: "Claude model:",
-      default: "sonnet",
-    });
-    config.claudePermissionMode = await select({
-      message: "Permission mode:",
-      choices: [
-        { value: "acceptEdits", name: "Accept Edits — approve file writes (default)" },
-        { value: "bypassPermissions", name: "Bypass Permissions — no prompts" },
-        { value: "dontAsk", name: "Don't Ask — allow everything silently" },
-        { value: "plan", name: "Plan — read-only, no writes" },
-        { value: "default", name: "Default — prompt for all actions" },
-      ],
-    });
-  } else if (provider === "codex") {
-    config.codexModel = await input({
-      message: "Codex model:",
-      default: "o3",
+  if (opencodeMode === "connect") {
+    config.opencodeUrl = await input({
+      message: "OpenCode server URL:",
+      default: "http://localhost:4096",
     });
   }
 

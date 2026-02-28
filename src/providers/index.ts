@@ -5,11 +5,11 @@ let activeProvider: Provider | null = null;
 
 export function getProviderName(): ProviderName {
   const name = getConfig().provider;
-  if (name === "opencode" || name === "claude" || name === "codex") {
+  if (name === "opencode") {
     return name;
   }
   throw new Error(
-    `Unknown provider: "${name}". Supported: opencode, claude, codex`
+    `Unknown provider: "${name}". Only "opencode" is supported.`
   );
 }
 
@@ -18,25 +18,10 @@ export async function initProvider(): Promise<Provider> {
     activeProvider.shutdown();
     activeProvider = null;
   }
-  const name = getProviderName();
+  getProviderName(); // validates
 
-  switch (name) {
-    case "opencode": {
-      const { OpenCodeProvider } = await import("./opencode.js");
-      activeProvider = new OpenCodeProvider();
-      break;
-    }
-    case "claude": {
-      const { ClaudeProvider } = await import("./claude.js");
-      activeProvider = new ClaudeProvider();
-      break;
-    }
-    case "codex": {
-      const { CodexProvider } = await import("./codex.js");
-      activeProvider = new CodexProvider();
-      break;
-    }
-  }
+  const { OpenCodeProvider } = await import("./opencode.js");
+  activeProvider = new OpenCodeProvider();
 
   await activeProvider.init();
   return activeProvider;

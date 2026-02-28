@@ -44,7 +44,7 @@ When disabled (default), the bot waits for the complete response before sending 
 
 ## File Attachments
 
-When the AI generates files, takes screenshots, or creates artifacts, they are automatically sent as Telegram attachments. This feature is available with the OpenCode provider.
+When the AI generates files, takes screenshots, or creates artifacts, they are automatically sent as Telegram attachments.
 
 ### Supported file types
 
@@ -59,14 +59,6 @@ Common scenarios where you receive file attachments:
 - The AI takes a browser screenshot (via MCP browser tool)
 - The AI generates an image or diagram
 - The AI creates a downloadable file
-
-### Provider support
-
-| Provider | File output |
-|----------|------------|
-| OpenCode | Yes — automatic |
-| Claude | No |
-| Codex | No |
 
 ---
 
@@ -181,20 +173,7 @@ browser  failed
 /mcp remove browser
 ```
 
-### Provider differences
-
-| Feature | OpenCode | Claude | Codex |
-|---------|----------|--------|-------|
-| MCP support | Full API | Persisted to disk | No |
-| Persistence | Saved in config | Saved in `.relay/` | N/A |
-| Local servers | Yes | Yes | No |
-| Remote servers | Yes | Yes | No |
-
-**OpenCode** manages MCP servers through its API. Servers persist across restarts.
-
-**Claude** stores MCP configs in `.relay/claude-mcp.json`. Servers are automatically restored on restart.
-
-**Codex** does not support MCP.
+MCP servers are managed through the OpenCode API and persist across restarts.
 
 ---
 
@@ -235,13 +214,7 @@ Model set to anthropic/claude-sonnet-4-20250514
 Capabilities: reasoning, vision
 ```
 
-### Provider behavior
-
-- **OpenCode**: Lists all models from all configured providers dynamically
-- **Claude**: Fetches available models dynamically from the Anthropic API — requires `ANTHROPIC_API_KEY` in the environment
-- **Codex**: Fetches available models dynamically from the OpenAI API — requires `CODEX_API_KEY` or `OPENAI_API_KEY` in the environment
-
-If the provider API key is not set or the API call fails, no models are listed.
+Models are listed dynamically from all configured OpenCode providers. If no provider API keys are set or the API call fails, no models are listed.
 
 ---
 
@@ -324,7 +297,7 @@ Create a copy of the current session:
 /fork msg_abc123       # Fork from a specific message
 ```
 
-The forked session becomes the active session. Supported by OpenCode and Claude.
+The forked session becomes the active session.
 
 ### Deleting sessions
 
@@ -334,7 +307,7 @@ The forked session becomes the active session. Supported by OpenCode and Claude.
 
 ---
 
-## Monitoring (OpenCode)
+## Monitoring
 
 ### Todo list
 
@@ -386,9 +359,7 @@ Run commands on the coding agent's machine:
 /shell npm test
 ```
 
-**OpenCode** runs commands natively on the server.
-
-**Claude and Codex** send the command as a prompt, asking the AI to execute it. The AI decides whether and how to run it.
+Commands are executed natively on the OpenCode server.
 
 ---
 
@@ -401,8 +372,6 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 | Data | File | Description |
 |------|------|-------------|
 | Active session | `.relay/session.json` | Current session ID and selected model |
-| Claude MCP servers | `.relay/claude-mcp.json` | MCP server configurations (Claude provider) |
-| Codex thread IDs | `.relay/codex-threads.json` | Thread ID mappings (Codex provider) |
 
 ### How it works
 

@@ -1,6 +1,6 @@
 # Command Reference
 
-Complete reference for all Relay Telegram commands. Commands marked with a provider name are only available when using that provider.
+Complete reference for all Relay Telegram commands.
 
 ## Chat
 
@@ -14,7 +14,7 @@ No command needed -- just send a message.
 
 **Input limit:** 32,000 characters for text messages. Send longer content as a file.
 
-**Output:** The AI's response is sent as Telegram messages. If the AI generates files or screenshots (OpenCode), they are sent as Telegram attachments automatically.
+**Output:** The AI's response is sent as Telegram messages. If the AI generates files or screenshots, they are sent as Telegram attachments automatically.
 
 ---
 
@@ -64,13 +64,13 @@ Fork the current session, creating a copy. Optionally specify a message ID to fo
 /fork msg_abc123
 ```
 
-The forked session becomes the active session. Supported by OpenCode and Claude.
+The forked session becomes the active session.
 
 ---
 
 ## Monitor
 
-### `/todo` (OpenCode)
+### `/todo`
 
 View the AI's task checklist. Shows each task with a status icon:
 
@@ -81,7 +81,7 @@ View the AI's task checklist. Shows each task with a status icon:
 
 ### `/diff`
 
-Show a summary of code changes in the current session. OpenCode shows structured file-level changes; Claude and Codex delegate to `git diff`.
+Show a summary of code changes in the current session with structured file-level changes.
 
 ### `/diff full`
 
@@ -149,15 +149,15 @@ View the last 10 messages in the current session. Shows alternating user and ass
 
 ### `/summarize`
 
-Generate a summary of the current session. OpenCode only.
+Generate a summary of the current session.
 
 ### `/revert`
 
-Undo the last AI change. OpenCode only.
+Undo the last AI change.
 
 ### `/unrevert`
 
-Redo a previously reverted change. OpenCode only.
+Redo a previously reverted change.
 
 ### `/abort`
 
@@ -165,7 +165,7 @@ Cancel the currently running operation. Stops streaming or processing.
 
 ### `/share`
 
-Get a shareable URL for the current session. OpenCode only.
+Get a shareable URL for the current session.
 
 ---
 
@@ -181,9 +181,9 @@ Run a shell command on the coding agent's machine.
 /shell npm test
 ```
 
-On OpenCode, this runs natively. On Claude and Codex, the command is sent as a prompt asking the AI to execute it.
+Commands are executed natively on the OpenCode server.
 
-### `/cmd <command> [arguments]` (OpenCode)
+### `/cmd <command> [arguments]`
 
 Run an OpenCode-specific command.
 
@@ -192,9 +192,9 @@ Run an OpenCode-specific command.
 /cmd agent_cycle
 ```
 
-### `/commands` (OpenCode)
+### `/commands`
 
-List all available OpenCode commands that can be used with `/cmd`.
+List all available commands that can be used with `/cmd`.
 
 ---
 
@@ -214,7 +214,7 @@ Models are grouped by provider with header rows. If there are more than 8 models
 
 Tapping a model button switches to that model immediately and shows a confirmation with capabilities.
 
-All providers fetch models dynamically from their respective APIs. If the provider API key is not set, no models are listed.
+Models are fetched dynamically from the configured AI providers. If no provider API keys are set, no models are listed.
 
 ### `/model [provider/model]`
 
@@ -247,7 +247,7 @@ Capabilities: reasoning, vision
 
 ## MCP (Model Context Protocol)
 
-MCP servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs. Supported by OpenCode and Claude.
+MCP servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs.
 
 ### `/mcp`
 
@@ -289,10 +289,7 @@ Remove and disconnect an MCP server.
 /mcp remove browser
 ```
 
-**Provider differences:**
-- **OpenCode:** Full runtime management. Servers persist in the OpenCode configuration.
-- **Claude:** Persisted to `.relay/claude-mcp.json`. Servers are restored on restart.
-- **Codex:** Not supported.
+Servers persist in the OpenCode configuration across restarts.
 
 ---
 
@@ -312,7 +309,7 @@ Show available AI providers and their models (raw JSON from the provider).
 
 ### `/agents`
 
-List available agents (OpenCode only).
+List available agents.
 
 ### `/tools`
 
@@ -340,4 +337,4 @@ Show a welcome message with the active provider name.
 
 ### `/help`
 
-Show a compact reference of all available commands, with provider-specific sections shown based on the active provider.
+Show a compact reference of all available commands.

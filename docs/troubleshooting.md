@@ -18,20 +18,12 @@ This creates `.relay/config.json` with your bot token, user ID, and provider set
 
 ### "Unknown provider: xyz"
 
-The `provider` value in your config is not one of `opencode`, `claude`, or `codex`. Run `relay onboard` to reconfigure, or check `.relay/config.json`:
+The `provider` value in your config must be `"opencode"`. Run `relay onboard` to reconfigure, or check `.relay/config.json`:
 
 ```json
 {
   "provider": "opencode"
 }
-```
-
-### "Could not load the Claude Code SDK" / "Could not load the Codex SDK"
-
-All provider SDKs are bundled with Relay. If you see this error, your installation may be corrupted. Reinstall:
-
-```bash
-npm install -g @4via6/relay@latest
 ```
 
 ---
@@ -97,59 +89,6 @@ If you see a warning about connecting over HTTP, it means your `opencodeUrl` use
 
 ---
 
-## Claude Code Issues
-
-### "Invalid API key"
-
-Your Anthropic API key is invalid or expired. The `ANTHROPIC_API_KEY` environment variable must be set in the environment where Claude Code runs — this is configured in your coding agent's environment, not in Relay.
-
-1. Verify the key at [console.anthropic.com](https://console.anthropic.com/)
-2. Ensure the key has Claude Code API access
-
-### Claude doesn't modify files
-
-Claude Code requires the `acceptEdits` permission mode to automatically accept file operations in a bot context. Set it in `.relay/config.json`:
-
-```json
-{
-  "claudePermissionMode": "acceptEdits"
-}
-```
-
-Without this, Claude may prompt for interactive approval, which doesn't work in a Telegram bot.
-
-### Wrong working directory
-
-Claude operates in the directory specified by `claudeCwd`. If files aren't found, check the path in `.relay/config.json`:
-
-```json
-{
-  "claudeCwd": "/path/to/your/project"
-}
-```
-
-Defaults to the directory where Relay is running.
-
----
-
-## Codex Issues
-
-### "Invalid API key"
-
-Your OpenAI API key must be set in the environment where Codex runs — this is configured in your coding agent's environment, not in Relay. Set `CODEX_API_KEY` or `OPENAI_API_KEY` in your environment.
-
-### Wrong working directory
-
-Set the project directory in `.relay/config.json`:
-
-```json
-{
-  "codexCwd": "/path/to/your/project"
-}
-```
-
----
-
 ## Voice Messages
 
 ### "No STT provider available"
@@ -176,10 +115,6 @@ At least one key is required. Groq is recommended (fastest, has a free tier).
 
 ## MCP Servers
 
-### "MCP not supported" error
-
-MCP is only available with OpenCode and Claude providers. Codex does not support MCP.
-
 ### MCP server shows "failed" status
 
 Run `/mcp` to check the error message. Common causes:
@@ -194,15 +129,6 @@ Run `/mcp` to check the error message. Common causes:
 
 3. **Permission denied**: The command doesn't have execute permissions
 
-### MCP servers disappear after restart (Claude)
-
-Claude stores MCP configs in memory. They're passed to every query but lost when the bot restarts. Re-add them after restart:
-
-```
-/mcp add memory local npx -y @modelcontextprotocol/server-memory
-```
-
-OpenCode servers persist across restarts since they're saved in the OpenCode configuration.
 
 ---
 
@@ -236,9 +162,7 @@ Use `/models` to see all available model IDs.
 
 ### No models listed
 
-- **OpenCode**: Check that your OpenCode config has providers and models configured
-- **Claude**: Ensure `ANTHROPIC_API_KEY` is set in the environment — models are fetched dynamically from the API
-- **Codex**: Ensure `CODEX_API_KEY` or `OPENAI_API_KEY` is set in the environment — models are fetched dynamically from the API
+Check that your OpenCode config has providers and models configured. Models are fetched dynamically — if no provider API keys are set in OpenCode, no models will be listed.
 
 ---
 

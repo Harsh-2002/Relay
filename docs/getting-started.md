@@ -7,7 +7,7 @@ This guide walks you through setting up Relay from scratch.
 - **[Node.js](https://nodejs.org/)** >= 18 (or **[Bun](https://bun.sh/)**)
 - A **Telegram bot token** from [@BotFather](https://t.me/BotFather)
 - Your **Telegram user ID** (get it from [@userinfobot](https://t.me/userinfobot))
-- Credentials for at least one coding agent provider (see [Providers](providers.md))
+- An AI provider configured in OpenCode (see [Providers](providers.md))
 
 ## Installation
 
@@ -45,8 +45,8 @@ relay onboard
 The wizard will ask for:
 1. Your Telegram bot token
 2. Your Telegram user ID
-3. Your preferred AI provider (OpenCode, Claude Code, or Codex)
-4. Provider-specific settings
+3. OpenCode mode (start or connect)
+4. OpenCode-specific settings
 5. Optional voice transcription (STT) keys
 6. Streaming and logging preferences
 
@@ -55,7 +55,7 @@ Config is saved to `.relay/config.json`.
 You can also pass settings as CLI flags:
 
 ```bash
-relay --bot-token=xxx --allowed-user-id=123 --provider=opencode
+relay --bot-token=xxx --allowed-user-id=123
 ```
 
 See [Configuration](configuration.md) for all available options.
@@ -86,7 +86,7 @@ relay restart                # Restart the daemon
 relay stop                   # Stop the daemon
 ```
 
-pm2 is auto-installed on first `relay start`. CLI flags are forwarded — e.g. `relay start --provider=claude`.
+pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
 
 ### Updating
 

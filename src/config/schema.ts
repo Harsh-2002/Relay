@@ -8,17 +8,12 @@ export interface RelayConfig {
   webhookSecret: string;
 
   // Provider
-  provider: "opencode" | "claude" | "codex";
+  provider: "opencode";
   opencodeMode: "start" | "connect";
   opencodeUrl: string;
   opencodeHostname: string;
   opencodePort: number;
   opencodeModel: string;
-  claudeModel: string;
-  claudePermissionMode: string;
-  claudeCwd: string;
-  codexModel: string;
-  codexCwd: string;
 
   // STT
   sttProvider: "auto" | "openai" | "groq" | "assemblyai";
@@ -53,11 +48,6 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   opencodeHostname: "127.0.0.1",
   opencodePort: 4096,
   opencodeModel: "",
-  claudeModel: "sonnet",
-  claudePermissionMode: "acceptEdits",
-  claudeCwd: "",
-  codexModel: "o3",
-  codexCwd: "",
 
   sttProvider: "auto",
   groqApiKey: "",

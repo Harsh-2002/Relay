@@ -4,24 +4,24 @@
 [![npm downloads](https://img.shields.io/npm/dm/@4via6/relay)](https://www.npmjs.com/package/@4via6/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https://github.com/opencode-ai/opencode), [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), and [OpenAI Codex](https://github.com/openai/codex).
+Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https://github.com/opencode-ai/opencode). Supports 75+ AI providers including Anthropic, OpenAI, Google, and local models.
 
 ## Features
 
-- **Multi-provider** -- switch between OpenCode, Claude Code, and Codex
+- **75+ AI providers** -- Anthropic, OpenAI, Google, local models, and more via OpenCode
 - **Interactive setup** -- `relay onboard` wizard for first-time configuration
 - **Structured logging** -- pino-based JSON logging with configurable levels
 - **Text, voice, photo, and file input** -- send messages in any format
-- **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments (OpenCode)
+- **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
 - **Streaming responses** -- progressive message editing for real-time output
 - **Session management** -- create, switch, fork, delete, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
-- **MCP servers** -- add, remove, and monitor MCP servers at runtime (OpenCode, Claude)
+- **MCP servers** -- add, remove, and monitor MCP servers at runtime
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
-- **File operations** -- read, find, search, and browse project files (all providers)
-- **Code diffs** -- view git diffs from sessions (all providers)
+- **File operations** -- read, find, search, and browse project files
+- **Code diffs** -- view git diffs from sessions
 - **State persistence** -- sessions, model selection, and MCP configs survive restarts
 - **Webhook mode** -- deploy with webhooks for lower latency in production
 - **Large file support** -- text files up to 500KB fully included, larger files chunked
@@ -90,7 +90,7 @@ relay restart                # Restart the daemon
 relay stop                   # Stop the daemon
 ```
 
-The daemon uses [pm2](https://pm2.keymetrics.io/) under the hood (auto-installed on first `relay start`). CLI flags are forwarded — e.g. `relay start --provider=claude` works as expected.
+The daemon uses [pm2](https://pm2.keymetrics.io/) under the hood (auto-installed on first `relay start`). CLI flags are forwarded.
 
 ### Updating
 
@@ -116,7 +116,7 @@ Config is stored in `.relay/config.json`. Use the setup wizard or CLI flags:
 
 ```bash
 relay onboard                    # Interactive wizard
-relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
+relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 ```
 
 ### CLI flags
@@ -127,7 +127,6 @@ relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
 | `--version` | Show version |
 | `--bot-token` | Telegram bot token |
 | `--allowed-user-id` | Telegram user ID |
-| `--provider` | Provider: `opencode`, `claude`, `codex` |
 | `--bot-mode` | `polling` or `webhook` |
 | `--streaming-enabled` | `true` or `false` |
 | `--log-level` | `debug`, `info`, `warn`, `error` |
@@ -135,27 +134,11 @@ relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
 | `--system-prompt-file` | Custom system prompt file |
 
 
-## Providers
+## Backend
 
-| Provider | SDK |
-|----------|-----|
-| [OpenCode](https://github.com/opencode-ai/opencode) | `@opencode-ai/sdk` (bundled) |
-| [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) | `@anthropic-ai/claude-code` (bundled) |
-| [OpenAI Codex](https://github.com/openai/codex) | `@openai/codex-sdk` (bundled) |
+Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed.
 
-All provider SDKs are bundled with Relay — no extra installation needed.
-
-### OpenCode
-
-Select during `relay onboard` or pass `--provider=opencode`. Supports both `start` mode (spawns local server) and `connect` mode (remote URL).
-
-### Claude Code
-
-Select during `relay onboard` or pass `--provider=claude`. Set `ANTHROPIC_API_KEY` in your environment.
-
-### OpenAI Codex
-
-Select during `relay onboard` or pass `--provider=codex`. Set `CODEX_API_KEY` or `OPENAI_API_KEY` in your environment.
+Supports both `start` mode (spawns local server) and `connect` mode (remote URL). See [Providers](docs/providers.md) for detailed setup.
 
 ## Commands
 
@@ -175,7 +158,7 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 ### Monitor
 | Command | Description |
 |---------|-------------|
-| `/todo` | View AI task checklist (OpenCode) |
+| `/todo` | View AI task checklist |
 | `/diff` | Session code changes summary |
 | `/diff full` | Download full diff |
 
@@ -185,7 +168,7 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 | `/read <path>` | Read a file |
 | `/find <query>` | Find files by name |
 | `/search <pattern>` | Search file contents |
-| `/symbols <query>` | Find code symbols (OpenCode) |
+| `/symbols <query>` | Find code symbols |
 | `/status` | Git file status |
 
 ### History
@@ -195,7 +178,7 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 | `/summarize` | Summarize the session |
 | `/revert` | Undo last AI change |
 | `/abort` | Cancel running operation |
-| `/share` | Share session (OpenCode) |
+| `/share` | Share session |
 
 ### Shell
 | Command | Description |
@@ -213,7 +196,7 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 
 Models show capability badges: `[reasoning]` for thinking/reasoning support, `[vision]` for image input, and `[active]` for the currently selected model.
 
-### MCP (OpenCode, Claude)
+### MCP
 | Command | Description |
 |---------|-------------|
 | `/mcp` | Show MCP server status |
@@ -221,7 +204,7 @@ Models show capability badges: `[reasoning]` for thinking/reasoning support, `[v
 | `/mcp add <name> remote <url>` | Add a remote MCP server |
 | `/mcp remove <name>` | Remove an MCP server |
 
-MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). OpenCode supports full runtime management; Claude persists MCP config to disk and restores it on restart.
+MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). Servers persist in the OpenCode configuration.
 
 ### Settings
 | Command | Description |
@@ -258,8 +241,6 @@ src/
     types.ts       -- Provider interface, capabilities, MCP/model types
     index.ts       -- Provider factory
     opencode.ts    -- OpenCode SDK provider
-    claude.ts      -- Claude Code / Agent SDK provider
-    codex.ts       -- OpenAI Codex SDK provider
   commands/
     chat.ts        -- Text message handler
     session.ts     -- Session management commands
@@ -286,18 +267,9 @@ src/
 
 Each provider implements the `Provider` interface with a `capabilities` object declaring which features it supports. Commands check capabilities and show appropriate messages when a feature isn't available.
 
-### Provider Capabilities
+### Capabilities
 
-| Capability | OpenCode | Claude | Codex |
-|-----------|----------|--------|-------|
-| Streaming | yes | yes | yes |
-| File output | yes | no | no |
-| MCP management | yes | yes | no |
-| Model listing | dynamic | dynamic | dynamic |
-| Session management | full | limited | limited |
-| File operations | yes | yes | yes |
-| Code diffs | yes | yes | yes |
-| State persistence | yes | yes | yes |
+All features are supported: streaming, file output, MCP management, dynamic model listing, full session management, file operations, code diffs, and state persistence.
 
 ## License
 

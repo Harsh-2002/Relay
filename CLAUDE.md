@@ -18,15 +18,15 @@ Run `relay onboard` for the interactive setup wizard. Config is stored in `.rela
 At minimum, you need:
 - `botToken` — Telegram bot token (required)
 - `allowedUserId` — Telegram user ID (required)
-- `provider` — `"opencode"` (default), `"claude"`, or `"codex"`
+- `provider` — `"opencode"` (only supported value)
 
-Provider API keys (like `ANTHROPIC_API_KEY`) are configured in the coding agent's environment, not in Relay.
+Provider API keys are configured in OpenCode's environment, not in Relay.
 
 Config resolution order: CLI flags > config file > defaults.
 
 ## Architecture
 
-Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies user messages to AI coding agent backends. It's an ES module TypeScript project targeting Node.js >= 18.
+Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies user messages to OpenCode, which supports 75+ AI providers. It's an ES module TypeScript project targeting Node.js >= 18.
 
 ### Config System (`src/config/`)
 
@@ -37,15 +37,11 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 ### Provider Abstraction (`src/providers/`)
 
-The core design pattern: three interchangeable AI backends behind a common `Provider` interface (`src/providers/types.ts`).
+OpenCode is the sole backend, implementing the `Provider` interface (`src/providers/types.ts`).
 
 - **`types.ts`** — Defines `Provider` interface, `ProviderCapabilities` flags, `PromptResult`, `StreamChunk`, `SessionInfo`, and all shared types
-- **`index.ts`** — Factory that reads provider from config and dynamically imports the matching provider class
+- **`index.ts`** — Provider factory and singleton accessor
 - **`opencode.ts`** — Uses `@opencode-ai/sdk` (full feature set)
-- **`claude.ts`** — Uses `@anthropic-ai/claude-code` (optional dependency)
-- **`codex.ts`** — Uses `@openai/codex` (optional dependency)
-
-Each provider declares its capabilities via `ProviderCapabilities` (streaming, todos, diff, fork, revert, history, fileOps, shell, mcp, etc.). Commands check capabilities before calling provider methods — this is how the bot gracefully degrades across providers.
 
 ### Command System (`src/commands/`)
 
@@ -94,8 +90,6 @@ State is persisted via `JsonStore` to `.relay/`:
 - `config.json` — User configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `SKILL.md` — Custom system prompt (optional)
-- `claude-mcp.json` — Claude provider MCP server configs
-- `codex-threads.json` — Codex thread ID mappings
 
 ### Bot Modes
 
@@ -106,7 +100,7 @@ State is persisted via `JsonStore` to `.relay/`:
 
 - **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
-- **Bundled SDKs**: All provider SDKs (`@anthropic-ai/claude-code`, `@openai/codex-sdk`, `@opencode-ai/sdk`) are bundled as dependencies. Provider files still use dynamic `import()` to only load the active provider.
+- **Bundled SDK**: The OpenCode SDK (`@opencode-ai/sdk`) is bundled as a dependency.
 - **Streaming**: When `streamingEnabled` is true in config, `src/utils/stream.ts` sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`.
 - **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts`). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

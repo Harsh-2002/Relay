@@ -6,7 +6,7 @@ Relay uses a JSON config file at `.relay/config.json`. Run `relay onboard` for t
 
 ```bash
 relay onboard                    # Interactive wizard
-relay --bot-token=xxx --allowed-user-id=123 --provider=opencode  # CLI flags
+relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 ```
 
 Config resolution order: **CLI flags > config file > defaults**.
@@ -31,7 +31,6 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--version`, `-v` | Show version |
 | `--bot-token` | Telegram bot token |
 | `--allowed-user-id` | Telegram user ID |
-| `--provider` | Provider: `opencode`, `claude`, `codex` |
 | `--bot-mode` | `polling` or `webhook` |
 | `--webhook-url` | Webhook URL (when `--bot-mode=webhook`) |
 | `--webhook-port` | Webhook port (default: 3000) |
@@ -49,15 +48,13 @@ Config resolution order: **CLI flags > config file > defaults**.
 |-------------|----------|---------|-------------|
 | `botToken` | `--bot-token` | -- | Telegram bot token from [@BotFather](https://t.me/BotFather) |
 | `allowedUserId` | `--allowed-user-id` | -- | Your Telegram user ID |
-| `provider` | `--provider` | `opencode` | Coding agent: `opencode`, `claude`, or `codex` |
+| `provider` | -- | `opencode` | Coding agent backend (OpenCode) |
 
 ## Provider Configuration
 
-Each provider has its own settings. Provider API keys (like `ANTHROPIC_API_KEY`) are configured in your coding agent's environment, not in Relay.
+Provider API keys are configured in OpenCode's environment, not in Relay.
 
 See [Providers](providers.md) for detailed setup.
-
-### OpenCode
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
@@ -66,21 +63,6 @@ See [Providers](providers.md) for detailed setup.
 | `opencodeHostname` | `--opencode-hostname` | `127.0.0.1` | Bind address (used when mode=`start`) |
 | `opencodePort` | `--opencode-port` | `4096` | Port number (used when mode=`start`) |
 | `opencodeModel` | `--opencode-model` | Server default | Model override, e.g. `anthropic/claude-sonnet-4-20250514` |
-
-### Claude Code
-
-| Config field | CLI flag | Default | Description |
-|-------------|----------|---------|-------------|
-| `claudeModel` | `--claude-model` | `sonnet` | Model name or ID |
-| `claudePermissionMode` | `--claude-permission-mode` | `acceptEdits` | How Claude handles file edits |
-| `claudeCwd` | `--claude-cwd` | Current directory | Working directory |
-
-### OpenAI Codex
-
-| Config field | CLI flag | Default | Description |
-|-------------|----------|---------|-------------|
-| `codexModel` | `--codex-model` | `o3` | Model name or ID |
-| `codexCwd` | `--codex-cwd` | Current directory | Working directory |
 
 ## Bot Mode
 
@@ -103,9 +85,6 @@ Files stored:
 - `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `SKILL.md` — Custom system prompt (optional, create manually)
-- `claude-mcp.json` — Claude provider MCP server configurations
-- `codex-threads.json` — Codex provider thread ID mappings
-
 The directory is excluded from git via `.gitignore`.
 
 ## Streaming

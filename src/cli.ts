@@ -18,7 +18,7 @@ function printVersion(): void {
 
 function printHelp(): void {
   console.log(`
-  relay — Telegram bot for AI coding agents
+  relay — Telegram bot for AI coding agents, powered by OpenCode
 
   Usage:
     relay                       Start the bot (foreground)
@@ -35,7 +35,6 @@ function printHelp(): void {
   Options:
     --bot-token <token>         Telegram bot token
     --allowed-user-id <id>      Telegram user ID
-    --provider <name>           Provider: opencode, claude, codex
     --bot-mode <mode>           Bot mode: polling, webhook
     --streaming-enabled <bool>  Enable streaming responses
     --log-level <level>         Log level: debug, info, warn, error

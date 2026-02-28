@@ -4,6 +4,7 @@ import { getOrCreateSession, getSelectedModel } from "../session.js";
 import { formatParts } from "../utils/formatter.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
+import { getSystemPrompt } from "../utils/system-prompt.js";
 import { InputFile } from "grammy";
 
 export function registerChat(bot: Bot): void {
@@ -14,10 +15,11 @@ export function registerChat(bot: Bot): void {
     try {
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
+      const system = getSystemPrompt();
       const parts = [{ type: "text" as const, text }];
 
       if (isStreamingEnabled()) {
-        await streamPrompt({ ctx, sessionId, parts, model });
+        await streamPrompt({ ctx, sessionId, parts, model, system });
         return;
       }
 
@@ -29,6 +31,7 @@ export function registerChat(bot: Bot): void {
         body: {
           parts,
           ...(model && { model }),
+          system,
         },
       });
 

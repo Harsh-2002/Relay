@@ -5,6 +5,7 @@ import { setSelectedModel, getSelectedModel } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isSttAvailable, getSttProvider } from "../utils/stt.js";
 import { isStreamingEnabled } from "../utils/stream.js";
+import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
@@ -18,8 +19,10 @@ export function registerAdminCommands(bot: Bot): void {
       const streaming = isStreamingEnabled() ? "enabled" : "disabled";
       const sttProvider = getSttProvider();
       const stt = sttProvider ? `configured (${sttProvider})` : "not configured";
+      const prompt = getSystemPrompt();
+      const promptSource = isUsingCustomPrompt() ? "custom" : "default";
       await ctx.reply(
-        `OpenCode server is healthy.\nStreaming: ${streaming}\nVoice STT: ${stt}`
+        `OpenCode server is healthy.\nStreaming: ${streaming}\nVoice STT: ${stt}\nSystem prompt: ${promptSource} (${prompt.length} chars)`
       );
     } catch (err: any) {
       await ctx.reply(`Server unreachable: ${err.message}`);
@@ -108,6 +111,22 @@ export function registerAdminCommands(bot: Bot): void {
     await ctx.reply(`Model set to \`${providerID}/${modelID}\``, { parse_mode: "Markdown" });
   });
 
+  bot.command("system", async (ctx) => {
+    const action = ctx.match?.trim();
+
+    if (action === "reload") {
+      const prompt = reloadSystemPrompt();
+      const source = isUsingCustomPrompt() ? "custom file" : "default";
+      await ctx.reply(`System prompt reloaded (${source}, ${prompt.length} chars).`);
+      return;
+    }
+
+    const prompt = getSystemPrompt();
+    const source = isUsingCustomPrompt() ? "custom (skill.md)" : "default (built-in)";
+    const preview = prompt.length > 500 ? prompt.slice(0, 500) + "\n\n...(truncated)" : prompt;
+    await ctx.reply(`System prompt [${source}, ${prompt.length} chars]:\n\n${preview}`);
+  });
+
   bot.command("start", async (ctx) => {
     await ctx.reply(
       "Welcome to **OCBot** — OpenCode from Telegram!\n\n" +
@@ -154,7 +173,9 @@ export function registerAdminCommands(bot: Bot): void {
         "/config — Show config\n" +
         "/providers — List AI providers\n" +
         "/agents — List agents\n" +
-        "/model <provider/model> — Change model",
+        "/model <provider/model> — Change model\n" +
+        "/system — View system prompt\n" +
+        "/system reload — Reload prompt from file",
       { parse_mode: "Markdown" }
     );
   });

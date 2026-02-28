@@ -6,6 +6,7 @@ import { chunkMessage } from "../utils/chunker.js";
 import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media.js";
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
+import { getSystemPrompt } from "../utils/system-prompt.js";
 import { readFileSync } from "fs";
 
 const botToken = process.env.BOT_TOKEN ?? "";
@@ -45,12 +46,14 @@ export function registerMediaHandlers(bot: Bot): void {
       const sessionId = await getOrCreateSession();
       const client = getClient();
       const model = getSelectedModel();
+      const system = getSystemPrompt();
 
       const result = await client.session.prompt({
         path: { id: sessionId },
         body: {
           parts,
           ...(model && { model }),
+          system,
         },
       });
 
@@ -104,9 +107,10 @@ export function registerMediaHandlers(bot: Bot): void {
 
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
+      const system = getSystemPrompt();
 
       if (isStreamingEnabled()) {
-        await streamPrompt({ ctx, sessionId, parts, model });
+        await streamPrompt({ ctx, sessionId, parts, model, system });
       } else {
         const client = getClient();
 
@@ -115,6 +119,7 @@ export function registerMediaHandlers(bot: Bot): void {
           body: {
             parts,
             ...(model && { model }),
+            system,
           },
         });
 
@@ -168,10 +173,11 @@ export function registerMediaHandlers(bot: Bot): void {
 
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
+      const system = getSystemPrompt();
       const promptParts = [{ type: "text" as const, text: result.text }];
 
       if (isStreamingEnabled()) {
-        await streamPrompt({ ctx, sessionId, parts: promptParts, model });
+        await streamPrompt({ ctx, sessionId, parts: promptParts, model, system });
       } else {
         await ctx.replyWithChatAction("typing");
         const client = getClient();
@@ -181,6 +187,7 @@ export function registerMediaHandlers(bot: Bot): void {
           body: {
             parts: promptParts,
             ...(model && { model }),
+            system,
           },
         });
 
@@ -227,12 +234,14 @@ export function registerMediaHandlers(bot: Bot): void {
           const sessionId = await getOrCreateSession();
           const client = getClient();
           const model = getSelectedModel();
+          const system = getSystemPrompt();
 
           const promptResult = await client.session.prompt({
             path: { id: sessionId },
             body: {
               parts: [{ type: "text", text: result.text }],
               ...(model && { model }),
+              system,
             },
           });
 
@@ -261,6 +270,7 @@ export function registerMediaHandlers(bot: Bot): void {
       const sessionId = await getOrCreateSession();
       const client = getClient();
       const model = getSelectedModel();
+      const system = getSystemPrompt();
 
       const promptResult = await client.session.prompt({
         path: { id: sessionId },
@@ -272,6 +282,7 @@ export function registerMediaHandlers(bot: Bot): void {
             },
           ],
           ...(model && { model }),
+          system,
         },
       });
 

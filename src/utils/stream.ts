@@ -17,6 +17,7 @@ export interface StreamPromptOptions {
   sessionId: string;
   parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; filename?: string; url: string }>;
   model?: { providerID: string; modelID: string } | null;
+  system?: string;
 }
 
 export async function streamPrompt({
@@ -24,6 +25,7 @@ export async function streamPrompt({
   sessionId,
   parts,
   model,
+  system,
 }: StreamPromptOptions): Promise<void> {
   const client = getClient();
 
@@ -49,6 +51,7 @@ export async function streamPrompt({
       body: {
         parts: parts as any,
         ...(model && { model }),
+        ...(system && { system }),
       },
     });
 

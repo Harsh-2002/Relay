@@ -23,7 +23,6 @@ async function main() {
   }
 
   const providerName = getProviderName();
-  logger.info({ provider: providerName }, "Initializing provider...");
   try {
     await initProvider();
   } catch (err: any) {

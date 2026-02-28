@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme inline {
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #0A0A0A;
+  --color-bg-card: #111111;
+  --color-bg-card-hover: #1A1A1A;
+  --color-bg-code: #0D0D0D;
+  --color-border-primary: #1F1F1F;
+  --color-border-hover: #333333;
+  --color-text-primary: #FAFAFA;
+  --color-text-secondary: #A1A1AA;
+  --color-text-tertiary: #71717A;
+  --color-accent: #22C55E;
+  --color-accent-hover: #16A34A;
+  --color-accent-muted: #22C55E20;
+  --color-status-green: #22C55E;
+  --color-status-muted: #71717A;
+  --color-status-yellow: #EAB308;
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #000000;
+  color: #FAFAFA;
+  font-family: var(--font-sans);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+/* Prose overrides for docs */
+.prose {
+  --tw-prose-body: #A1A1AA;
+  --tw-prose-headings: #FAFAFA;
+  --tw-prose-links: #22C55E;
+  --tw-prose-bold: #FAFAFA;
+  --tw-prose-code: #FAFAFA;
+  --tw-prose-pre-bg: #0D0D0D;
+  --tw-prose-pre-code: #FAFAFA;
+  --tw-prose-quotes: #A1A1AA;
+  --tw-prose-quote-borders: #1F1F1F;
+  --tw-prose-counters: #71717A;
+  --tw-prose-bullets: #71717A;
+  --tw-prose-hr: #1F1F1F;
+  --tw-prose-th-borders: #1F1F1F;
+  --tw-prose-td-borders: #1F1F1F;
+  --tw-prose-captions: #71717A;
+}
+
+.prose a {
+  text-decoration: none;
+  font-weight: 500;
+}
+.prose a:hover {
+  text-decoration: underline;
+}
+
+.prose pre {
+  border: 1px solid #1F1F1F;
+  border-radius: 0.5rem;
+}
+
+.prose code:not(pre code) {
+  background-color: #1A1A1A;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-weight: 500;
+}
+
+.prose code:not(pre code)::before,
+.prose code:not(pre code)::after {
+  content: '';
+}
+
+.prose table {
+  width: 100%;
+}
+
+.prose th {
+  text-align: left;
+  font-weight: 600;
+  color: #FAFAFA;
+}
+
+.prose td, .prose th {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #1F1F1F;
+}
+
+.prose tr:last-child td {
+  border-bottom: none;
+}

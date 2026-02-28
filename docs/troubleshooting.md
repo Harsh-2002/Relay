@@ -29,7 +29,7 @@ PROVIDER=opencode
 The Claude Code SDK is not installed. Install it:
 
 ```bash
-bun add @anthropic-ai/claude-code
+npm install @anthropic-ai/claude-code
 ```
 
 ### "Cannot find package '@openai/codex'"
@@ -37,7 +37,7 @@ bun add @anthropic-ai/claude-code
 The Codex SDK is not installed. Install it:
 
 ```bash
-bun add @openai/codex
+npm install @openai/codex
 ```
 
 ---

@@ -3,9 +3,37 @@
   "version": "1.0.0",
   "description": "Telegram bot for AI coding agents — supports OpenCode, Claude Code, and OpenAI Codex",
   "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ocbot": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun --watch src/index.ts"
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "tsc --watch & node --watch dist/cli.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "ai",
+    "coding-agent",
+    "opencode",
+    "claude",
+    "codex",
+    "mcp",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@opencode-ai/sdk": "^1.2.15",
@@ -16,7 +44,6 @@
     "@openai/codex": "^0.1.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "typescript": "^5.0.0"
   }
 }

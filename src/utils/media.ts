@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { basename, join, resolve } from "path";
 
 const UPLOAD_DIR = join(process.cwd(), "uploads");
@@ -57,7 +57,7 @@ export async function downloadTelegramFile(
     throw new Error(`File too large (${Math.round(buffer.length / 1024 / 1024)}MB). Maximum is 20MB.`);
   }
 
-  await Bun.write(localPath, buffer);
+  writeFileSync(localPath, buffer, { mode: 0o600 });
   return localPath;
 }
 

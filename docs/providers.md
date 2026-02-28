@@ -83,7 +83,7 @@ All OCBot features are supported:
 Install the Claude Code SDK:
 
 ```bash
-bun add @anthropic-ai/claude-code
+npm install @anthropic-ai/claude-code
 ```
 
 ### Configuration
@@ -164,7 +164,7 @@ MCP configs are stored in memory and passed to every Claude query. They persist 
 Install the Codex SDK:
 
 ```bash
-bun add @openai/codex
+npm install @openai/codex
 ```
 
 ### Configuration

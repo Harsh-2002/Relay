@@ -28,20 +28,43 @@ Telegram bot for managing AI coding agents remotely. Supports [OpenCode](https:/
 | [Features](docs/features.md) | Streaming, file attachments, voice, MCP, models |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 
-## Quick Start
+## Install
+
+### From npm
 
 ```bash
-git clone https://github.com/your-org/ocbot.git
+npm install -g ocbot
+```
+
+Then create a `.env` file in your working directory (see [Configuration](docs/configuration.md)):
+
+```bash
+curl -O https://raw.githubusercontent.com/Harsh-2002/ocbot/main/.env.example
+# Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
+ocbot
+```
+
+### From source
+
+```bash
+git clone https://github.com/Harsh-2002/ocbot.git
 cd ocbot
+npm install
+npm run build
 cp .env.example .env
 # Edit .env with your BOT_TOKEN, ALLOWED_USER_ID, and provider config
-bun install
-bun start
+npm start
+```
+
+### With npx (no install)
+
+```bash
+npx ocbot
 ```
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) runtime
+- [Node.js](https://nodejs.org/) >= 18 (or [Bun](https://bun.sh/))
 - A Telegram bot token (from [@BotFather](https://t.me/BotFather))
 - Provider credentials (see below)
 
@@ -52,8 +75,8 @@ Set `PROVIDER` in `.env` to select your coding agent backend.
 | Provider | `PROVIDER=` | Required env vars | Install |
 |----------|-------------|-------------------|---------|
 | OpenCode | `opencode` | `OPENCODE_MODE` | included |
-| Claude Code | `claude` | `ANTHROPIC_API_KEY` | `bun add @anthropic-ai/claude-code` |
-| OpenAI Codex | `codex` | `CODEX_API_KEY` or `OPENAI_API_KEY` | `bun add @openai/codex` |
+| Claude Code | `claude` | `ANTHROPIC_API_KEY` | `npm install @anthropic-ai/claude-code` |
+| OpenAI Codex | `codex` | `CODEX_API_KEY` or `OPENAI_API_KEY` | `npm install @openai/codex` |
 
 ### OpenCode
 

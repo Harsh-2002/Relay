@@ -4,17 +4,26 @@ This guide walks you through setting up OCBot from scratch.
 
 ## Prerequisites
 
-- **[Bun](https://bun.sh/)** runtime (v1.0 or later)
+- **[Node.js](https://nodejs.org/)** >= 18 (or **[Bun](https://bun.sh/)**)
 - A **Telegram bot token** from [@BotFather](https://t.me/BotFather)
 - Your **Telegram user ID** (get it from [@userinfobot](https://t.me/userinfobot))
 - Credentials for at least one coding agent provider (see [Providers](providers.md))
 
 ## Installation
 
+### From npm (recommended)
+
 ```bash
-git clone https://github.com/your-org/ocbot.git
+npm install -g ocbot
+```
+
+### From source
+
+```bash
+git clone https://github.com/Harsh-2002/ocbot.git
 cd ocbot
-bun install
+npm install
+npm run build
 ```
 
 ## Configuration
@@ -43,13 +52,11 @@ Then configure your chosen provider. See [Providers](providers.md) for detailed 
 Start the bot:
 
 ```bash
-bun start
-```
+# If installed globally
+ocbot
 
-For development with auto-reload on file changes:
-
-```bash
-bun dev
+# If running from source
+npm start
 ```
 
 You should see output like:

@@ -49,6 +49,46 @@ export function registerMediaHandlers(bot: Bot): void {
           const omitted = content.length - 110_000;
           promptText = `${caption}\n\nFile: ${fileName} (${content.length} chars, truncated)\n\`\`\`\n${head}\n\n... [${omitted} characters omitted] ...\n\n${tail}\n\`\`\``;
         }
+      } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
+        // Image or PDF document: read buffer and send as file part
+        const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
+        const base64 = buffer.toString("base64");
+        const mime = doc.mime_type!;
+        const dataUrl = `data:${mime};base64,${base64}`;
+
+        promptText = `${caption}\n\n(Attached file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
+
+        const parts: any[] = [
+          { type: "text" as const, text: promptText },
+          { type: "file" as const, mime, filename: fileName, url: dataUrl },
+        ];
+
+        const sessionId = await getOrCreateSession();
+        const provider = getProvider();
+        const model = getSelectedModel();
+        const system = getSystemPrompt();
+
+        if (isStreamingEnabled() && provider.promptStream) {
+          await streamPrompt({ ctx, sessionId, parts, model, system });
+        } else {
+          const result = await withTimeout(
+            provider.prompt(sessionId, promptText, {
+              parts,
+              ...(model && { model }),
+              system,
+            }),
+            getPromptTimeout(),
+            "Prompt"
+          );
+
+          if (!result.text.trim() || result.text === "(empty response)") {
+            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+            return;
+          }
+          await sendTextChunks(ctx, result.text);
+          await sendFiles(ctx, result.parts);
+        }
+        return;
       } else {
         promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
       }
@@ -281,6 +321,15 @@ function isTextMime(mime?: string): boolean {
     mime === "application/yaml" ||
     mime === "application/x-yaml"
   );
+}
+
+function isImageMime(mime?: string): boolean {
+  if (!mime) return false;
+  return ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime);
+}
+
+function isPdfMime(mime?: string): boolean {
+  return mime === "application/pdf";
 }
 
 async function sendTextChunks(ctx: any, text: string): Promise<void> {

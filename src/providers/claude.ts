@@ -167,19 +167,32 @@ export class ClaudeProvider implements Provider {
     // Build Anthropic API content blocks
     const content: any[] = [];
 
-    // Add image blocks first (model sees them before the text)
+    // Add file content blocks first (model sees them before the text)
     for (const part of fileParts) {
       if (part.url.startsWith("data:")) {
         const match = part.url.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          content.push({
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: match[1],
-              data: match[2],
-            },
-          });
+          const mediaType = match[1];
+          const data = match[2];
+          if (mediaType === "application/pdf") {
+            content.push({
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data,
+              },
+            });
+          } else {
+            content.push({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data,
+              },
+            });
+          }
         }
       }
     }

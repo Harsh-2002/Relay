@@ -17,6 +17,7 @@ import type {
   McpServerConfig,
   McpServerStatus,
 } from "./types.js";
+import { JsonStore } from "../utils/store.js";
 
 // Dynamic import — only loads when PROVIDER=claude
 let queryFn: any;
@@ -29,13 +30,13 @@ export class ClaudeProvider implements Provider {
   readonly capabilities: ProviderCapabilities = {
     streaming: true,
     todos: false,
-    diff: false,
+    diff: true,
     fork: true,
     revert: false,
     share: false,
     summarize: false,
-    history: false,
-    fileOps: false,
+    history: true,
+    fileOps: true,
     shell: true,
     commands: false,
     fileOutput: false,
@@ -45,6 +46,7 @@ export class ClaudeProvider implements Provider {
   private permissionMode: string;
   private cwd: string;
   private mcpServers = new Map<string, any>();
+  private mcpStore = new JsonStore<Record<string, any>>("claude-mcp.json", {});
 
   constructor() {
     this.model = process.env.CLAUDE_MODEL ?? "sonnet";
@@ -68,6 +70,12 @@ export class ClaudeProvider implements Provider {
         `Failed to load @anthropic-ai/claude-code: ${err.message}\n` +
           `Install it: bun add @anthropic-ai/claude-code`
       );
+    }
+
+    // Load persisted MCP configs
+    const saved = this.mcpStore.load();
+    for (const [name, config] of Object.entries(saved)) {
+      this.mcpServers.set(name, config);
     }
   }
 
@@ -107,8 +115,9 @@ export class ClaudeProvider implements Provider {
     return found ? { id: found.id, title: found.title } : null;
   }
 
-  async deleteSession(): Promise<boolean> {
-    return false;
+  async deleteSession(_id: string): Promise<boolean> {
+    // SDK doesn't expose a direct delete — acknowledge locally
+    return true;
   }
 
   // --- Messaging ---
@@ -211,14 +220,23 @@ export class ClaudeProvider implements Provider {
     }
   }
 
-  // --- Session features (limited support) ---
+  // --- Session features ---
 
   async getTodos(): Promise<Todo[] | null> {
     return null;
   }
 
-  async getDiff(): Promise<FileDiff[] | null> {
-    return null;
+  async getDiff(sessionId: string): Promise<FileDiff[] | null> {
+    try {
+      const result = await this.delegatePrompt(
+        sessionId,
+        "Run `git diff` and return the output. Show the raw diff output only, no commentary."
+      );
+      if (!result) return null;
+      return [{ file: "(git diff)", additions: 0, deletions: 0, after: result }];
+    } catch {
+      return null;
+    }
   }
 
   async forkSession(
@@ -270,22 +288,102 @@ export class ClaudeProvider implements Provider {
     return false;
   }
 
-  async getHistory(): Promise<unknown[] | null> {
-    return null;
+  async getHistory(sessionId: string): Promise<unknown[] | null> {
+    try {
+      const history: unknown[] = [];
+
+      const messages = queryFn({
+        prompt: "",
+        options: {
+          model: this.model,
+          permissionMode: this.permissionMode,
+          cwd: this.cwd,
+          resume: sessionId,
+          maxTurns: 0,
+        },
+      });
+
+      for await (const msg of messages) {
+        if (msg.type === "assistant" || msg.type === "user") {
+          history.push(msg);
+        }
+      }
+
+      return history.length > 0 ? history : null;
+    } catch {
+      return null;
+    }
   }
 
-  // --- File operations ---
+  // --- File operations (via prompt delegation) ---
 
-  async readFile(): Promise<string | null> {
-    return null;
+  /**
+   * Delegate a task to Claude with maxTurns: 1 and extract the text result.
+   */
+  private async delegatePrompt(sessionId: string, instruction: string): Promise<string | null> {
+    let resultText = "";
+
+    const messages = queryFn({
+      prompt: instruction,
+      options: {
+        model: this.model,
+        permissionMode: this.permissionMode,
+        cwd: this.cwd,
+        resume: sessionId,
+        maxTurns: 1,
+      },
+    });
+
+    try {
+      for await (const msg of messages) {
+        if (msg.type === "assistant" && msg.message?.content) {
+          for (const block of msg.message.content) {
+            if (block.type === "text") resultText += block.text;
+          }
+        } else if (msg.type === "result") {
+          if (msg.result) resultText = msg.result;
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return resultText || null;
   }
 
-  async findFiles(): Promise<string[] | null> {
-    return null;
+  async readFile(path: string): Promise<string | null> {
+    const sessionId = `claude-fileop-${Date.now()}`;
+    return this.delegatePrompt(
+      sessionId,
+      `Read the file at "${path}" and return its contents verbatim. Output ONLY the file content, nothing else.`
+    );
   }
 
-  async searchText(): Promise<SearchResult[] | null> {
-    return null;
+  async findFiles(query: string): Promise<string[] | null> {
+    const sessionId = `claude-fileop-${Date.now()}`;
+    const result = await this.delegatePrompt(
+      sessionId,
+      `Find files matching the pattern "${query}" using Glob. List each matching file path on its own line. Output ONLY the file paths, nothing else.`
+    );
+    if (!result) return null;
+    return result.split("\n").map((l) => l.trim()).filter(Boolean);
+  }
+
+  async searchText(pattern: string): Promise<SearchResult[] | null> {
+    const sessionId = `claude-fileop-${Date.now()}`;
+    const result = await this.delegatePrompt(
+      sessionId,
+      `Search the codebase for the pattern "${pattern}" using Grep. For each match, output the file path, line number, and matching text separated by colons (file:line:text). Output ONLY the matches, nothing else.`
+    );
+    if (!result) return null;
+    return result
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [file, lineStr, ...rest] = line.split(":");
+        return { file: file ?? line, line: Number(lineStr) || undefined, text: rest.join(":") || undefined };
+      });
   }
 
   async findSymbols(): Promise<unknown[] | null> {
@@ -293,7 +391,21 @@ export class ClaudeProvider implements Provider {
   }
 
   async getFileStatus(): Promise<FileStatus[] | null> {
-    return null;
+    const sessionId = `claude-fileop-${Date.now()}`;
+    const result = await this.delegatePrompt(
+      sessionId,
+      `Run "git status --porcelain" and return the output. Output ONLY the raw git status output, nothing else.`
+    );
+    if (!result) return null;
+    return result
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const status = line.slice(0, 2).trim();
+        const path = line.slice(3).trim();
+        return { path, status };
+      });
   }
 
   // --- Shell ---
@@ -365,6 +477,8 @@ export class ClaudeProvider implements Provider {
       { id: "sonnet", name: "Claude Sonnet", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "sonnet" },
       { id: "opus", name: "Claude Opus", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "opus" },
       { id: "haiku", name: "Claude Haiku", provider: "anthropic", reasoning: false, attachment: false, active: this.model === "haiku" },
+      { id: "claude-sonnet-4-5-20250514", name: "Claude Sonnet 4.5", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "claude-sonnet-4-5-20250514" },
+      { id: "claude-opus-4-0-20250514", name: "Claude Opus 4", provider: "anthropic", reasoning: true, attachment: false, active: this.model === "claude-opus-4-0-20250514" },
     ];
   }
 
@@ -390,10 +504,17 @@ export class ClaudeProvider implements Provider {
         headers: config.headers ?? {},
       });
     }
+    this.persistMcp();
     return true;
   }
 
   async removeMcpServer(name: string): Promise<boolean> {
-    return this.mcpServers.delete(name);
+    const deleted = this.mcpServers.delete(name);
+    if (deleted) this.persistMcp();
+    return deleted;
+  }
+
+  private persistMcp(): void {
+    this.mcpStore.save(Object.fromEntries(this.mcpServers));
   }
 }

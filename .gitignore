@@ -12,6 +12,9 @@ dist/
 # Uploads directory (runtime files)
 uploads/
 
+# Persisted bot state (sessions, MCP configs, thread maps)
+.ocbot/
+
 # OS files
 .DS_Store
 Thumbs.db

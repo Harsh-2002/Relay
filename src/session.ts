@@ -1,7 +1,21 @@
 import { getProvider } from "./providers/index.js";
+import { JsonStore } from "./utils/store.js";
 
-let activeSessionId: string | null = null;
-let selectedModel: { providerID: string; modelID: string } | null = (() => {
+interface SessionState {
+  activeSessionId: string | null;
+  selectedModel: { providerID: string; modelID: string } | null;
+}
+
+const store = new JsonStore<SessionState>("session.json", {
+  activeSessionId: null,
+  selectedModel: null,
+});
+
+// Load persisted state (or fall back to env var for model)
+const persisted = store.load();
+
+let activeSessionId: string | null = persisted.activeSessionId;
+let selectedModel: { providerID: string; modelID: string } | null = persisted.selectedModel ?? (() => {
   const envModel = process.env.OPENCODE_MODEL;
   if (envModel && envModel.includes("/")) {
     const [providerID, ...rest] = envModel.split("/");
@@ -24,6 +38,7 @@ export async function getOrCreateSession(): Promise<string> {
       const provider = getProvider();
       const session = await provider.createSession("Telegram Session");
       activeSessionId = session.id;
+      persist();
       return activeSessionId;
     } finally {
       createSessionPromise = null;
@@ -39,10 +54,12 @@ export function getActiveSessionId(): string | null {
 
 export function setActiveSessionId(id: string): void {
   activeSessionId = id;
+  persist();
 }
 
 export function clearActiveSession(): void {
   activeSessionId = null;
+  persist();
 }
 
 export function getSelectedModel(): { providerID: string; modelID: string } | null {
@@ -51,8 +68,14 @@ export function getSelectedModel(): { providerID: string; modelID: string } | nu
 
 export function setSelectedModel(providerID: string, modelID: string): void {
   selectedModel = { providerID, modelID };
+  persist();
 }
 
 export function clearSelectedModel(): void {
   selectedModel = null;
+  persist();
+}
+
+function persist(): void {
+  store.save({ activeSessionId, selectedModel });
 }

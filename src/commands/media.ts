@@ -28,9 +28,17 @@ export function registerMediaHandlers(bot: Bot): void {
       const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
       let promptText: string;
 
-      if (isTextFile && doc.file_size && doc.file_size < 100_000) {
+      if (isTextFile) {
         const content = readFileSync(localPath, "utf-8");
-        promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
+        if (content.length <= 500_000) {
+          promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
+        } else {
+          // Chunked: first 100K chars + last 10K chars for very large files
+          const head = content.slice(0, 100_000);
+          const tail = content.slice(-10_000);
+          const omitted = content.length - 110_000;
+          promptText = `${caption}\n\nFile: ${fileName} (${content.length} chars, truncated)\n\`\`\`\n${head}\n\n... [${omitted} characters omitted] ...\n\n${tail}\n\`\`\``;
+        }
       } else {
         promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
       }

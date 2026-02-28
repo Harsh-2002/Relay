@@ -175,14 +175,14 @@ browser  failed
 
 | Feature | OpenCode | Claude | Codex |
 |---------|----------|--------|-------|
-| MCP support | Full API | In-memory | No |
-| Persistence | Saved in config | Lost on restart | N/A |
+| MCP support | Full API | Persisted to disk | No |
+| Persistence | Saved in config | Saved in `.ocbot/` | N/A |
 | Local servers | Yes | Yes | No |
 | Remote servers | Yes | Yes | No |
 
 **OpenCode** manages MCP servers through its API. Servers persist across restarts.
 
-**Claude** stores MCP configs in memory and passes them to every query. Servers are lost when the bot restarts — you'll need to re-add them.
+**Claude** stores MCP configs in `.ocbot/claude-mcp.json`. Servers are automatically restored on restart.
 
 **Codex** does not support MCP.
 
@@ -373,3 +373,71 @@ Run commands on the coding agent's machine:
 **OpenCode** runs commands natively on the server.
 
 **Claude and Codex** send the command as a prompt, asking the AI to execute it. The AI decides whether and how to run it.
+
+---
+
+## State Persistence
+
+OCBot automatically persists critical state to disk so it survives bot restarts and crashes.
+
+### What is persisted
+
+| Data | File | Description |
+|------|------|-------------|
+| Active session | `.ocbot/session.json` | Current session ID and selected model |
+| Claude MCP servers | `.ocbot/claude-mcp.json` | MCP server configurations (Claude provider) |
+| Codex thread IDs | `.ocbot/codex-threads.json` | Thread ID mappings (Codex provider) |
+
+### How it works
+
+- State is written atomically (via temp file + rename) to prevent corruption
+- Files are loaded on startup and written immediately on change
+- If a state file is missing or corrupt, the bot starts fresh with defaults
+- The `.ocbot/` directory is created automatically and excluded from git
+
+### Configuration
+
+Override the data directory:
+
+```env
+OCBOT_DATA_DIR=/path/to/custom/data
+```
+
+Default: `.ocbot/` in the project root.
+
+---
+
+## Webhook Deployment
+
+For production deployments, you can run OCBot in webhook mode instead of long-polling.
+
+### Setup
+
+```env
+BOT_MODE=webhook
+WEBHOOK_URL=https://your-server.com/bot
+WEBHOOK_PORT=3000
+WEBHOOK_SECRET=your-random-secret
+```
+
+### Requirements
+
+- A public HTTPS URL that Telegram can reach
+- The port (default 3000) must be accessible
+
+### How it works
+
+1. OCBot starts an HTTP server on the specified port
+2. It registers the webhook URL with Telegram
+3. Telegram pushes updates directly to your server
+4. On shutdown, the webhook is automatically cleaned up
+
+### Switching back to polling
+
+Set `BOT_MODE=polling` (or remove the variable). The bot will clear any stale webhook before starting long-polling.
+
+### Benefits over polling
+
+- Lower latency (push vs pull)
+- Reduced resource usage (no continuous polling loop)
+- Better for containerized/serverless deployments

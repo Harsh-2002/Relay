@@ -17,6 +17,7 @@ import type {
   McpServerConfig,
   McpServerStatus,
 } from "./types.js";
+import { JsonStore } from "../utils/store.js";
 
 // Dynamic import — only loads when PROVIDER=codex
 let CodexClass: any;
@@ -27,20 +28,23 @@ const abortControllers = new Map<string, AbortController>();
 
 // Map session IDs to thread objects (bounded to prevent memory leaks)
 const threads = new Map<string, any>();
-const MAX_THREADS = 100;
+const MAX_THREADS = 500;
+
+// Persist thread IDs so sessions survive restarts
+const threadStore = new JsonStore<string[]>("codex-threads.json", []);
 
 export class CodexProvider implements Provider {
   readonly name = "codex" as const;
   readonly capabilities: ProviderCapabilities = {
     streaming: true,
     todos: false,
-    diff: false,
+    diff: true,
     fork: false,
     revert: false,
     share: false,
     summarize: false,
     history: false,
-    fileOps: false,
+    fileOps: true,
     shell: true,
     commands: false,
     fileOutput: false,
@@ -96,6 +100,7 @@ export class CodexProvider implements Provider {
       if (oldest) threads.delete(oldest);
     }
     threads.set(threadId, thread);
+    this.persistThreadIds();
 
     return { id: threadId, title: title ?? "Codex Thread" };
   }
@@ -116,8 +121,10 @@ export class CodexProvider implements Provider {
       // Fall through
     }
 
-    // Return in-memory threads
-    return Array.from(threads.entries()).map(([id]) => ({
+    // Return in-memory threads + persisted IDs
+    const persistedIds = threadStore.load();
+    const allIds = new Set([...threads.keys(), ...persistedIds]);
+    return Array.from(allIds).map((id) => ({
       id,
       title: `Thread ${id}`,
     }));
@@ -144,6 +151,7 @@ export class CodexProvider implements Provider {
 
   async deleteSession(id: string): Promise<boolean> {
     threads.delete(id);
+    threadStore.update((ids) => ids.filter((tid) => tid !== id));
     return true;
   }
 
@@ -245,52 +253,112 @@ export class CodexProvider implements Provider {
     }
   }
 
-  // --- Session features (minimal support) ---
+  // --- Session features ---
 
   async getTodos(): Promise<Todo[] | null> {
-    return null; // Not supported
+    return null;
   }
 
-  async getDiff(): Promise<FileDiff[] | null> {
-    return null; // Not supported
+  async getDiff(sessionId: string): Promise<FileDiff[] | null> {
+    try {
+      const result = await this.prompt(
+        sessionId,
+        "Run `git diff` and return the raw diff output only, no commentary."
+      );
+      if (!result.text || result.text === "(empty response)") return null;
+      return [{ file: "(git diff)", additions: 0, deletions: 0, after: result.text }];
+    } catch {
+      return null;
+    }
   }
 
   async forkSession(): Promise<Session | null> {
-    return null; // Not supported
+    return null;
   }
 
   async revert(): Promise<boolean> {
-    return false; // Not supported
+    return false;
   }
 
   async unrevert(): Promise<boolean> {
-    return false; // Not supported
+    return false;
   }
 
   async share(): Promise<string | null> {
-    return null; // Not supported
+    return null;
   }
 
   async summarize(): Promise<boolean> {
-    return false; // Not supported
+    return false;
   }
 
   async getHistory(): Promise<unknown[] | null> {
-    return null; // Not directly accessible
-  }
-
-  // --- File operations (not directly supported) ---
-
-  async readFile(): Promise<string | null> {
     return null;
   }
 
-  async findFiles(): Promise<string[] | null> {
-    return null;
+  // --- File operations (via prompt delegation) ---
+
+  async readFile(path: string): Promise<string | null> {
+    const sessionId = `codex-fileop-${Date.now()}`;
+    try {
+      const thread = await codexInstance.startThread({ workingDirectory: this.cwd });
+      const threadId = thread.id ?? thread.threadId ?? sessionId;
+      threads.set(threadId, thread);
+
+      const result = await this.prompt(
+        threadId,
+        `Read the file at "${path}" and return its contents verbatim. Output ONLY the file content, nothing else.`
+      );
+      threads.delete(threadId);
+      return result.text === "(empty response)" ? null : result.text;
+    } catch {
+      return null;
+    }
   }
 
-  async searchText(): Promise<SearchResult[] | null> {
-    return null;
+  async findFiles(query: string): Promise<string[] | null> {
+    const sessionId = `codex-fileop-${Date.now()}`;
+    try {
+      const thread = await codexInstance.startThread({ workingDirectory: this.cwd });
+      const threadId = thread.id ?? thread.threadId ?? sessionId;
+      threads.set(threadId, thread);
+
+      const result = await this.prompt(
+        threadId,
+        `Find files matching "${query}". List each matching file path on its own line. Output ONLY the file paths, nothing else.`
+      );
+      threads.delete(threadId);
+      if (result.text === "(empty response)") return null;
+      return result.text.split("\n").map((l) => l.trim()).filter(Boolean);
+    } catch {
+      return null;
+    }
+  }
+
+  async searchText(pattern: string): Promise<SearchResult[] | null> {
+    const sessionId = `codex-fileop-${Date.now()}`;
+    try {
+      const thread = await codexInstance.startThread({ workingDirectory: this.cwd });
+      const threadId = thread.id ?? thread.threadId ?? sessionId;
+      threads.set(threadId, thread);
+
+      const result = await this.prompt(
+        threadId,
+        `Search the codebase for "${pattern}". For each match output file:line:text. Output ONLY the matches, nothing else.`
+      );
+      threads.delete(threadId);
+      if (result.text === "(empty response)") return null;
+      return result.text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [file, lineStr, ...rest] = line.split(":");
+          return { file: file ?? line, line: Number(lineStr) || undefined, text: rest.join(":") || undefined };
+        });
+    } catch {
+      return null;
+    }
   }
 
   async findSymbols(): Promise<unknown[] | null> {
@@ -298,7 +366,30 @@ export class CodexProvider implements Provider {
   }
 
   async getFileStatus(): Promise<FileStatus[] | null> {
-    return null;
+    const sessionId = `codex-fileop-${Date.now()}`;
+    try {
+      const thread = await codexInstance.startThread({ workingDirectory: this.cwd });
+      const threadId = thread.id ?? thread.threadId ?? sessionId;
+      threads.set(threadId, thread);
+
+      const result = await this.prompt(
+        threadId,
+        `Run "git status --porcelain" and return the output. Output ONLY the raw git status output, nothing else.`
+      );
+      threads.delete(threadId);
+      if (result.text === "(empty response)") return null;
+      return result.text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const status = line.slice(0, 2).trim();
+          const path = line.slice(3).trim();
+          return { path, status };
+        });
+    } catch {
+      return null;
+    }
   }
 
   // --- Shell ---
@@ -313,7 +404,7 @@ export class CodexProvider implements Provider {
   }
 
   async runCommand(): Promise<PromptResult | null> {
-    return null; // Not supported (OpenCode-specific)
+    return null;
   }
 
   // --- Info ---
@@ -380,5 +471,9 @@ export class CodexProvider implements Provider {
 
   async removeMcpServer(): Promise<boolean> {
     return false;
+  }
+
+  private persistThreadIds(): void {
+    threadStore.save(Array.from(threads.keys()));
   }
 }

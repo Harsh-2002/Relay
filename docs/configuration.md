@@ -41,6 +41,53 @@ Each provider has its own set of required and optional variables. See [Providers
 | `CODEX_MODEL` | No | `o3` | Model name: `o3`, `o4-mini`, etc. |
 | `CODEX_CWD` | No | Current directory | Working directory for Codex |
 
+## Bot Mode
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BOT_MODE` | `polling` | `polling` for long-polling, `webhook` for webhook mode |
+| `WEBHOOK_URL` | -- | Public URL for receiving Telegram updates (required when `BOT_MODE=webhook`) |
+| `WEBHOOK_PORT` | `3000` | Port for the webhook HTTP server |
+| `WEBHOOK_SECRET` | -- | Optional secret token for webhook verification |
+
+### Long Polling (default)
+
+The bot connects to Telegram and pulls updates. Simple to set up, works behind NATs/firewalls.
+
+```env
+BOT_MODE=polling
+```
+
+### Webhook Mode
+
+The bot runs an HTTP server and Telegram pushes updates to it. Lower latency and better for production deployments.
+
+```env
+BOT_MODE=webhook
+WEBHOOK_URL=https://your-server.com/bot
+WEBHOOK_PORT=3000
+WEBHOOK_SECRET=your-random-secret
+```
+
+Requirements:
+- A public HTTPS URL that Telegram can reach
+- The port must be accessible (default: 3000)
+
+## Data Persistence
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCBOT_DATA_DIR` | `.ocbot/` | Directory for persisted bot state |
+
+OCBot persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.ocbot/` directory is created automatically in the project root.
+
+Files stored:
+- `session.json` — Active session ID and selected model
+- `claude-mcp.json` — Claude provider MCP server configurations
+- `codex-threads.json` — Codex provider thread ID mappings
+
+The directory is excluded from git via `.gitignore`.
+
 ## Streaming
 
 | Variable | Default | Description |
@@ -97,6 +144,9 @@ ALLOWED_USER_ID=987654321
 # Provider
 PROVIDER=opencode
 OPENCODE_MODE=start
+
+# Bot mode (polling or webhook)
+BOT_MODE=polling
 
 # Streaming
 STREAMING_ENABLED=true

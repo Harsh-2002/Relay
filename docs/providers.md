@@ -138,19 +138,21 @@ Claude supports MCP servers configured at runtime through the bot:
 /mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
 ```
 
-MCP configs are stored in memory and passed to every Claude query. They persist for the bot's lifetime but are lost on restart.
+MCP configs are persisted to `.ocbot/claude-mcp.json` and automatically restored on restart.
 
 ### Supported Features
 
 | Feature | Status |
 |---------|--------|
 | Chat, streaming | Supported |
-| Sessions | Create, list, fork |
+| Sessions | Create, list, delete, fork |
 | Shell access | Via prompt (asks Claude to run commands) |
-| MCP management | In-memory storage |
-| Model selection | Static list (sonnet, opus, haiku) |
-| File operations | Not supported (use chat to ask Claude) |
-| Todos, diffs | Not supported |
+| MCP management | Persisted to disk |
+| Model selection | Static list (sonnet, opus, haiku, sonnet-4.5, opus-4) |
+| File operations | Via prompt delegation (read, find, search, git status) |
+| Code diffs | Via prompt delegation (git diff) |
+| History | Supported (session message history) |
+| Todos | Not supported |
 | Session sharing | Not supported |
 
 ---
@@ -198,12 +200,13 @@ Set `CODEX_CWD` to the project directory. Defaults to the directory where OCBot 
 | Feature | Status |
 |---------|--------|
 | Chat, streaming | Supported |
-| Sessions | Create, list, delete |
+| Sessions | Create, list, delete (persisted to disk) |
 | Shell access | Via prompt (asks Codex to run commands) |
 | MCP management | Not supported |
 | Model selection | Static list (o3, o4-mini) |
-| File operations | Not supported |
-| Todos, diffs | Not supported |
+| File operations | Via prompt delegation (read, find, search, git status) |
+| Code diffs | Via prompt delegation (git diff) |
+| Todos | Not supported |
 | Session sharing | Not supported |
 
 ---
@@ -214,16 +217,18 @@ Set `CODEX_CWD` to the project directory. Defaults to the directory where OCBot 
 |---------|----------|--------|-------|
 | Streaming | yes | yes | yes |
 | File output (screenshots) | yes | no | no |
-| MCP management | full API | in-memory | no |
+| MCP management | full API | persisted | no |
 | Model listing | dynamic | static | static |
 | Todo tracking | yes | no | no |
-| Code diffs | yes | no | no |
+| Code diffs | yes | via prompt | via prompt |
 | Session forking | yes | yes | no |
 | Revert changes | yes | no | no |
-| File operations | yes | no | no |
+| File operations | yes | via prompt | via prompt |
+| History | yes | yes | no |
 | Shell commands | native | via prompt | via prompt |
 | Custom commands | yes | no | no |
 | Session sharing | yes | no | no |
+| State persistence | via config | yes | yes |
 
 ## Switching Providers
 

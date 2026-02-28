@@ -26,9 +26,17 @@ async function main() {
 
   const bot = createBot(botToken);
 
+  const botMode = (process.env.BOT_MODE ?? "polling").toLowerCase();
+  let httpServer: import("http").Server | null = null;
+
   async function gracefulShutdown(signal: string) {
     console.log(`\n${signal} received. Shutting down...`);
-    bot.stop();
+    if (httpServer) {
+      httpServer.close();
+      try { await bot.api.deleteWebhook(); } catch {}
+    } else {
+      bot.stop();
+    }
     shutdownProvider();
     stopUploadCleanup();
     unwatchSystemPrompt();
@@ -38,10 +46,41 @@ async function main() {
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-  console.log("Starting Telegram bot (long polling)...");
-  await bot.start({
-    onStart: (info) => console.log(`Bot @${info.username} is running!`),
-  });
+  if (botMode === "webhook") {
+    const webhookUrl = process.env.WEBHOOK_URL;
+    if (!webhookUrl) {
+      console.error("WEBHOOK_URL is required when BOT_MODE=webhook.");
+      process.exit(1);
+    }
+
+    const webhookPort = Number(process.env.WEBHOOK_PORT ?? "3000");
+    const webhookSecret = process.env.WEBHOOK_SECRET;
+
+    const { createServer } = await import("http");
+    const { webhookCallback } = await import("grammy");
+
+    await bot.api.setWebhook(webhookUrl, {
+      ...(webhookSecret && { secret_token: webhookSecret }),
+    });
+
+    const handler = webhookCallback(bot, "http", {
+      ...(webhookSecret && { secretToken: webhookSecret }),
+    });
+
+    httpServer = createServer(handler);
+    httpServer.listen(webhookPort, () => {
+      console.log(`Webhook server listening on port ${webhookPort}`);
+      console.log(`Webhook URL: ${webhookUrl}`);
+    });
+  } else {
+    // Clear any stale webhook before starting long-polling
+    try { await bot.api.deleteWebhook(); } catch {}
+
+    console.log("Starting Telegram bot (long polling)...");
+    await bot.start({
+      onStart: (info) => console.log(`Bot @${info.username} is running!`),
+    });
+  }
 }
 
 main().catch((err) => {

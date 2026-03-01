@@ -82,8 +82,11 @@ function updateFromNpm(): boolean {
     });
     return true;
   } catch {
+    const hint = process.platform === "win32"
+      ? "npm install -g @4via6/relay@latest"
+      : "sudo npm install -g @4via6/relay@latest";
     console.error(
-      "\n  Update failed. Try manually:\n\n    sudo npm install -g @4via6/relay@latest\n"
+      `\n  Update failed. Try manually:\n\n    ${hint}\n`
     );
     return false;
   }

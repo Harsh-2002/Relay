@@ -50,8 +50,11 @@ function ensurePm2(): void {
     execCmd("npm", ["install", "-g", "pm2"], { stdio: "inherit" });
     console.log();
   } catch {
+    const hint = process.platform === "win32"
+      ? "npm install -g pm2"
+      : "sudo npm install -g pm2";
     console.error(
-      "  Failed to install pm2. Try manually:\n\n    sudo npm install -g pm2\n"
+      `  Failed to install pm2. Try manually:\n\n    ${hint}\n`
     );
     process.exit(1);
   }

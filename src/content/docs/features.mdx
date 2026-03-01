@@ -6,20 +6,22 @@ order: 5
 
 ## Streaming Responses
 
-Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
+Relay can stream AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
 
 1. You send a message
 2. The bot sends a "thinking" indicator
 3. As text arrives, the message is edited in place
 4. When complete, the final message is sent
 
-Messages are updated roughly every second to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
+Messages are updated every 2 seconds by default to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
 
-Streaming is enabled by default. To disable, set in `.relay/config.json`:
+Enable streaming in `.relay/config.json`:
 
 ```json
-"streamingEnabled": false
+"streamingEnabled": true
 ```
+
+You can also adjust the update interval with `streamEditIntervalMs` (default: `2000` ms).
 
 ---
 
@@ -93,7 +95,7 @@ Models are fetched dynamically from all configured OpenCode providers. If no pro
 
 ## System Prompt
 
-Customize the AI's behavior with a system prompt file. The bot loads `SKILL.md` from the project root by default. Change the path in `.relay/config.json`:
+Customize the AI's behavior with a system prompt file. Place a `SKILL.md` file in the `.relay/` directory and the bot loads it automatically. Change the path in `.relay/config.json`:
 
 ```json
 "systemPromptFile": "prompts/my-prompt.md"
@@ -105,7 +107,7 @@ The file is watched for changes and reloaded automatically. Force reload with `/
 
 ## Reasoning / Thinking Display
 
-When using models that support extended thinking (like Claude with reasoning or DeepSeek), the AI's reasoning process is displayed separately from the final answer.
+When using models that support extended thinking (such as those with reasoning capabilities), the AI's reasoning process is displayed separately from the final answer.
 
 - Reasoning is shown in a **collapsible blockquote** (tap to expand) above the answer
 - If the answer is short enough, reasoning and answer appear in the same message

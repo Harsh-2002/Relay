@@ -1,9 +1,19 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { AnimateIn } from "@/components/ui/animate-in";
+import { Terminal } from "@/components/ui/terminal";
 import { siteConfig } from "@/lib/metadata";
 import { ArrowRight } from "lucide-react";
+
+const heroTerminalLines = [
+  { type: "command" as const, text: "relay onboard" },
+  { type: "success" as const, text: "Bot token verified" },
+  { type: "success" as const, text: "Connected to OpenCode" },
+  { type: "success" as const, text: "Ready \u2014 send a message in Telegram" },
+];
 
 export function Hero() {
   return (
@@ -30,9 +40,12 @@ export function Hero() {
       <Container className="relative">
         <AnimateIn>
           <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="default" className="mb-6">
-              Open Source &middot; MIT Licensed
-            </Badge>
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <Badge variant="default">
+                Open Source &middot; MIT Licensed
+              </Badge>
+              <Badge variant="accent">v2.0</Badge>
+            </div>
 
             <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-7xl">
               Control AI coding agents{" "}
@@ -59,6 +72,17 @@ export function Hero() {
                 View on GitHub
               </Button>
             </div>
+
+            {/* Compact terminal preview */}
+            <AnimateIn delay={0.3}>
+              <div className="mt-14 max-w-md mx-auto">
+                <Terminal
+                  lines={heroTerminalLines}
+                  title="Terminal"
+                  compact
+                />
+              </div>
+            </AnimateIn>
           </div>
         </AnimateIn>
       </Container>

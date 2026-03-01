@@ -54,12 +54,12 @@ export default async function DocPage({ params }: Props) {
   return (
     <div className="flex gap-4 lg:gap-8">
       <article className="flex-1 min-w-0 max-w-3xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary">
+        <header className="mb-5 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary">
             {doc.frontmatter.title}
           </h1>
           {doc.frontmatter.description && (
-            <p className="mt-2 text-lg text-text-secondary">
+            <p className="mt-2 text-base sm:text-lg text-text-secondary">
               {doc.frontmatter.description}
             </p>
           )}

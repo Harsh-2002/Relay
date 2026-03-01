@@ -13,19 +13,8 @@ order: 1
 
 ## Installation
 
-### From npm
-
 ```bash
 npm install -g @4via6/relay
-```
-
-### From source
-
-```bash
-git clone https://github.com/Harsh-2002/Relay.git
-cd Relay
-npm install
-npm run build
 ```
 
 ## Configuration
@@ -52,12 +41,6 @@ Provider API keys are set in OpenCode's environment. See [Providers](/docs/provi
 relay
 ```
 
-Or from source:
-
-```bash
-npm start
-```
-
 ### Background (daemon mode)
 
 Run as a background service that survives terminal closure:
@@ -78,19 +61,7 @@ pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
 relay update
 ```
 
-Auto-detects your install method (npm or git source) and updates to the latest version. Restarts the daemon if it's running.
-
-**Upgrading from v1.0.x:** The `update` command was added in v1.1.0. Run the one-time manual update first:
-
-```bash
-# npm
-npm install -g @4via6/relay@latest
-
-# From source
-git pull && npm install && npm run build
-```
-
-After that, `relay update` handles all future updates.
+Updates to the latest version. Restarts the daemon if it's running.
 
 Open your bot in Telegram and send `/start` to verify the connection. Use `/help` to see all available commands.
 

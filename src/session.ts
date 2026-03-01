@@ -35,6 +35,31 @@ let selectedModel: { providerID: string; modelID: string } | null = persisted.se
 // Mutex to prevent double-create race when concurrent messages arrive
 let createSessionPromise: Promise<string> | null = null;
 
+// Prompt queue: ensures only one prompt runs at a time per session,
+// preventing interleaved SSE responses from concurrent messages.
+let promptQueueTail: Promise<void> = Promise.resolve();
+
+/**
+ * Queue a prompt-processing function so only one runs at a time.
+ * If a previous prompt is still running, this waits for it to finish first.
+ * The caller's function receives the session ID.
+ */
+export async function withPromptQueue<T>(fn: () => Promise<T>): Promise<T> {
+  let resolve!: () => void;
+  const gate = new Promise<void>((r) => { resolve = r; });
+  const previousTail = promptQueueTail;
+  promptQueueTail = gate;
+
+  // Wait for previous prompt to finish
+  await previousTail;
+
+  try {
+    return await fn();
+  } finally {
+    resolve();
+  }
+}
+
 export async function getOrCreateSession(): Promise<string> {
   if (activeSessionId) {
     sessionLogger.info({ sessionId: activeSessionId }, "Using existing session");

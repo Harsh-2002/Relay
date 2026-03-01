@@ -1,9 +1,9 @@
-import type { Provider, ProviderName } from "./types.js";
+import type { Provider } from "./types.js";
 import { getConfig } from "../config/index.js";
 
 let activeProvider: Provider | null = null;
 
-export function getProviderName(): ProviderName {
+export function getProviderName(): Provider["name"] {
   const name = getConfig().provider;
   if (name === "opencode") {
     return name;
@@ -38,4 +38,4 @@ export function shutdownProvider(): void {
   activeProvider?.shutdown();
 }
 
-export type { Provider, ProviderName } from "./types.js";
+export type { Provider } from "./types.js";

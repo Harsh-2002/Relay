@@ -24,18 +24,32 @@ export interface PromptOptions {
   model?: { providerID: string; modelID: string };
   system?: string;
   parts?: MessagePart[];
+  agent?: string;
 }
 
 export interface PromptResult {
   text: string;
+  reasoning?: string;
   parts?: unknown[];
   raw?: unknown;
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_use" | "status" | "done" | "file";
+  type: "text" | "tool_use" | "status" | "done" | "file" | "reasoning";
   content: string;
   file?: { mime: string; filename: string; url: string };
+}
+
+export interface FileNode {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  ignored: boolean;
+}
+
+export interface ToolInfo {
+  id: string;
+  description?: string;
 }
 
 export interface Todo {
@@ -89,6 +103,7 @@ export interface ModelDetail {
   provider: string;
   reasoning: boolean;
   attachment: boolean;
+  free: boolean;
   modalities?: { input: string[]; output: string[] };
   active: boolean;
 }
@@ -120,32 +135,11 @@ export interface McpServerStatus {
   error?: string;
 }
 
-// --- Provider capabilities ---
-
-export interface ProviderCapabilities {
-  streaming: boolean;
-  todos: boolean;
-  diff: boolean;
-  fork: boolean;
-  revert: boolean;
-  share: boolean;
-  summarize: boolean;
-  history: boolean;
-  fileOps: boolean;
-  shell: boolean;
-  commands: boolean;
-  fileOutput: boolean;
-  mcp: boolean;
-}
-
 // --- Provider interface ---
 
 export interface Provider {
   /** Provider identifier */
   readonly name: "opencode";
-
-  /** Declared capabilities for this provider */
-  readonly capabilities: ProviderCapabilities;
 
   // Lifecycle
   init(): Promise<void>;
@@ -156,6 +150,8 @@ export interface Provider {
   listSessions(): Promise<SessionInfo[]>;
   getSession(id: string): Promise<Session | null>;
   deleteSession(id: string): Promise<boolean>;
+  renameSession(id: string, title: string): Promise<boolean>;
+  getSessionStatuses(): Promise<Record<string, string>>;
 
   // Messaging
   prompt(sessionId: string, text: string, options?: PromptOptions): Promise<PromptResult>;
@@ -175,11 +171,13 @@ export interface Provider {
   revert(sessionId: string): Promise<boolean>;
   unrevert(sessionId: string): Promise<boolean>;
   share(sessionId: string): Promise<string | null>;
+  unshare(sessionId: string): Promise<boolean>;
   summarize(sessionId: string): Promise<boolean>;
   getHistory(sessionId: string, limit?: number): Promise<unknown[] | null>;
 
   // File operations (return null if not supported)
   readFile(path: string): Promise<string | null>;
+  listFiles(path: string): Promise<FileNode[] | null>;
   findFiles(query: string): Promise<string[] | null>;
   searchText(pattern: string): Promise<SearchResult[] | null>;
   findSymbols(query: string): Promise<unknown[] | null>;
@@ -195,7 +193,7 @@ export interface Provider {
 
   // Info
   getProjectInfo(): Promise<ProjectInfo | null>;
-  getTools(): Promise<string[] | null>;
+  getTools(): Promise<ToolInfo[] | null>;
   getCommands(): Promise<CommandInfo[] | null>;
   getHealth(): Promise<HealthInfo>;
   getConfig(): Promise<unknown>;
@@ -209,6 +207,6 @@ export interface Provider {
   getMcpStatus(): Promise<McpServerStatus[] | null>;
   addMcpServer(name: string, config: McpServerConfig): Promise<boolean>;
   removeMcpServer(name: string): Promise<boolean>;
+  connectMcpServer(name: string): Promise<boolean>;
 }
 
-export type ProviderName = Provider["name"];

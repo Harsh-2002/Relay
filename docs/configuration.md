@@ -38,7 +38,6 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--streaming-enabled` | `true` or `false` |
 | `--stream-edit-interval-ms` | Stream edit interval in ms |
 | `--prompt-timeout-ms` | Prompt timeout in ms |
-| `--log-level` | `debug`, `info`, `warn`, `error` |
 | `--data-dir` | Data directory (default: `.relay/`) |
 | `--system-prompt-file` | Custom system prompt file path |
 
@@ -102,11 +101,7 @@ The directory is excluded from git via `.gitignore`.
 
 ## Logging
 
-| Config field | CLI flag | Default | Description |
-|-------------|----------|---------|-------------|
-| `logLevel` | `--log-level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
-
-Relay uses structured JSON logging via pino. Set to `debug` for verbose output when troubleshooting.
+Relay uses structured JSON logging via pino at `info` level. All provider interactions, SSE events, and prompt lifecycle are logged for full visibility.
 
 ## System Prompt
 

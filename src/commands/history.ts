@@ -18,10 +18,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const messages = await provider.getHistory(sessionId);
 
       if (!messages) {
-        await ctx.reply(
-          `History is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("No history available for this session.", { parse_mode: "HTML" });
         return;
       }
 
@@ -88,16 +85,33 @@ export function registerHistoryCommands(bot: Bot): void {
           `Session shared: <a href="${escapeHtml(shareUrl)}">${escapeHtml(shareUrl)}</a>`,
           { parse_mode: "HTML" }
         );
-      } else if (shareUrl === null) {
-        await ctx.reply(
-          `Sharing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
       } else {
-        await ctx.reply("Session shared successfully.", { parse_mode: "HTML" });
+        await ctx.reply("Could not share this session.", { parse_mode: "HTML" });
       }
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "sharing session"), { parse_mode: "HTML" });
+    }
+  });
+
+  bot.command("unshare", async (ctx) => {
+    try {
+      const sessionId = getActiveSessionId();
+      if (!sessionId) {
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
+        return;
+      }
+
+      const provider = getProvider();
+      const ok = await provider.unshare(sessionId);
+
+      if (!ok) {
+        await ctx.reply("Could not unshare this session.", { parse_mode: "HTML" });
+        return;
+      }
+
+      await ctx.reply("Session link revoked.", { parse_mode: "HTML" });
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "unsharing session"), { parse_mode: "HTML" });
     }
   });
 
@@ -113,12 +127,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const reverted = await provider.revert(sessionId);
 
       if (!reverted) {
-        await ctx.reply(
-          provider.name === "opencode"
-            ? "No assistant message to revert."
-            : `Revert is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("No assistant message to revert.", { parse_mode: "HTML" });
         return;
       }
 
@@ -140,10 +149,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const ok = await provider.unrevert(sessionId);
 
       if (!ok) {
-        await ctx.reply(
-          `Unrevert is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Nothing to unrevert.", { parse_mode: "HTML" });
         return;
       }
 
@@ -166,10 +172,7 @@ export function registerHistoryCommands(bot: Bot): void {
       const ok = await provider.summarize(sessionId);
 
       if (!ok) {
-        await ctx.reply(
-          `Summarize is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Could not summarize this session.", { parse_mode: "HTML" });
         return;
       }
 

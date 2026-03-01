@@ -47,7 +47,7 @@ OpenCode is the sole backend, implementing the `Provider` interface (`src/provid
 
 Commands are registered in `src/commands/index.ts` in a specific order. Each module registers Grammy handlers:
 
-- **`chat.ts`** — Main text message handler; routes to streaming or non-streaming prompt pipeline
+- **`chat.ts`** — Main text message handler; routes to streaming or non-streaming prompt pipeline. Supports reply-to-message context and edited message re-prompting
 - **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/help`, etc.
 - **`session.ts`** — `/new`, `/sessions`, `/switch`, `/delete`, `/current`
 - **`monitor.ts`** — `/todo`, `/diff`, `/fork`
@@ -61,12 +61,17 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 
 - **`logger.ts`** — Pino-based structured logging with child loggers per component
 - **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `.relay/` directory)
-- **`stream.ts`** — Streaming response handler: sends placeholder message, updates it every N seconds as chunks arrive
-- **`chunker.ts`** — Splits messages at Telegram's 4096-char limit, breaking at paragraph/line/space boundaries
+- **`stream.ts`** — Streaming response handler: sends placeholder message, updates it every N seconds as chunks arrive. Auto-closes unclosed code fences during intermediate edits; shows tail-end for long responses (>4000 chars); 60-second stall detection per chunk
+- **`reply.ts`** — Shared response sender: handles reasoning blockquotes, markdown→HTML conversion, HTML-aware chunking, plain-text fallback, and large response (>20K chars) file attachment
+- **`markdown.ts`** — Markdown to Telegram HTML converter: handles bold, italic, strikethrough, code, links, blockquotes. Guards against false-positive italic on math expressions
+- **`chunker.ts`** — HTML-aware message chunker: splits at Telegram's 4096-char limit while tracking open HTML tags across chunk boundaries (closes at end, re-opens at start of next chunk)
+- **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
+- **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses
 - **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > AssemblyAI > OpenAI
 - **`system-prompt.ts`** — Loads custom system prompt from `.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
+- **`timeout.ts`** — Prompt timeout utility wrapping promises with configurable deadline
 
 ### Daemon Management (`src/daemon.ts`)
 
@@ -78,8 +83,8 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 
 ### State & Session Management
 
-- **`src/session.ts`** — Tracks active session ID and selected model, persisted to `.relay/session.json`. Uses a mutex to prevent race conditions on concurrent messages.
-- **`src/auth.ts`** — Single-user auth via `initAuth(userId)` + rate limiting (30 req/min).
+- **`src/session.ts`** — Tracks active session ID and selected model, persisted to `.relay/session.json`. Uses a mutex to prevent race conditions on concurrent messages. Exports `withPromptQueue()` for serial prompt execution (prevents SSE stream interleaving).
+- **`src/auth.ts`** — Single-user auth via `initAuth(userId)` + rate limiting (30 req/min) with countdown timer.
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
 - **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run.
 - **`src/index.ts`** — Bot startup: loads config, inits provider, starts bot in polling or webhook mode.
@@ -101,6 +106,11 @@ State is persisted via `JsonStore` to `.relay/`:
 - **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
 - **Bundled SDK**: The OpenCode SDK (`@opencode-ai/sdk`) is bundled as a dependency.
-- **Streaming**: When `streamingEnabled` is true in config, `src/utils/stream.ts` sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`.
-- **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts`). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
+- **Streaming**: When `streamingEnabled` is true in config, `src/utils/stream.ts` sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`. Includes stall detection (60s per-chunk inactivity timeout) and auto-closes unclosed code fences during intermediate edits.
+- **Prompt queue**: All prompt execution (chat and media) is wrapped in `withPromptQueue()` from `src/session.ts` to serialize concurrent messages and prevent SSE stream interleaving.
+- **Response sending**: Use `sendReply()` from `src/utils/reply.ts` for all non-streaming responses. It handles reasoning blockquotes, markdown→HTML, chunking, and fallback.
+- **Reasoning display**: AI thinking/reasoning is shown in Telegram expandable blockquotes (`<blockquote expandable>`) above the answer. For large responses, reasoning is sent as a separate message.
+- **Reply context**: When users reply to a bot message, the quoted text is prepended to the prompt as `[Replying to: "..."]`.
+- **Edited messages**: Edited user messages are handled via grammY's `edited_message:text` event, prefixed with `[Edited message]`.
+- **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts` which is HTML-aware — tracks open tags across chunks). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

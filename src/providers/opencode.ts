@@ -148,34 +148,42 @@ export class OpenCodeProvider implements Provider {
     const startMs = Date.now();
     providerLogger.info(
       { sessionId, textLen: text.length, model: options?.model, agent: options?.agent },
-      "Starting prompt"
+      "Starting prompt (via async)"
     );
 
-    const body: any = {
-      parts: options?.parts ?? [{ type: "text", text }],
-    };
-    if (options?.model) body.model = options.model;
-    if (options?.system) body.system = options.system;
-    if (options?.agent) body.agent = options.agent;
+    const textParts: string[] = [];
+    const reasoningParts: string[] = [];
+    const fileParts: any[] = [];
+    let chunkCount = 0;
 
-    const result = await client.session.prompt({
-      path: { id: sessionId },
-      body,
-    });
+    for await (const chunk of this.promptStream(sessionId, text, options)) {
+      chunkCount++;
+      if (chunk.type === "text") {
+        textParts.push(chunk.content);
+      } else if (chunk.type === "reasoning") {
+        reasoningParts.push(chunk.content);
+      } else if (chunk.type === "file" && chunk.file) {
+        fileParts.push({
+          type: "file" as const,
+          mime: chunk.file.mime,
+          filename: chunk.file.filename,
+          url: chunk.file.url,
+        });
+      } else if (chunk.type === "done") {
+        break;
+      }
+    }
 
-    if (result.error) throw sdkError(result.error);
+    const collectedText = textParts.join("") || "(empty response)";
+    const collectedReasoning = reasoningParts.join("") || undefined;
+    const parts: any[] = [{ type: "text", text: collectedText }, ...fileParts];
 
-    const responseText = formatPartsToText(result.data?.parts ?? []);
     providerLogger.info(
-      { sessionId, durationMs: Date.now() - startMs, responseLen: responseText.length },
+      { sessionId, durationMs: Date.now() - startMs, responseLen: collectedText.length, reasoningLen: collectedReasoning?.length ?? 0 },
       "Prompt completed"
     );
 
-    return {
-      text: responseText,
-      parts: result.data?.parts,
-      raw: result.data,
-    };
+    return { text: collectedText, reasoning: collectedReasoning, parts, raw: null };
   }
 
   async abort(sessionId: string): Promise<void> {
@@ -203,63 +211,145 @@ export class OpenCodeProvider implements Provider {
     if (options?.system) body.system = options.system;
     if (options?.agent) body.agent = options.agent;
 
-    await client.session.promptAsync({
+    providerLogger.info({ sessionId, body }, "promptAsync request body");
+
+    const asyncResult = await client.session.promptAsync({
       path: { id: sessionId },
       body,
     });
+    providerLogger.info(
+      { sessionId, status: (asyncResult as any)?.response?.status, error: asyncResult.error },
+      "promptAsync response"
+    );
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const GLOBAL_TIMEOUT = 120_000;
+    const STALL_TIMEOUT = 60_000;
+    const globalTimer = setTimeout(() => {
+      providerLogger.warn({ sessionId }, "Stream timeout — aborting after 120s");
+      controller.abort();
+    }, GLOBAL_TIMEOUT);
+
+    // Per-chunk stall detection: abort if no session-relevant events for 60s
+    let stallTimer = setTimeout(() => {
+      providerLogger.warn({ sessionId }, "Stream stall — no activity for 60s, aborting");
+      controller.abort();
+    }, STALL_TIMEOUT);
+    const resetStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        providerLogger.warn({ sessionId }, "Stream stall — no activity for 60s, aborting");
+        controller.abort();
+      }, STALL_TIMEOUT);
+    };
+
     const sseResult = await client.event.subscribe();
     providerLogger.info({ sessionId }, "SSE subscription opened");
 
     let chunkCount = 0;
     let toolEvents = 0;
+    // Track partIDs from delta events so we can match message.part.updated
+    // events (v2 API: updated events lack sessionID at top level)
+    const sessionPartIds = new Set<string>();
 
     try {
       for await (const event of sseResult.stream) {
         if (controller.signal.aborted) break;
         const evt = event as OcEvent;
-        if (!matchesSession(evt, sessionId)) continue;
+        const evtType = evt.type as string;
+        const props = evt.properties as any;
 
-        if (evt.type === "message.part.updated") {
-          const { part, delta } = evt.properties;
-          if (part.type === "text") {
-            if (delta) {
-              chunkCount++;
-              yield { type: "text", content: delta };
+        // Log non-delta events individually; delta events are logged in batches
+        if (evtType !== "message.part.delta") {
+          providerLogger.info(
+            { type: evtType, elapsedMs: Date.now() - startMs },
+            "SSE event"
+          );
+        }
+
+        // --- v2 API: message.part.delta (streaming text/reasoning tokens) ---
+        if (evtType === "message.part.delta") {
+          if (props.sessionID !== sessionId) continue;
+          resetStallTimer();
+          sessionPartIds.add(props.partID);
+
+          if (props.delta) {
+            chunkCount++;
+            // Log progress every 50 chunks
+            if (chunkCount % 50 === 0) {
+              providerLogger.info(
+                { sessionId, chunkCount, field: props.field, elapsedMs: Date.now() - startMs },
+                "Stream progress"
+              );
             }
-          } else if (part.type === "file") {
+            if (props.field === "text") {
+              yield { type: "text", content: props.delta };
+            } else if (props.field === "reasoning") {
+              yield { type: "reasoning", content: props.delta };
+            } else {
+              providerLogger.info(
+                { sessionId, field: props.field, partID: props.partID },
+                "Unhandled delta field"
+              );
+            }
+          }
+
+        // --- message.part.updated (files, tool state, full part snapshots) ---
+        } else if (evtType === "message.part.updated") {
+          const part = props.part;
+          // v2: no sessionID on updated events — match by tracked partID or sessionID (v1 compat)
+          const partId = part?.id ?? props.partID;
+          const isOurSession = matchesSession(evt, sessionId)
+            || (partId && sessionPartIds.has(partId));
+          if (!isOurSession) continue;
+          resetStallTimer();
+
+          providerLogger.info(
+            { sessionId, partType: part?.type, partId },
+            "message.part.updated"
+          );
+
+          // v1 compat: updated events may carry a delta field
+          const delta = props.delta;
+          if (part?.type === "text" && delta) {
+            chunkCount++;
+            yield { type: "text", content: delta };
+          } else if (part?.type === "file") {
             yield {
               type: "file" as const,
               content: part.filename ?? "file",
               file: { mime: part.mime, filename: part.filename ?? "file", url: part.url },
             };
-          } else if (part.type === "reasoning") {
-            if (delta) {
-              yield { type: "reasoning", content: delta };
-            }
-          } else if (part.type === "tool") {
+          } else if (part?.type === "reasoning" && delta) {
+            yield { type: "reasoning", content: delta };
+          } else if (part?.type === "tool") {
             toolEvents++;
             const toolName = part.tool;
-            if (part.state.status === "running") {
+            if (part.state?.status === "running") {
               yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
-            } else if (part.state.status === "completed") {
+            } else if (part.state?.status === "completed") {
               yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
-            } else if (part.state.status === "error") {
+            } else if (part.state?.status === "error") {
               yield { type: "tool_use", content: `[${toolName} error]` };
             }
           }
-        } else if (evt.type === "session.idle") {
+
+        // --- session lifecycle ---
+        } else if (evtType === "session.idle") {
+          if (!matchesSession(evt, sessionId)) continue;
+          providerLogger.info({ sessionId, elapsedMs: Date.now() - startMs }, "session.idle — done");
           yield { type: "done", content: "" };
           break;
-        } else if (evt.type === "session.error") {
-          const rawError = (evt.properties as any).error ?? "Unknown session error";
+        } else if (evtType === "session.error") {
+          if (!matchesSession(evt, sessionId)) continue;
+          const rawError = props.error ?? "Unknown session error";
+          providerLogger.info({ sessionId, error: rawError }, "session.error");
           throw new Error(rawError);
         }
       }
     } finally {
-      clearTimeout(timeout);
+      clearTimeout(globalTimer);
+      clearTimeout(stallTimer);
       providerLogger.info(
         { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents },
         "Stream completed"

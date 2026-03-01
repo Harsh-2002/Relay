@@ -18,15 +18,7 @@ export function registerMonitorCommands(bot: Bot): void {
       const provider = getProvider();
       const todos = await provider.getTodos(sessionId);
 
-      if (todos === null) {
-        await ctx.reply(
-          `Todo list is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (todos.length === 0) {
+      if (!todos || todos.length === 0) {
         await ctx.reply("No tasks in this session.", { parse_mode: "HTML" });
         return;
       }
@@ -62,10 +54,7 @@ export function registerMonitorCommands(bot: Bot): void {
       const diffs = await provider.getDiff(sessionId);
 
       if (diffs === null) {
-        await ctx.reply(
-          `Diff is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("No changes available for this session.", { parse_mode: "HTML" });
         return;
       }
 
@@ -135,10 +124,7 @@ export function registerMonitorCommands(bot: Bot): void {
       const forked = await provider.forkSession(sessionId, messageID);
 
       if (!forked) {
-        await ctx.reply(
-          `Forking is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Could not fork this session.", { parse_mode: "HTML" });
         return;
       }
 

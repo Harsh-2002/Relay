@@ -38,8 +38,13 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
   const now = Date.now();
   const bucket = (rateBuckets.get(userId) ?? []).filter((t) => now - t < 60_000);
   if (bucket.length >= RATE_LIMIT) {
-    authLogger.info({ userId, bucketSize: bucket.length }, "Rate limit hit");
-    await ctx.reply("Too many requests — wait a moment.");
+    // Calculate how long until the oldest request expires
+    const oldestRequest = bucket[0];
+    const waitSeconds = Math.ceil((oldestRequest + 60_000 - now) / 1000);
+    authLogger.info({ userId, bucketSize: bucket.length, waitSeconds }, "Rate limit hit");
+    await ctx.reply(
+      `Rate limited — ${RATE_LIMIT} requests/minute exceeded. Try again in ${waitSeconds}s.`
+    );
     return;
   }
   bucket.push(now);

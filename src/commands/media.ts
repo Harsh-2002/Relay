@@ -1,7 +1,7 @@
 import type { Bot } from "grammy";
 import { getProvider } from "../providers/index.js";
-import { getOrCreateSession, getSelectedModel, getSelectedAgent } from "../session.js";
-import { chunkMessage } from "../utils/chunker.js";
+import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
+import { sendReply } from "../utils/reply.js";
 import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media.js";
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
@@ -11,7 +11,7 @@ import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
 import { readFileSync } from "fs";
 import { getConfig } from "../config/index.js";
-import { markdownToHtml } from "../utils/markdown.js";
+
 import { mediaLogger } from "../utils/logger.js";
 
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
@@ -32,35 +32,129 @@ export function registerMediaHandlers(bot: Bot): void {
         "Document received"
       );
 
+      if (!file.file_path) {
+        await ctx.reply(
+          "File is too large for Telegram to provide a download link (max ~20 MB). Try sending a smaller file.",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
       const typingInterval = setInterval(() => {
         ctx.replyWithChatAction("typing").catch(() => {});
       }, 4000);
       await ctx.replyWithChatAction("typing");
 
       try {
-        const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
-        mediaLogger.info({ fileName, localPath }, "Document downloaded");
-        const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
+        await withPromptQueue(async () => {
+          const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
+          mediaLogger.info({ fileName, localPath }, "Document downloaded");
+          const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
 
-        const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
-        let promptText: string;
+          const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
+          let promptText: string;
 
-        if (isTextFile) {
-          let content: string;
-          try {
-            content = readFileSync(localPath, "utf-8");
-          } catch {
-            await ctx.reply("Failed to read the uploaded file. Please try again.", { parse_mode: "HTML" });
+          if (isTextFile) {
+            let content: string;
+            try {
+              content = readFileSync(localPath, "utf-8");
+            } catch {
+              await ctx.reply("Failed to read the uploaded file. Please try again.", { parse_mode: "HTML" });
+              return;
+            }
+            if (content.length <= 500_000) {
+              promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
+            } else {
+              const head = content.slice(0, 100_000);
+              const tail = content.slice(-10_000);
+              const omitted = content.length - 110_000;
+              promptText = `${caption}\n\nFile: ${fileName} (${content.length} chars, truncated)\n\`\`\`\n${head}\n\n... [${omitted} characters omitted] ...\n\n${tail}\n\`\`\``;
+            }
+
+            const sessionId = await getOrCreateSession();
+            const provider = getProvider();
+            const model = getSelectedModel();
+            const agent = getSelectedAgent();
+            const system = getSystemPrompt();
+            const parts: any[] = [{ type: "text" as const, text: promptText }];
+
+            mediaLogger.info({ fileName, sessionId }, "Sending text file to provider");
+            if (isStreamingEnabled() && provider.promptStream) {
+              await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+            } else {
+              const result = await withTimeout(
+                provider.prompt(sessionId, promptText, {
+                  parts,
+                  ...(model && { model }),
+                  ...(agent && { agent }),
+                  system,
+                }),
+                getPromptTimeout(),
+                "Prompt"
+              );
+
+              if (!result.text.trim() || result.text === "(empty response)") {
+                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+                return;
+              }
+              await sendReply(ctx, result.text, result.reasoning);
+              await sendFiles(ctx, result.parts);
+            }
             return;
-          }
-          if (content.length <= 500_000) {
-            promptText = `${caption}\n\nFile: ${fileName}\n\`\`\`\n${content}\n\`\`\``;
+          } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
+            const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
+
+            if (buffer.length > MAX_ATTACHMENT_BYTES) {
+              const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+              await ctx.reply(
+                `File is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
+                { parse_mode: "HTML" }
+              );
+              return;
+            }
+
+            const base64 = buffer.toString("base64");
+            const mime = doc.mime_type!;
+            const dataUrl = `data:${mime};base64,${base64}`;
+
+            promptText = `${caption}\n\n(Attached file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
+
+            const parts: any[] = [
+              { type: "text" as const, text: promptText },
+              { type: "file" as const, mime, filename: fileName, url: dataUrl },
+            ];
+
+            const sessionId = await getOrCreateSession();
+            const provider = getProvider();
+            const model = getSelectedModel();
+            const agent = getSelectedAgent();
+            const system = getSystemPrompt();
+
+            mediaLogger.info({ fileName, mime, sessionId }, "Sending image/PDF to provider");
+            if (isStreamingEnabled() && provider.promptStream) {
+              await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+            } else {
+              const result = await withTimeout(
+                provider.prompt(sessionId, promptText, {
+                  parts,
+                  ...(model && { model }),
+                  ...(agent && { agent }),
+                  system,
+                }),
+                getPromptTimeout(),
+                "Prompt"
+              );
+
+              if (!result.text.trim() || result.text === "(empty response)") {
+                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+                return;
+              }
+              await sendReply(ctx, result.text, result.reasoning);
+              await sendFiles(ctx, result.parts);
+            }
+            return;
           } else {
-            // Chunked: first 100K chars + last 10K chars for very large files
-            const head = content.slice(0, 100_000);
-            const tail = content.slice(-10_000);
-            const omitted = content.length - 110_000;
-            promptText = `${caption}\n\nFile: ${fileName} (${content.length} chars, truncated)\n\`\`\`\n${head}\n\n... [${omitted} characters omitted] ...\n\n${tail}\n\`\`\``;
+            promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
           }
 
           const sessionId = await getOrCreateSession();
@@ -68,111 +162,25 @@ export function registerMediaHandlers(bot: Bot): void {
           const model = getSelectedModel();
           const agent = getSelectedAgent();
           const system = getSystemPrompt();
-          const parts: any[] = [{ type: "text" as const, text: promptText }];
 
-          mediaLogger.info({ fileName, sessionId }, "Sending text file to provider");
-          if (isStreamingEnabled() && provider.promptStream) {
-            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-          } else {
-            const result = await withTimeout(
-              provider.prompt(sessionId, promptText, {
-                parts,
-                ...(model && { model }),
-                ...(agent && { agent }),
-                system,
-              }),
-              getPromptTimeout(),
-              "Prompt"
-            );
+          const result = await withTimeout(
+            provider.prompt(sessionId, promptText, {
+              parts: [{ type: "text", text: promptText }],
+              ...(model && { model }),
+              ...(agent && { agent }),
+              system,
+            }),
+            getPromptTimeout(),
+            "Prompt"
+          );
 
-            if (!result.text.trim() || result.text === "(empty response)") {
-              await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-              return;
-            }
-            await sendTextChunks(ctx, result.text);
-            await sendFiles(ctx, result.parts);
-          }
-          return;
-        } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
-          // Image or PDF document: read buffer and send as file part
-          const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
-
-          if (buffer.length > MAX_ATTACHMENT_BYTES) {
-            const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
-            await ctx.reply(
-              `File is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
-              { parse_mode: "HTML" }
-            );
+          if (!result.text.trim() || result.text === "(empty response)") {
+            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
             return;
           }
-
-          const base64 = buffer.toString("base64");
-          const mime = doc.mime_type!;
-          const dataUrl = `data:${mime};base64,${base64}`;
-
-          promptText = `${caption}\n\n(Attached file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
-
-          const parts: any[] = [
-            { type: "text" as const, text: promptText },
-            { type: "file" as const, mime, filename: fileName, url: dataUrl },
-          ];
-
-          const sessionId = await getOrCreateSession();
-          const provider = getProvider();
-          const model = getSelectedModel();
-          const agent = getSelectedAgent();
-          const system = getSystemPrompt();
-
-          mediaLogger.info({ fileName, mime, sessionId }, "Sending image/PDF to provider");
-          if (isStreamingEnabled() && provider.promptStream) {
-            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-          } else {
-            const result = await withTimeout(
-              provider.prompt(sessionId, promptText, {
-                parts,
-                ...(model && { model }),
-                ...(agent && { agent }),
-                system,
-              }),
-              getPromptTimeout(),
-              "Prompt"
-            );
-
-            if (!result.text.trim() || result.text === "(empty response)") {
-              await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-              return;
-            }
-            await sendTextChunks(ctx, result.text);
-            await sendFiles(ctx, result.parts);
-          }
-          return;
-        } else {
-          promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
-        }
-
-        const sessionId = await getOrCreateSession();
-        const provider = getProvider();
-        const model = getSelectedModel();
-        const agent = getSelectedAgent();
-        const system = getSystemPrompt();
-
-        const result = await withTimeout(
-          provider.prompt(sessionId, promptText, {
-            parts: [{ type: "text", text: promptText }],
-            ...(model && { model }),
-            ...(agent && { agent }),
-            system,
-          }),
-          getPromptTimeout(),
-          "Prompt"
-        );
-
-        if (!result.text.trim() || result.text === "(empty response)") {
-          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-          return;
-        }
-        await sendTextChunks(ctx, result.text);
-        await sendFiles(ctx, result.parts);
+          await sendReply(ctx, result.text, result.reasoning);
+          await sendFiles(ctx, result.parts);
+        });
       } finally {
         clearInterval(typingInterval);
       }
@@ -193,70 +201,78 @@ export function registerMediaHandlers(bot: Bot): void {
         "Photo received"
       );
 
+      if (!file.file_path) {
+        await ctx.reply(
+          "Photo is too large for Telegram to provide a download link. Try sending a smaller photo.",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
       const typingInterval = setInterval(() => {
         ctx.replyWithChatAction("typing").catch(() => {});
       }, 4000);
       await ctx.replyWithChatAction("typing");
 
       try {
-        const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
+        await withPromptQueue(async () => {
+          const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
 
-        if (buffer.length > MAX_ATTACHMENT_BYTES) {
-          const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
-          await ctx.reply(
-            `Photo is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
-            { parse_mode: "HTML" }
-          );
-          return;
-        }
-
-        const caption = ctx.message.caption ?? "I've shared a photo. Please review it.";
-
-        // Send as FilePartInput with base64 data URL for vision models
-        const base64 = buffer.toString("base64");
-        const dataUrl = `data:image/jpeg;base64,${base64}`;
-
-        const parts: any[] = [
-          { type: "text" as const, text: caption },
-          {
-            type: "file" as const,
-            mime: "image/jpeg",
-            filename: fileName,
-            url: dataUrl,
-          },
-        ];
-
-        // Also save locally for reference
-        await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
-
-        const sessionId = await getOrCreateSession();
-        const model = getSelectedModel();
-        const agent = getSelectedAgent();
-        const system = getSystemPrompt();
-        const provider = getProvider();
-
-        mediaLogger.info({ sessionId, bufferLen: buffer.length }, "Sending photo to provider");
-        if (isStreamingEnabled() && provider.promptStream) {
-          await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-        } else {
-          const result = await withTimeout(
-            provider.prompt(sessionId, caption, {
-              parts,
-              ...(model && { model }),
-              ...(agent && { agent }),
-              system,
-            }),
-            getPromptTimeout(),
-            "Prompt"
-          );
-
-          if (!result.text.trim() || result.text === "(empty response)") {
-            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+          if (buffer.length > MAX_ATTACHMENT_BYTES) {
+            const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+            await ctx.reply(
+              `Photo is too large (${sizeMB} MB). Maximum attachment size is 15 MB.`,
+              { parse_mode: "HTML" }
+            );
             return;
           }
-          await sendTextChunks(ctx, result.text);
-          await sendFiles(ctx, result.parts);
-        }
+
+          const caption = ctx.message.caption ?? "I've shared a photo. Please review it.";
+
+          const base64 = buffer.toString("base64");
+          const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+          const parts: any[] = [
+            { type: "text" as const, text: caption },
+            {
+              type: "file" as const,
+              mime: "image/jpeg",
+              filename: fileName,
+              url: dataUrl,
+            },
+          ];
+
+          await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
+
+          const sessionId = await getOrCreateSession();
+          const model = getSelectedModel();
+          const agent = getSelectedAgent();
+          const system = getSystemPrompt();
+          const provider = getProvider();
+
+          mediaLogger.info({ sessionId, bufferLen: buffer.length }, "Sending photo to provider");
+          if (isStreamingEnabled() && provider.promptStream) {
+            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+          } else {
+            const result = await withTimeout(
+              provider.prompt(sessionId, caption, {
+                parts,
+                ...(model && { model }),
+                ...(agent && { agent }),
+                system,
+              }),
+              getPromptTimeout(),
+              "Prompt"
+            );
+
+            if (!result.text.trim() || result.text === "(empty response)") {
+              await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+              return;
+            }
+            await sendReply(ctx, result.text, result.reasoning);
+            await sendFiles(ctx, result.parts);
+          }
+        });
       } finally {
         clearInterval(typingInterval);
       }
@@ -282,54 +298,57 @@ export function registerMediaHandlers(bot: Bot): void {
     await ctx.replyWithChatAction("typing");
 
     try {
-      const file = await ctx.getFile();
-      const fileName = `voice_${Date.now()}.ogg`;
-
-      const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
-      mediaLogger.info({ fileName, bufferLen: buffer.length }, "Voice downloaded, transcribing");
-      const result = await transcribeAudio(buffer, fileName);
-
-      mediaLogger.info({ provider: result.provider, textLen: result.text?.length ?? 0 }, "Voice transcription result");
-      if (!result.text || result.text.trim().length === 0) {
-        clearInterval(typingInterval);
-        await ctx.reply("Could not transcribe voice message (empty result).", { parse_mode: "HTML" });
-        return;
-      }
-
-      const sessionId = await getOrCreateSession();
-      const model = getSelectedModel();
-      const agent = getSelectedAgent();
-      const system = getSystemPrompt();
-      const provider = getProvider();
-      const promptParts = [{ type: "text" as const, text: result.text }];
-
-      if (isStreamingEnabled() && provider.promptStream) {
-        await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
-        clearInterval(typingInterval);
-      } else {
-        const promptResult = await withTimeout(
-          provider.prompt(sessionId, result.text, {
-            parts: promptParts,
-            ...(model && { model }),
-            ...(agent && { agent }),
-            system,
-          }),
-          getPromptTimeout(),
-          "Prompt"
-        );
-
-        clearInterval(typingInterval);
-
-        if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+      await withPromptQueue(async () => {
+        const file = await ctx.getFile();
+        if (!file.file_path) {
+          await ctx.reply("Voice file unavailable. Try sending a shorter message.", { parse_mode: "HTML" });
           return;
         }
-        await sendTextChunks(ctx, promptResult.text);
-        await sendFiles(ctx, promptResult.parts);
-      }
+        const fileName = `voice_${Date.now()}.ogg`;
+
+        const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path);
+        mediaLogger.info({ fileName, bufferLen: buffer.length }, "Voice downloaded, transcribing");
+        const result = await transcribeAudio(buffer, fileName);
+
+        mediaLogger.info({ provider: result.provider, textLen: result.text?.length ?? 0 }, "Voice transcription result");
+        if (!result.text || result.text.trim().length === 0) {
+          await ctx.reply("Could not transcribe voice message (empty result).", { parse_mode: "HTML" });
+          return;
+        }
+
+        const sessionId = await getOrCreateSession();
+        const model = getSelectedModel();
+        const agent = getSelectedAgent();
+        const system = getSystemPrompt();
+        const provider = getProvider();
+        const promptParts = [{ type: "text" as const, text: result.text }];
+
+        if (isStreamingEnabled() && provider.promptStream) {
+          await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
+        } else {
+          const promptResult = await withTimeout(
+            provider.prompt(sessionId, result.text, {
+              parts: promptParts,
+              ...(model && { model }),
+              ...(agent && { agent }),
+              system,
+            }),
+            getPromptTimeout(),
+            "Prompt"
+          );
+
+          if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
+            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+            return;
+          }
+          await sendReply(ctx, promptResult.text, promptResult.reasoning);
+          await sendFiles(ctx, promptResult.parts);
+        }
+      });
     } catch (err: any) {
-      clearInterval(typingInterval);
       await ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" });
+    } finally {
+      clearInterval(typingInterval);
     }
   });
 
@@ -341,96 +360,101 @@ export function registerMediaHandlers(bot: Bot): void {
     await ctx.replyWithChatAction("typing");
 
     try {
-      const audio = ctx.message.audio;
-      const file = await ctx.getFile();
-      const fileName = audio.file_name ?? `audio_${Date.now()}.mp3`;
-      const sttAvailable = isSttAvailable();
-
-      mediaLogger.info(
-        { fileName, size: audio.file_size, mime: audio.mime_type, sttAvailable },
-        "Audio received"
-      );
-
-      if (sttAvailable) {
-        const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
-        const result = await transcribeAudio(buffer, fileName);
-
-        if (result.text && result.text.trim().length > 0) {
-          const sessionId = await getOrCreateSession();
-          const provider = getProvider();
-          const model = getSelectedModel();
-          const agent = getSelectedAgent();
-          const system = getSystemPrompt();
-
-          if (isStreamingEnabled() && provider.promptStream) {
-            await streamPrompt({
-              ctx, sessionId,
-              parts: [{ type: "text", text: result.text }],
-              model, system, agent,
-            });
-            clearInterval(typingInterval);
-          } else {
-            const promptResult = await withTimeout(
-              provider.prompt(sessionId, result.text, {
-                parts: [{ type: "text", text: result.text }],
-                ...(model && { model }),
-                ...(agent && { agent }),
-                system,
-              }),
-              getPromptTimeout(),
-              "Prompt"
-            );
-
-            clearInterval(typingInterval);
-
-            if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-              await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-              return;
-            }
-            await sendTextChunks(ctx, promptResult.text);
-            await sendFiles(ctx, promptResult.parts);
-          }
+      await withPromptQueue(async () => {
+        const audio = ctx.message.audio;
+        const file = await ctx.getFile();
+        if (!file.file_path) {
+          await ctx.reply(
+            "Audio file is too large for Telegram to provide a download link (max ~20 MB).",
+            { parse_mode: "HTML" }
+          );
           return;
         }
-      }
+        const fileName = audio.file_name ?? `audio_${Date.now()}.mp3`;
+        const sttAvailable = isSttAvailable();
 
-      // Fallback: download and reference as file
-      await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
-      const caption = ctx.message.caption ?? `Audio file: ${fileName}`;
+        mediaLogger.info(
+          { fileName, size: audio.file_size, mime: audio.mime_type, sttAvailable },
+          "Audio received"
+        );
 
-      const sessionId = await getOrCreateSession();
-      const provider = getProvider();
-      const model = getSelectedModel();
-      const agent = getSelectedAgent();
-      const system = getSystemPrompt();
+        if (sttAvailable) {
+          const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path);
+          const result = await transcribeAudio(buffer, fileName);
 
-      const promptResult = await withTimeout(
-        provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
-          parts: [
-            {
-              type: "text",
-              text: `${caption}\n\n(Audio file: ${fileName})`,
-            },
-          ],
-          ...(model && { model }),
-          ...(agent && { agent }),
-          system,
-        }),
-        getPromptTimeout(),
-        "Prompt"
-      );
+          if (result.text && result.text.trim().length > 0) {
+            const sessionId = await getOrCreateSession();
+            const provider = getProvider();
+            const model = getSelectedModel();
+            const agent = getSelectedAgent();
+            const system = getSystemPrompt();
 
-      clearInterval(typingInterval);
+            if (isStreamingEnabled() && provider.promptStream) {
+              await streamPrompt({
+                ctx, sessionId,
+                parts: [{ type: "text", text: result.text }],
+                model, system, agent,
+              });
+            } else {
+              const promptResult = await withTimeout(
+                provider.prompt(sessionId, result.text, {
+                  parts: [{ type: "text", text: result.text }],
+                  ...(model && { model }),
+                  ...(agent && { agent }),
+                  system,
+                }),
+                getPromptTimeout(),
+                "Prompt"
+              );
 
-      if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-        await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-        return;
-      }
-      await sendTextChunks(ctx, promptResult.text);
-      await sendFiles(ctx, promptResult.parts);
+              if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
+                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+                return;
+              }
+              await sendReply(ctx, promptResult.text, promptResult.reasoning);
+              await sendFiles(ctx, promptResult.parts);
+            }
+            return;
+          }
+        }
+
+        // Fallback: download and reference as file
+        await downloadTelegramFile(getBotToken(), file.file_path, fileName);
+        const caption = ctx.message.caption ?? `Audio file: ${fileName}`;
+
+        const sessionId = await getOrCreateSession();
+        const provider = getProvider();
+        const model = getSelectedModel();
+        const agent = getSelectedAgent();
+        const system = getSystemPrompt();
+
+        const promptResult = await withTimeout(
+          provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
+            parts: [
+              {
+                type: "text",
+                text: `${caption}\n\n(Audio file: ${fileName})`,
+              },
+            ],
+            ...(model && { model }),
+            ...(agent && { agent }),
+            system,
+          }),
+          getPromptTimeout(),
+          "Prompt"
+        );
+
+        if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
+          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
+          return;
+        }
+        await sendReply(ctx, promptResult.text, promptResult.reasoning);
+        await sendFiles(ctx, promptResult.parts);
+      });
     } catch (err: any) {
-      clearInterval(typingInterval);
       await ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" });
+    } finally {
+      clearInterval(typingInterval);
     }
   });
 }
@@ -457,21 +481,6 @@ function isPdfMime(mime?: string): boolean {
   return mime === "application/pdf";
 }
 
-async function sendTextChunks(ctx: any, text: string): Promise<void> {
-  const html = markdownToHtml(text);
-  const chunks = chunkMessage(html);
-  for (const chunk of chunks) {
-    try {
-      await ctx.reply(chunk, { parse_mode: "HTML" });
-    } catch (sendErr: any) {
-      const desc = sendErr?.description ?? sendErr?.message ?? "";
-      if (!desc.includes("can't parse")) {
-        mediaLogger.warn({ err: desc }, "Failed to send message chunk");
-      }
-      await ctx.reply(chunk.replace(/<[^>]+>/g, ""));
-    }
-  }
-}
 
 async function sendFiles(ctx: any, parts?: unknown[]): Promise<void> {
   if (!parts) return;

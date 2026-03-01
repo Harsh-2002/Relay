@@ -5,16 +5,6 @@ import { escapeHtml } from "../utils/html.js";
 
 export function registerMcpCommands(bot: Bot): void {
   bot.command("mcp", async (ctx) => {
-    const provider = getProvider();
-
-    if (!provider.capabilities.mcp) {
-      await ctx.reply(
-        `MCP management is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-
     const input = ctx.match?.trim() ?? "";
 
     // /mcp add <name> local <command...>
@@ -27,6 +17,12 @@ export function registerMcpCommands(bot: Bot): void {
     // /mcp remove <name>
     if (input.startsWith("remove ")) {
       await handleMcpRemove(ctx, input.slice(7).trim());
+      return;
+    }
+
+    // /mcp connect <name>
+    if (input.startsWith("connect ")) {
+      await handleMcpConnect(ctx, input.slice(8).trim());
       return;
     }
 
@@ -112,6 +108,35 @@ async function handleMcpAdd(ctx: any, input: string): Promise<void> {
     }
   } catch (err: any) {
     await ctx.reply(formatCatchError(err, "adding MCP server"), { parse_mode: "HTML" });
+  }
+}
+
+async function handleMcpConnect(ctx: any, name: string): Promise<void> {
+  if (!name) {
+    await ctx.reply(
+      `<b>Usage:</b>  <code>/mcp connect name</code>`,
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  try {
+    const provider = getProvider();
+    const ok = await provider.connectMcpServer(name);
+
+    if (ok) {
+      await ctx.reply(
+        `MCP server <code>${escapeHtml(name)}</code> reconnected.`,
+        { parse_mode: "HTML" }
+      );
+    } else {
+      await ctx.reply(
+        `Could not connect MCP server <code>${escapeHtml(name)}</code>.`,
+        { parse_mode: "HTML" }
+      );
+    }
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "connecting MCP server"), { parse_mode: "HTML" });
   }
 }
 

@@ -1,5 +1,5 @@
 import { getConfig } from "./config/index.js";
-import { initProvider, shutdownProvider, getProviderName, getProvider } from "./providers/index.js";
+import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
 import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
@@ -39,7 +39,7 @@ async function main() {
   const bot = createBot(config.botToken);
 
   // Register commands with Telegram for autocomplete menu
-  await bot.api.setMyCommands(getBotCommands(getProvider().capabilities));
+  await bot.api.setMyCommands(getBotCommands());
 
   const botMode = config.botMode;
   let httpServer: import("http").Server | null = null;

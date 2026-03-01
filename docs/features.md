@@ -21,6 +21,9 @@ Relay streams AI responses in real time. As the AI generates text, the Telegram 
 - Very long responses are split into multiple messages (Telegram's 4096-character limit)
 - Tool use indicators (e.g., "Reading file...", "Running command...") appear during processing
 - If the AI is using tools, you'll see status updates before the final text response
+- For long responses during streaming, the message shows the most recent content (tail end) rather than the beginning
+- Unclosed code fences are automatically closed during intermediate stream updates to prevent broken formatting
+- A 60-second inactivity timeout detects stalled streams and recovers gracefully
 
 ### Configuration
 
@@ -397,6 +400,47 @@ relay --data-dir=/path/to/custom/data
 ```
 
 Default: `.relay/` in the project root.
+
+---
+
+## Reasoning / Thinking Display
+
+When using models that support extended thinking (like Claude with reasoning or DeepSeek), the AI's reasoning process is displayed separately from the final answer.
+
+### How it works
+
+- Reasoning is shown in a **collapsible blockquote** (tap to expand) above the answer
+- If the answer is short enough, reasoning and answer appear in the same message
+- For longer answers, reasoning is sent as a separate message before the answer chunks
+- During streaming, reasoning is hidden (just shows "Thinking...") until the final answer arrives
+
+This keeps the conversation clean — you see the answer immediately, and can expand the thinking process if you're curious about how the AI arrived at its response.
+
+---
+
+## Reply Context
+
+Reply to any bot message to reference it in your next prompt. The quoted message text is included as context so the AI knows what you're referring to.
+
+### How it works
+
+1. Long-press (or swipe) a bot message in Telegram and tap "Reply"
+2. Type your follow-up message
+3. The AI receives both the quoted text and your new message
+
+This is useful for asking follow-up questions about a specific part of a long conversation, or for saying "fix the code in this message" while pointing to a particular response.
+
+---
+
+## Edited Messages
+
+Edit a sent message to re-prompt the AI with the corrected text. The AI processes the edit as a new message with an `[Edited message]` prefix so it understands this is a correction.
+
+### How it works
+
+1. Send a message with a typo or incomplete thought
+2. Edit the message in Telegram
+3. The AI receives and processes the edited version
 
 ---
 

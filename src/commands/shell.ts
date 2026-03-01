@@ -21,10 +21,7 @@ export function registerShellCommands(bot: Bot): void {
       const result = await provider.shell(sessionId, command);
 
       if (result === null) {
-        await ctx.reply(
-          `Shell commands are not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Shell command returned no output.", { parse_mode: "HTML" });
         return;
       }
 
@@ -57,10 +54,7 @@ export function registerShellCommands(bot: Bot): void {
       const result = await provider.runCommand(sessionId, command, args);
 
       if (result === null) {
-        await ctx.reply(
-          `Custom commands are not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Command returned no output.", { parse_mode: "HTML" });
         return;
       }
 
@@ -79,15 +73,7 @@ export function registerShellCommands(bot: Bot): void {
       const provider = getProvider();
       const commands = await provider.getCommands();
 
-      if (commands === null) {
-        await ctx.reply(
-          `Command listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (commands.length === 0) {
+      if (!commands || commands.length === 0) {
         await ctx.reply("No commands available.", { parse_mode: "HTML" });
         return;
       }

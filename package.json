@@ -40,7 +40,8 @@
     "@inquirer/prompts": "^8.3.0",
     "@opencode-ai/sdk": "^1.2.15",
     "grammy": "^1.40.1",
-    "pino": "^10.3.1"
+    "pino": "^10.3.1",
+    "sarvamai": "^1.1.4"
   },
   "devDependencies": {
     "@types/node": "^25.3.2",

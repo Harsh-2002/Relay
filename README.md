@@ -10,8 +10,11 @@ Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https
 
 - **75+ AI providers** -- Anthropic, OpenAI, Google, local models, and more via OpenCode
 - **Interactive setup** -- `relay onboard` wizard for first-time configuration
-- **Structured logging** -- pino-based JSON logging with configurable levels
+- **Structured logging** -- pino-based JSON logging with full visibility
 - **Text, voice, photo, and file input** -- send messages in any format
+- **Reply context** -- reply to any bot message to reference it in your next prompt
+- **Edited messages** -- edit a sent message to re-prompt the AI with the correction
+- **Reasoning display** -- AI thinking is shown in collapsible blockquotes, separate from the answer
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
 - **Streaming responses** -- progressive message editing for real-time output
 - **Session management** -- create, switch, fork, delete, and list sessions
@@ -129,7 +132,6 @@ relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 | `--allowed-user-id` | Telegram user ID |
 | `--bot-mode` | `polling` or `webhook` |
 | `--streaming-enabled` | `true` or `false` |
-| `--log-level` | `debug`, `info`, `warn`, `error` |
 | `--data-dir` | Data directory (default: `.relay/`) |
 | `--system-prompt-file` | Custom system prompt file |
 
@@ -255,8 +257,10 @@ src/
     logger.ts      -- Pino-based structured logging
     store.ts       -- JSON file-backed persistence (.relay/)
     stream.ts      -- Streaming response handler
+    reply.ts       -- Shared response sending (reasoning, chunking, fallback)
     files.ts       -- Outbound file attachment handling
-    chunker.ts     -- Telegram message chunking
+    chunker.ts     -- HTML-aware Telegram message chunking
+    markdown.ts    -- Markdown to Telegram HTML conversion
     errors.ts      -- Error formatting
     html.ts        -- HTML escaping for Telegram
     media.ts       -- File upload/download
@@ -265,11 +269,14 @@ src/
     timeout.ts     -- Prompt timeout utility
 ```
 
-Each provider implements the `Provider` interface with a `capabilities` object declaring which features it supports. Commands check capabilities and show appropriate messages when a feature isn't available.
+The provider implements the `Provider` interface with sessions, prompts, streaming, file operations, and MCP management. Messages are processed through a serial prompt queue to prevent interleaved responses.
 
-### Capabilities
+### Key Internals
 
-All features are supported: streaming, file output, MCP management, dynamic model listing, full session management, file operations, code diffs, and state persistence.
+- **HTML-aware chunker** -- splits messages at the 4096-char limit without breaking HTML tags
+- **Prompt queue** -- serializes concurrent messages to prevent SSE stream interleaving
+- **Reasoning display** -- AI thinking shown in expandable `<blockquote>`, collapsed by default
+- **Streaming** -- progressive message editing with automatic code fence closure and tail-end display for long responses
 
 ## License
 

@@ -6,6 +6,48 @@ import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 
 export function registerFileCommands(bot: Bot): void {
+  bot.command("ls", async (ctx) => {
+    const dirPath = ctx.match?.trim() || ".";
+
+    try {
+      await ctx.replyWithChatAction("typing");
+      const provider = getProvider();
+      const nodes = await provider.listFiles(dirPath);
+
+      if (nodes === null) {
+        await ctx.reply("Could not list this directory.", { parse_mode: "HTML" });
+        return;
+      }
+
+      // Filter out ignored entries
+      const visible = nodes.filter((n) => !n.ignored);
+
+      if (visible.length === 0) {
+        await ctx.reply(`<b>${escapeHtml(dirPath)}</b>\n\n(empty)`, { parse_mode: "HTML" });
+        return;
+      }
+
+      // Sort: directories first, then files, alphabetical within each group
+      const dirs = visible.filter((n) => n.type === "directory").sort((a, b) => a.name.localeCompare(b.name));
+      const files = visible.filter((n) => n.type === "file").sort((a, b) => a.name.localeCompare(b.name));
+
+      let text = `<b>${escapeHtml(dirPath)}</b>  (${visible.length})\n\n`;
+      for (const d of dirs) {
+        text += `\ud83d\udcc1 ${escapeHtml(d.name)}/\n`;
+      }
+      for (const f of files) {
+        text += `\ud83d\udcc4 ${escapeHtml(f.name)}\n`;
+      }
+
+      const chunks = chunkMessage(text);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      await ctx.reply(formatCatchError(err, "listing directory"), { parse_mode: "HTML" });
+    }
+  });
+
   bot.command("read", async (ctx) => {
     const filePath = ctx.match?.trim();
     if (!filePath) {
@@ -19,10 +61,7 @@ export function registerFileCommands(bot: Bot): void {
       const content = await provider.readFile(filePath);
 
       if (content === null) {
-        await ctx.reply(
-          `File reading is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Could not read this file.", { parse_mode: "HTML" });
         return;
       }
 
@@ -58,10 +97,7 @@ export function registerFileCommands(bot: Bot): void {
       const matches = await provider.searchText(pattern);
 
       if (matches === null) {
-        await ctx.reply(
-          `Text search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Search returned no results.", { parse_mode: "HTML" });
         return;
       }
 
@@ -99,10 +135,7 @@ export function registerFileCommands(bot: Bot): void {
       const files = await provider.findFiles(query);
 
       if (files === null) {
-        await ctx.reply(
-          `File search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("File search returned no results.", { parse_mode: "HTML" });
         return;
       }
 
@@ -136,10 +169,7 @@ export function registerFileCommands(bot: Bot): void {
       const symbols = await provider.findSymbols(query);
 
       if (symbols === null) {
-        await ctx.reply(
-          `Symbol search is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Symbol search returned no results.", { parse_mode: "HTML" });
         return;
       }
 
@@ -166,10 +196,7 @@ export function registerFileCommands(bot: Bot): void {
       const files = await provider.getFileStatus();
 
       if (files === null) {
-        await ctx.reply(
-          `File status is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("File status is not available.", { parse_mode: "HTML" });
         return;
       }
 

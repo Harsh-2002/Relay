@@ -1,37 +1,59 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import { getProvider } from "../providers/index.js";
-import { getOrCreateSession, getSelectedModel, getSelectedAgent } from "../session.js";
-import { chunkMessage } from "../utils/chunker.js";
+import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
-import { markdownToHtml } from "../utils/markdown.js";
+import { sendReply } from "../utils/reply.js";
 import { chatLogger } from "../utils/logger.js";
-import { InputFile } from "grammy";
 
 const MAX_INPUT_LENGTH = 32_000;
 
-export function registerChat(bot: Bot): void {
-  bot.on("message:text", async (ctx) => {
-    const text = ctx.message.text;
-    if (text.startsWith("/")) return;
+/**
+ * If the user is replying to a previous message, prepend the quoted text
+ * as context so the AI model knows what they're referring to.
+ */
+function buildPromptWithReplyContext(ctx: Context, text: string): string {
+  const msg = ctx.message ?? ctx.editedMessage;
+  const reply = (msg as any)?.reply_to_message;
+  if (!reply) return text;
 
-    chatLogger.info({ from: ctx.from?.id, len: text.length }, "Inbound text message");
+  const replyText = reply.text || reply.caption;
+  if (!replyText) return text;
 
-    if (text.length > MAX_INPUT_LENGTH) {
-      chatLogger.info({ from: ctx.from?.id, len: text.length }, "Message rejected (too long)");
-      await ctx.reply(
-        `Message too long (${text.length.toLocaleString()} chars). ` +
-        `Maximum is ${MAX_INPUT_LENGTH.toLocaleString()} characters. ` +
-        `Send the content as a file instead.`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
+  const maxQuoteLen = 2000;
+  const quote = replyText.length > maxQuoteLen
+    ? replyText.slice(0, maxQuoteLen) + "..."
+    : replyText;
 
-    try {
+  return `[Replying to: "${quote}"]\n\n${text}`;
+}
+
+/**
+ * Core text message processing — shared by new messages and edited messages.
+ */
+async function handleTextMessage(ctx: Context, rawText: string, isEdit: boolean): Promise<void> {
+  if (rawText.startsWith("/")) return;
+
+  const text = buildPromptWithReplyContext(ctx, rawText);
+
+  chatLogger.info({ from: ctx.from?.id, len: text.length, isReply: text !== rawText, isEdit }, "Inbound text message");
+
+  if (rawText.length > MAX_INPUT_LENGTH) {
+    chatLogger.info({ from: ctx.from?.id, len: rawText.length }, "Message rejected (too long)");
+    await ctx.reply(
+      `Message too long (${rawText.length.toLocaleString()} chars). ` +
+      `Maximum is ${MAX_INPUT_LENGTH.toLocaleString()} characters. ` +
+      `Send the content as a file instead.`,
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  try {
+    await withPromptQueue(async () => {
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
       const agent = getSelectedAgent();
@@ -44,17 +66,16 @@ export function registerChat(bot: Bot): void {
         "Processing message"
       );
 
-      // Streaming: use provider's promptStream if available
       if (streaming) {
         chatLogger.info({ sessionId }, "Routing to streaming prompt");
-        const parts = [{ type: "text" as const, text }];
+        const promptText = isEdit ? `[Edited message] ${text}` : text;
+        const parts = [{ type: "text" as const, text: promptText }];
         await streamPrompt({ ctx, sessionId, parts, model, system, agent });
         return;
       }
 
       chatLogger.info({ sessionId }, "Routing to non-streaming prompt");
 
-      // Keep typing indicator active while waiting for response
       const typingInterval = setInterval(() => {
         ctx.replyWithChatAction("typing").catch(() => {});
       }, 4000);
@@ -62,9 +83,10 @@ export function registerChat(bot: Bot): void {
 
       try {
         const startMs = Date.now();
+        const promptText = isEdit ? `[Edited message] ${text}` : text;
         const result = await withTimeout(
-          provider.prompt(sessionId, text, {
-            parts: [{ type: "text" as const, text }],
+          provider.prompt(sessionId, promptText, {
+            parts: [{ type: "text" as const, text: promptText }],
             ...(model && { model }),
             ...(agent && { agent }),
             system,
@@ -80,12 +102,11 @@ export function registerChat(bot: Bot): void {
         }
 
         chatLogger.info(
-          { sessionId, durationMs: Date.now() - startMs, responseLen: result.text.length },
+          { sessionId, durationMs: Date.now() - startMs, responseLen: result.text.length, reasoningLen: result.reasoning?.length ?? 0 },
           "Prompt completed"
         );
-        await sendResponse(ctx, result.text);
+        await sendReply(ctx, result.text, result.reasoning);
 
-        // Send any file attachments from the response
         const files = extractFileParts(result.parts ?? []);
         if (files.length > 0) {
           chatLogger.info({ sessionId, filesCount: files.length }, "Sending file attachments");
@@ -94,32 +115,21 @@ export function registerChat(bot: Bot): void {
       } finally {
         clearInterval(typingInterval);
       }
-    } catch (err: any) {
-      chatLogger.info({ err: err?.message }, "Chat error");
-      await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
-    }
-  });
+    });
+  } catch (err: any) {
+    chatLogger.info({ err: err?.message }, "Chat error");
+    await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
+  }
 }
 
-async function sendResponse(ctx: any, text: string): Promise<void> {
-  if (text.length > 20000) {
-    const buffer = Buffer.from(text, "utf-8");
-    await ctx.replyWithDocument(new InputFile(buffer, "response.txt"));
-    return;
-  }
+export function registerChat(bot: Bot): void {
+  // Handle new text messages
+  bot.on("message:text", async (ctx) => {
+    await handleTextMessage(ctx, ctx.message.text, false);
+  });
 
-  const html = markdownToHtml(text);
-  const chunks = chunkMessage(html);
-  for (const chunk of chunks) {
-    try {
-      await ctx.reply(chunk, { parse_mode: "HTML" });
-    } catch (sendErr: any) {
-      const desc = sendErr?.description ?? sendErr?.message ?? "";
-      if (!desc.includes("can't parse")) {
-        chatLogger.warn({ err: desc }, "Failed to send message chunk");
-      }
-      // Fall back to plain text (strip HTML tags)
-      await ctx.reply(chunk.replace(/<[^>]+>/g, ""));
-    }
-  }
+  // Handle edited text messages — treat as a new prompt with [Edited message] prefix
+  bot.on("edited_message:text", async (ctx) => {
+    await handleTextMessage(ctx, ctx.editedMessage.text, true);
+  });
 }

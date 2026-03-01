@@ -11,10 +11,12 @@ No command needed -- just send a message.
 - Voice notes (requires STT configuration)
 - Photos (sent to vision-capable models)
 - File attachments (text files are embedded, binary files referenced)
+- **Reply to a message** to include it as context in your prompt
+- **Edit a sent message** to re-prompt with the corrected text
 
 **Input limit:** 32,000 characters for text messages. Send longer content as a file.
 
-**Output:** The AI's response is sent as Telegram messages. If the AI generates files or screenshots, they are sent as Telegram attachments automatically.
+**Output:** The AI's response is sent as Telegram messages. If the AI generates files or screenshots, they are sent as Telegram attachments automatically. When the model provides reasoning/thinking, it appears in a collapsible blockquote above the answer.
 
 ---
 

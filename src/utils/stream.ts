@@ -5,6 +5,7 @@ import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import { sendResponseFiles, type ResponseFile } from "./files.js";
 import { markdownToHtml } from "./markdown.js";
+import { escapeHtml } from "./html.js";
 import { getConfig } from "../config/index.js";
 import { streamLogger } from "./logger.js";
 
@@ -129,20 +130,33 @@ export async function streamPrompt({
     return;
   }
 
-  // Prepend reasoning as italic block if present
-  const finalText = reasoning
-    ? `_Thinking:_\n_${reasoning.slice(0, 2000)}${reasoning.length > 2000 ? "..." : ""}_\n\n${accumulated}`
-    : accumulated;
-  const finalDisplay = buildDisplayText(accumulated, "", reasoning);
-  const chunks = chunkMessage(finalText);
+  const answerHtml = markdownToHtml(accumulated);
+  const answerHtmlChunks = chunkMessage(answerHtml);
+  const fitsInOneMessage = answerHtmlChunks.length === 1;
 
-  if (chunks.length <= 1 && finalDisplay === lastEditedText) {
-    // Already showing the complete response — nothing to do
-  } else if (chunks.length <= 1) {
-    // Fits in one message but last streaming edit was throttled — do one final edit
-    await safeEditHtml(ctx, chatId, messageId, finalDisplay);
+  if (reasoning && fitsInOneMessage) {
+    // Reasoning + answer fit in one message — use expandable blockquote
+    const maxReasoningLen = 4000 - answerHtml.length - 80; // 80 chars overhead for tags
+    const finalHtml = composeReasoningHtml(reasoning, answerHtml, maxReasoningLen);
+    await safeEditRawHtml(ctx, chatId, messageId, finalHtml);
+  } else if (reasoning) {
+    // Answer too long for one message — send reasoning as separate preceding message
+    const reasoningHtml = formatReasoningBlockquote(reasoning, 3900);
+    // Delete placeholder, send reasoning then answer chunks
+    try { await ctx.api.deleteMessage(chatId, messageId); } catch {}
+    try {
+      await ctx.api.sendMessage(chatId, reasoningHtml, { parse_mode: "HTML" });
+    } catch {
+      // If blockquote fails, skip reasoning
+    }
+    await sendHtmlChunks(ctx, chatId, answerHtmlChunks, chunkMessage(accumulated));
+  } else if (fitsInOneMessage) {
+    // No reasoning, fits in one message
+    if (answerHtml !== lastEditedText) {
+      await safeEditRawHtml(ctx, chatId, messageId, answerHtml);
+    }
   } else {
-    // Too long for one message — delete placeholder and send as multiple messages
+    // No reasoning, multi-chunk
     await sendFinalResponse(ctx, chatId, messageId, accumulated);
   }
 
@@ -154,21 +168,34 @@ export async function streamPrompt({
 
 function buildDisplayText(text: string, toolStatus: string, reasoning = ""): string {
   let display = "";
-  if (reasoning && !text) {
-    // Still in reasoning phase — show thinking indicator
-    const truncated = reasoning.length > 500 ? reasoning.slice(-500) + "..." : reasoning;
-    display = `_Thinking: ${truncated}_`;
+  if (!text && reasoning) {
+    // Still in reasoning phase — brief indicator, no content leak
+    display = "Thinking...";
   } else {
     display = text || "Thinking...";
   }
   if (toolStatus) {
     display += `\n\n${toolStatus}`;
   }
-  // Telegram message limit is 4096
+  // Telegram message limit is 4096 — show tail end for long responses
   if (display.length > 4000) {
-    display = display.slice(0, 4000) + "\n\n(streaming...)";
+    display = "...\n\n" + display.slice(display.length - 3950);
   }
+  // Close any unclosed code fences so markdown→HTML conversion works
+  display = closeUnterminatedCodeFences(display);
   return display;
+}
+
+/**
+ * If the text has an odd number of ``` markers (i.e. an unclosed code fence),
+ * append a closing ``` so markdown-to-HTML conversion doesn't break.
+ */
+function closeUnterminatedCodeFences(text: string): string {
+  const fenceCount = (text.match(/```/g) || []).length;
+  if (fenceCount % 2 !== 0) {
+    return text + "\n```";
+  }
+  return text;
 }
 
 async function safeEditMessage(
@@ -239,6 +266,72 @@ async function retryOnRateLimit(err: any, fn: () => Promise<any>): Promise<void>
     try { await fn(); } catch { /* give up after retry */ }
   } else {
     streamLogger.info({ err: desc }, "Telegram edit failed");
+  }
+}
+
+/**
+ * Format reasoning as a Telegram expandable blockquote.
+ */
+export function formatReasoningBlockquote(reasoning: string, maxLen: number): string {
+  let text = reasoning;
+  if (text.length > maxLen) {
+    text = text.slice(0, maxLen) + "...";
+  }
+  return `<blockquote expandable>💭 <b>Thinking</b>\n${escapeHtml(text)}</blockquote>`;
+}
+
+/**
+ * Compose final HTML with expandable reasoning blockquote + answer.
+ */
+function composeReasoningHtml(reasoning: string, answerHtml: string, maxReasoningLen: number): string {
+  const reasoningBlock = formatReasoningBlockquote(reasoning, Math.max(maxReasoningLen, 200));
+  return `${reasoningBlock}\n\n${answerHtml}`;
+}
+
+/**
+ * Edit message with pre-composed HTML (no markdown conversion).
+ */
+async function safeEditRawHtml(
+  ctx: Context,
+  chatId: number,
+  messageId: number,
+  html: string,
+): Promise<void> {
+  try {
+    await ctx.api.editMessageText(chatId, messageId, html, { parse_mode: "HTML" });
+  } catch (err: any) {
+    if (isNotModifiedError(err)) return;
+    if (isParseError(err)) {
+      // Fallback: strip HTML and send plain
+      try {
+        await ctx.api.editMessageText(chatId, messageId, html.replace(/<[^>]+>/g, ""));
+      } catch (plainErr: any) {
+        if (isNotModifiedError(plainErr)) return;
+      }
+      return;
+    }
+    await retryOnRateLimit(err, () =>
+      ctx.api.editMessageText(chatId, messageId, html, { parse_mode: "HTML" })
+    );
+  }
+}
+
+/**
+ * Send pre-chunked HTML messages with plain text fallback.
+ */
+async function sendHtmlChunks(
+  ctx: Context,
+  chatId: number,
+  htmlChunks: string[],
+  plainChunks: string[],
+): Promise<void> {
+  for (let i = 0; i < htmlChunks.length; i++) {
+    try {
+      await ctx.api.sendMessage(chatId, htmlChunks[i], { parse_mode: "HTML" });
+    } catch {
+      const plain = i < plainChunks.length ? plainChunks[i] : htmlChunks[i].replace(/<[^>]+>/g, "");
+      await ctx.api.sendMessage(chatId, plain);
+    }
   }
 }
 

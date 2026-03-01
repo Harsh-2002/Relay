@@ -1,10 +1,10 @@
 import type { Bot } from "grammy";
 import { InputFile, InlineKeyboard } from "grammy";
 import type { ModelDetail } from "../providers/types.js";
-import { getProvider, getProviderName } from "../providers/index.js";
-import { setSelectedModel, getSelectedModel } from "../session.js";
+import { getProvider } from "../providers/index.js";
+import { setSelectedModel, getSelectedModel, getSelectedAgent, setSelectedAgent, clearSelectedAgent, getSelectedSttProvider, setSelectedSttProvider, clearSelectedSttProvider } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
-import { isSttAvailable, getSttProvider } from "../utils/stt.js";
+import { isSttAvailable, getSttProvider, listSttProviders } from "../utils/stt.js";
 import { isStreamingEnabled } from "../utils/stream.js";
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
@@ -12,11 +12,14 @@ import { escapeHtml } from "../utils/html.js";
 
 const MODELS_PER_PAGE = 8;
 
+type ModelFilter = "all" | "free";
+
 const SENSITIVE_KEYS = new Set([
   "botToken",
   "groqApiKey",
   "openaiSttApiKey",
   "assemblyaiApiKey",
+  "sarvamApiKey",
   "webhookSecret",
 ]);
 
@@ -24,48 +27,70 @@ function buildModelKeyboard(
   models: ModelDetail[],
   page: number,
   selectedModel?: { providerID: string; modelID: string } | null,
+  filter: ModelFilter = "all",
 ): { keyboard: InlineKeyboard; text: string } {
+  // Sort free models first within each provider, then alphabetically
+  const sorted = [...models].sort((a, b) => {
+    if (a.provider !== b.provider) return 0;
+    if (a.free !== b.free) return a.free ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
   // Group by provider
   const grouped = new Map<string, ModelDetail[]>();
-  for (const m of models) {
+  for (const m of sorted) {
     const list = grouped.get(m.provider) ?? [];
     list.push(m);
     grouped.set(m.provider, list);
   }
 
-  // Flatten into display order with provider headers
-  const items: { type: "header"; provider: string }[] | { type: "model"; model: ModelDetail }[] = [];
-  const allItems: ({ type: "header"; provider: string } | { type: "model"; model: ModelDetail })[] = [];
-  for (const [provId, provModels] of grouped) {
-    allItems.push({ type: "header", provider: provId });
-    for (const m of provModels) {
-      allItems.push({ type: "model", model: m });
+  // Apply filter
+  if (filter === "free") {
+    for (const [provId, provModels] of grouped) {
+      const filtered = provModels.filter(m => m.free);
+      if (filtered.length === 0) {
+        grouped.delete(provId);
+      } else {
+        grouped.set(provId, filtered);
+      }
     }
   }
 
-  // Count total model items (excluding headers) for pagination
-  const modelItems = allItems.filter(i => i.type === "model");
+  // Flatten into display order
+  const modelItems: { type: "model"; model: ModelDetail }[] = [];
+  for (const [, provModels] of grouped) {
+    for (const m of provModels) {
+      modelItems.push({ type: "model", model: m });
+    }
+  }
+
+  const kb = new InlineKeyboard();
+
+  // Filter buttons row
+  const freeLabel = filter === "free" ? "* Free *" : "Free";
+  const allLabel = filter === "all" ? "* All *" : "All";
+  kb.row().text(freeLabel, "mdl_filter:free").text(allLabel, "mdl_filter:all");
+
+  // Empty state
+  if (modelItems.length === 0) {
+    const headerText = filter === "free"
+      ? `<b>No free models available.</b>`
+      : `<b>No models available.</b>`;
+    return { keyboard: kb, text: headerText };
+  }
+
   const totalPages = Math.max(1, Math.ceil(modelItems.length / MODELS_PER_PAGE));
   const safePage = Math.max(0, Math.min(page, totalPages - 1));
 
   // Get the slice of models for this page
   const pageModels = modelItems.slice(safePage * MODELS_PER_PAGE, (safePage + 1) * MODELS_PER_PAGE);
-  const pageModelIds = new Set(pageModels.map(i => i.type === "model" ? i.model.id : ""));
 
-  // Build keyboard
-  const kb = new InlineKeyboard();
-  let headerText = `<b>Available Models</b>  (${modelItems.length})`;
+  const filterLabel = filter === "free" ? " (Free)" : "";
+  let headerText = `<b>Available Models${filterLabel}</b>  (${modelItems.length})`;
   if (totalPages > 1) headerText += `  —  page ${safePage + 1}/${totalPages}`;
-
-  // Figure out which providers appear on this page
-  const pageProviders = new Set<string>();
-  for (const item of pageModels) {
-    if (item.type === "model") pageProviders.add(item.model.provider);
-  }
 
   let lastProvider = "";
   for (const item of pageModels) {
-    if (item.type !== "model") continue;
     const m = item.model;
 
     // Add provider header row if new provider
@@ -78,6 +103,7 @@ function buildModelKeyboard(
       selectedModel?.providerID === m.provider && selectedModel?.modelID === m.id;
 
     const badges: string[] = [];
+    if (m.free) badges.push("free");
     if (m.reasoning) badges.push("reasoning");
     if (m.attachment) badges.push("vision");
     const badgeStr = badges.length > 0 ? "  [" + badges.join(", ") + "]" : "";
@@ -92,11 +118,11 @@ function buildModelKeyboard(
   if (totalPages > 1) {
     kb.row();
     if (safePage > 0) {
-      kb.text("« Prev", `mdl_pg:${safePage - 1}`);
+      kb.text("« Prev", `mdl_pg:${safePage - 1}:${filter}`);
     }
     kb.text(`${safePage + 1}/${totalPages}`, "mdl_noop");
     if (safePage < totalPages - 1) {
-      kb.text("Next »", `mdl_pg:${safePage + 1}`);
+      kb.text("Next »", `mdl_pg:${safePage + 1}:${filter}`);
     }
   }
 
@@ -148,7 +174,7 @@ function formatProvidersResponse(data: any): string {
   return text;
 }
 
-function formatAgentsResponse(data: any): string {
+function formatAgentsResponse(data: any, activeAgent?: string | null): string {
   if (!data) return "No agent data available.";
 
   const items = Array.isArray(data) ? data : [data];
@@ -157,12 +183,75 @@ function formatAgentsResponse(data: any): string {
   let text = `<b>Agents</b>  (${items.length})\n\n`;
   for (const a of items) {
     const name = a.name ?? a.id ?? "unknown";
-    text += `<code>${escapeHtml(name)}</code>`;
-    if (a.description) text += ` — ${escapeHtml(a.description)}`;
+    const isActive = activeAgent && (name === activeAgent || a.id === activeAgent);
+    text += isActive ? `\u2713 <code>${escapeHtml(name)}</code>` : `<code>${escapeHtml(name)}</code>`;
+    if (a.description) text += ` \u2014 ${escapeHtml(a.description)}`;
     text += "\n";
   }
 
   return text;
+}
+
+function buildAgentKeyboard(
+  agents: any[],
+  activeAgent: string | null,
+): { keyboard: InlineKeyboard; text: string } {
+  const kb = new InlineKeyboard();
+
+  // "Default" button always first
+  const defaultLabel = !activeAgent ? "✓ Default" : "Default";
+  kb.row().text(defaultLabel, "ag:default");
+
+  // Group agents by mode
+  const primary: any[] = [];
+  const subagents: any[] = [];
+  for (const a of agents) {
+    const mode = a.mode ?? "primary";
+    if (mode === "subagent") {
+      subagents.push(a);
+    } else {
+      primary.push(a);
+    }
+  }
+
+  if (primary.length > 0) {
+    kb.row().text("— Primary —", "ag_noop");
+    for (const a of primary) {
+      const name = a.name ?? a.id ?? "unknown";
+      const isActive = activeAgent === name || activeAgent === a.id;
+      const desc = a.description
+        ? ` — ${a.description.length > 30 ? a.description.slice(0, 30) + "..." : a.description}`
+        : "";
+      const label = isActive ? `✓ ${name}${desc}` : `${name}${desc}`;
+      kb.row().text(label, `ag:${name}`);
+    }
+  }
+
+  if (subagents.length > 0) {
+    kb.row().text("— Sub Agents —", "ag_noop");
+    for (const a of subagents) {
+      const name = a.name ?? a.id ?? "unknown";
+      const isActive = activeAgent === name || activeAgent === a.id;
+      const desc = a.description
+        ? ` — ${a.description.length > 30 ? a.description.slice(0, 30) + "..." : a.description}`
+        : "";
+      const label = isActive ? `✓ ${name}${desc}` : `${name}${desc}`;
+      kb.row().text(label, `ag:${name}`);
+    }
+  }
+
+  // Header text
+  let text = `<b>Agents</b>  (${agents.length})\n\n`;
+  if (activeAgent) {
+    const match = agents.find((a: any) => (a.name ?? a.id) === activeAgent || a.id === activeAgent);
+    text += `<b>Active:</b>  <code>${escapeHtml(activeAgent)}</code>`;
+    if (match?.description) text += ` — ${escapeHtml(match.description)}`;
+    if (match?.mode) text += `\n<b>Mode:</b>  ${escapeHtml(match.mode)}`;
+  } else {
+    text += `<b>Active:</b>  Default`;
+  }
+
+  return { keyboard: kb, text };
 }
 
 export function registerAdminCommands(bot: Bot): void {
@@ -255,24 +344,13 @@ export function registerAdminCommands(bot: Bot): void {
       const provider = getProvider();
       const agents = await provider.getAgents();
 
-      if (agents === null) {
-        await ctx.reply(
-          `Agent listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (agents.length === 0) {
+      if (!agents || agents.length === 0) {
         await ctx.reply("No agents available.", { parse_mode: "HTML" });
         return;
       }
 
-      const text = formatAgentsResponse(agents);
-      const chunks = chunkMessage(text);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
+      const { keyboard, text } = buildAgentKeyboard(agents, getSelectedAgent());
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing agents"), { parse_mode: "HTML" });
     }
@@ -284,10 +362,7 @@ export function registerAdminCommands(bot: Bot): void {
       const proj = await provider.getProjectInfo();
 
       if (!proj) {
-        await ctx.reply(
-          `Project info is not available for the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Project info is not available.", { parse_mode: "HTML" });
         return;
       }
 
@@ -316,10 +391,7 @@ export function registerAdminCommands(bot: Bot): void {
       ]);
 
       if (!projectInfo?.branch && fileStatus === null) {
-        await ctx.reply(
-          `Git info is not available for the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
+        await ctx.reply("Git info is not available.", { parse_mode: "HTML" });
         return;
       }
 
@@ -354,24 +426,23 @@ export function registerAdminCommands(bot: Bot): void {
   bot.command("tools", async (ctx) => {
     try {
       const provider = getProvider();
-      const ids = await provider.getTools();
+      const tools = await provider.getTools();
 
-      if (ids === null) {
-        await ctx.reply(
-          `Tool listing is not supported by the <b>${escapeHtml(provider.name)}</b> provider.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (ids.length === 0) {
+      if (!tools || tools.length === 0) {
         await ctx.reply("No tools available.", { parse_mode: "HTML" });
         return;
       }
 
       const text =
-        `<b>Available Tools</b>  (${ids.length})\n\n` +
-        ids.map((id) => `<code>${escapeHtml(id)}</code>`).join("\n");
+        `<b>Available Tools</b>  (${tools.length})\n\n` +
+        tools.map((t) => {
+          let line = `<code>${escapeHtml(t.id)}</code>`;
+          if (t.description) {
+            const desc = t.description.length > 80 ? t.description.slice(0, 80) + "..." : t.description;
+            line += ` \u2014 ${escapeHtml(desc)}`;
+          }
+          return line;
+        }).join("\n");
 
       const chunks = chunkMessage(text);
       for (const chunk of chunks) {
@@ -537,6 +608,29 @@ export function registerAdminCommands(bot: Bot): void {
     }
   });
 
+  bot.callbackQuery(/^mdl_pg:(\d+):(\w+)$/, async (ctx) => {
+    try {
+      const page = parseInt(ctx.match[1], 10);
+      const filter = (ctx.match[2] === "free" ? "free" : "all") as ModelFilter;
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      for (const m of models) {
+        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
+          m.active = true;
+        }
+      }
+
+      const { keyboard, text } = buildModelKeyboard(models, page, selected, filter);
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to load page" });
+    }
+  });
+
+  // Legacy pagination fallback (no filter)
   bot.callbackQuery(/^mdl_pg:(\d+)$/, async (ctx) => {
     try {
       const page = parseInt(ctx.match[1], 10);
@@ -544,7 +638,6 @@ export function registerAdminCommands(bot: Bot): void {
       const models = await provider.listModels();
       const selected = getSelectedModel();
 
-      // Mark active
       for (const m of models) {
         if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
           m.active = true;
@@ -559,7 +652,226 @@ export function registerAdminCommands(bot: Bot): void {
     }
   });
 
+  bot.callbackQuery(/^mdl_filter:(.+)$/, async (ctx) => {
+    try {
+      const filter = (ctx.match[1] === "free" ? "free" : "all") as ModelFilter;
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      for (const m of models) {
+        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
+          m.active = true;
+        }
+      }
+
+      const { keyboard, text } = buildModelKeyboard(models, 0, selected, filter);
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to apply filter" });
+    }
+  });
+
   bot.callbackQuery("mdl_noop", async (ctx) => {
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.command("agent", async (ctx) => {
+    const input = ctx.match?.trim();
+
+    if (!input) {
+      try {
+        const provider = getProvider();
+        const agents = await provider.getAgents();
+        if (!agents || agents.length === 0) {
+          await ctx.reply("No agents available.", { parse_mode: "HTML" });
+          return;
+        }
+        const { keyboard, text } = buildAgentKeyboard(agents, getSelectedAgent());
+        await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+      } catch (err: any) {
+        await ctx.reply(formatCatchError(err, "listing agents"), { parse_mode: "HTML" });
+      }
+      return;
+    }
+
+    if (input === "clear") {
+      clearSelectedAgent();
+      await ctx.reply("Agent reset to default.", { parse_mode: "HTML" });
+      return;
+    }
+
+    // Try to match the agent name against available agents
+    try {
+      const provider = getProvider();
+      const agents = await provider.getAgents();
+      const items = (agents ?? []) as any[];
+      const match = items.find(
+        (a: any) => (a.name ?? a.id) === input || (a.id === input)
+      );
+
+      if (match) {
+        const name = match.name ?? match.id;
+        setSelectedAgent(name);
+        await ctx.reply(`Agent set to <code>${escapeHtml(name)}</code>`, { parse_mode: "HTML" });
+      } else if (items.length > 0) {
+        const available = items.map((a: any) => a.name ?? a.id).join(", ");
+        await ctx.reply(
+          `Agent <code>${escapeHtml(input)}</code> not found.\n\n<b>Available:</b>  ${escapeHtml(available)}`,
+          { parse_mode: "HTML" }
+        );
+      } else {
+        // No agents list available — set it anyway
+        setSelectedAgent(input);
+        await ctx.reply(`Agent set to <code>${escapeHtml(input)}</code>`, { parse_mode: "HTML" });
+      }
+    } catch (err: any) {
+      // Fall back to setting directly
+      setSelectedAgent(input);
+      await ctx.reply(`Agent set to <code>${escapeHtml(input)}</code>`, { parse_mode: "HTML" });
+    }
+  });
+
+  // --- STT provider selection ---
+
+  bot.command("stt", async (ctx) => {
+    const providers = listSttProviders();
+    const active = getSelectedSttProvider() ?? "auto";
+    const currentResolved = getSttProvider();
+
+    const kb = new InlineKeyboard();
+    const autoLabel = active === "auto" ? "* Auto *" : "Auto";
+    kb.row().text(autoLabel, "stt:auto");
+
+    const configured = providers.filter((p) => p.configured);
+    const notConfigured = providers.filter((p) => !p.configured);
+
+    if (configured.length > 0) {
+      kb.row().text("— Configured —", "stt_noop");
+      for (const p of configured) {
+        const isActive = active === p.id;
+        const label = isActive ? `* ${p.name} *` : p.name;
+        kb.row().text(label, `stt:${p.id}`);
+      }
+    }
+
+    if (notConfigured.length > 0) {
+      kb.row().text("— Not Configured —", "stt_noop");
+      for (const p of notConfigured) {
+        kb.row().text(`${p.name}  (no key)`, `stt_nokey:${p.id}`);
+      }
+    }
+
+    let text = `<b>Speech-to-Text</b>\n\n`;
+    text += `<b>Active:</b>  ${escapeHtml(active)}`;
+    if (active === "auto" && currentResolved) {
+      text += ` (using ${escapeHtml(currentResolved)})`;
+    }
+    text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
+
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^stt:(.+)$/, async (ctx) => {
+    const choice = ctx.match[1];
+
+    if (choice === "auto") {
+      clearSelectedSttProvider();
+    } else {
+      // Verify it's configured
+      const providers = listSttProviders();
+      const target = providers.find((p) => p.id === choice);
+      if (!target || !target.configured) {
+        await ctx.answerCallbackQuery({ text: `${choice} is not configured (no API key)` });
+        return;
+      }
+      setSelectedSttProvider(choice);
+    }
+
+    // Rebuild the keyboard with updated selection
+    const providers = listSttProviders();
+    const active = getSelectedSttProvider() ?? "auto";
+    const currentResolved = getSttProvider();
+
+    const kb = new InlineKeyboard();
+    const autoLabel = active === "auto" ? "* Auto *" : "Auto";
+    kb.row().text(autoLabel, "stt:auto");
+
+    const configured = providers.filter((p) => p.configured);
+    const notConfigured = providers.filter((p) => !p.configured);
+
+    if (configured.length > 0) {
+      kb.row().text("— Configured —", "stt_noop");
+      for (const p of configured) {
+        const isActive = active === p.id;
+        const label = isActive ? `* ${p.name} *` : p.name;
+        kb.row().text(label, `stt:${p.id}`);
+      }
+    }
+
+    if (notConfigured.length > 0) {
+      kb.row().text("— Not Configured —", "stt_noop");
+      for (const p of notConfigured) {
+        kb.row().text(`${p.name}  (no key)`, `stt_nokey:${p.id}`);
+      }
+    }
+
+    let text = `<b>Speech-to-Text</b>\n\n`;
+    text += `<b>Active:</b>  ${escapeHtml(active)}`;
+    if (active === "auto" && currentResolved) {
+      text += ` (using ${escapeHtml(currentResolved)})`;
+    }
+    text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
+
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+    await ctx.answerCallbackQuery({ text: `STT set to ${choice}` });
+  });
+
+  bot.callbackQuery(/^stt_nokey:(.+)$/, async (ctx) => {
+    const name = ctx.match[1];
+    await ctx.answerCallbackQuery({
+      text: `${name} is not configured. Add its API key via relay onboard.`,
+      show_alert: true,
+    });
+  });
+
+  bot.callbackQuery("stt_noop", async (ctx) => {
+    await ctx.answerCallbackQuery();
+  });
+
+  // --- Callback query handlers for agent selection ---
+
+  bot.callbackQuery(/^ag:(.+)$/, async (ctx) => {
+    try {
+      const choice = ctx.match[1];
+
+      if (choice === "default") {
+        clearSelectedAgent();
+      } else {
+        setSelectedAgent(choice);
+      }
+
+      // Rebuild keyboard in-place
+      const provider = getProvider();
+      const agents = await provider.getAgents();
+      if (!agents || agents.length === 0) {
+        await ctx.editMessageText("No agents available.", { parse_mode: "HTML" });
+        await ctx.answerCallbackQuery({ text: "No agents available" });
+        return;
+      }
+
+      const { keyboard, text } = buildAgentKeyboard(agents, getSelectedAgent());
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery({
+        text: choice === "default" ? "Agent reset to default" : `Agent set to ${choice}`,
+      });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to set agent" });
+    }
+  });
+
+  bot.callbackQuery("ag_noop", async (ctx) => {
     await ctx.answerCallbackQuery();
   });
 
@@ -587,10 +899,8 @@ export function registerAdminCommands(bot: Bot): void {
   });
 
   bot.command("start", async (ctx) => {
-    const providerName = getProviderName();
     await ctx.reply(
       `Hey! Send me a message and I'll pass it to the AI.\n\n` +
-      `<b>Provider:</b> ${escapeHtml(providerName)}\n\n` +
       `You can also send voice notes, photos, or files.\n\n` +
       `Type /help to see all commands.`,
       { parse_mode: "HTML" }
@@ -598,12 +908,8 @@ export function registerAdminCommands(bot: Bot): void {
   });
 
   bot.command("help", async (ctx) => {
-    const providerName = getProviderName();
-    const provider = getProvider();
-    const caps = provider.capabilities;
-
-    let text =
-      `<b>Relay</b> — ${providerName} provider\n\n` +
+    const text =
+      `<b>Relay</b>\n\n` +
 
       `<b>Chat</b>\n` +
       `Just send any text, voice, photo, or file\n\n` +
@@ -613,64 +919,49 @@ export function registerAdminCommands(bot: Bot): void {
       `/sessions  —  List sessions\n` +
       `/switch <code>id</code>  —  Switch session\n` +
       `/delete <code>id</code>  —  Delete session\n` +
-      `/current  —  Active session\n`;
+      `/current  —  Active session\n` +
+      `/rename <code>title</code>  —  Rename session\n` +
+      `/fork <code>[messageId]</code>  —  Fork session\n\n` +
 
-    if (caps.fork) {
-      text += `/fork <code>[messageId]</code>  —  Fork session\n`;
-    }
-    text += `\n`;
+      `<b>Monitor</b>\n` +
+      `/todo  —  AI task checklist\n` +
+      `/diff  —  Session code changes\n` +
+      `/diff full  —  Download full diff\n\n` +
 
-    if (caps.todos || caps.diff) {
-      text += `<b>Monitor</b>\n`;
-      if (caps.todos) text += `/todo  —  AI task checklist\n`;
-      if (caps.diff) {
-        text += `/diff  —  Session code changes\n`;
-        text += `/diff full  —  Download full diff\n`;
-      }
-      text += `\n`;
-    }
+      `<b>Files</b>\n` +
+      `/ls <code>[path]</code>  —  List directory\n` +
+      `/read <code>path</code>  —  Read file\n` +
+      `/find <code>query</code>  —  Find files\n` +
+      `/search <code>pattern</code>  —  Search in files\n` +
+      `/symbols <code>query</code>  —  Find symbols\n` +
+      `/status  —  Git status\n\n` +
 
-    if (caps.fileOps) {
-      text +=
-        `<b>Files</b>\n` +
-        `/read <code>path</code>  —  Read file\n` +
-        `/find <code>query</code>  —  Find files\n` +
-        `/search <code>pattern</code>  —  Search in files\n` +
-        `/symbols <code>query</code>  —  Find symbols\n` +
-        `/status  —  Git status\n\n`;
-    }
+      `<b>History</b>\n` +
+      `/history  —  Conversation history\n` +
+      `/summarize  —  Summarize session\n` +
+      `/revert  —  Undo last change\n` +
+      `/unrevert  —  Redo reverted change\n` +
+      `/abort  —  Cancel operation\n` +
+      `/share  —  Share session\n` +
+      `/unshare  —  Revoke shared link\n\n` +
 
-    text += `<b>History</b>\n`;
-    if (caps.history) text += `/history  —  Conversation history\n`;
-    if (caps.summarize) text += `/summarize  —  Summarize session\n`;
-    if (caps.revert) text += `/revert  —  Undo last change\n`;
-    text += `/abort  —  Cancel operation\n`;
-    if (caps.share) text += `/share  —  Share session\n`;
-    text += `\n`;
+      `<b>Shell</b>\n` +
+      `/shell <code>cmd</code>  —  Run command\n` +
+      `/cmd <code>command</code>  —  OpenCode command\n` +
+      `/commands  —  List available commands\n\n` +
 
-    if (caps.shell) {
-      text += `<b>Shell</b>\n`;
-      text += `/shell <code>cmd</code>  —  Run command\n`;
-      if (caps.commands) {
-        text += `/cmd <code>command</code>  —  OpenCode command\n`;
-        text += `/commands  —  List available commands\n`;
-      }
-      text += `\n`;
-    }
+      `<b>MCP</b>\n` +
+      `/mcp  —  MCP server status\n` +
+      `/mcp add <code>name</code> local <code>cmd</code>  —  Add local MCP\n` +
+      `/mcp add <code>name</code> remote <code>url</code>  —  Add remote MCP\n` +
+      `/mcp remove <code>name</code>  —  Remove MCP server\n` +
+      `/mcp connect <code>name</code>  —  Reconnect MCP server\n\n` +
 
-    if (caps.mcp) {
-      text +=
-        `<b>MCP</b>\n` +
-        `/mcp  —  MCP server status\n` +
-        `/mcp add <code>name</code> local <code>cmd</code>  —  Add local MCP\n` +
-        `/mcp add <code>name</code> remote <code>url</code>  —  Add remote MCP\n` +
-        `/mcp remove <code>name</code>  —  Remove MCP server\n\n`;
-    }
-
-    text +=
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
       `/models  —  List available models\n` +
+      `/stt  —  Switch voice transcription provider\n` +
+      `/agent <code>[name|clear]</code>  —  View or change agent\n` +
       `/system  —  View system prompt\n` +
       `/system reload  —  Reload prompt\n` +
       `/health  —  Server status\n` +

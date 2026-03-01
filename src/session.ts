@@ -1,21 +1,28 @@
 import { getProvider } from "./providers/index.js";
 import { JsonStore } from "./utils/store.js";
 import { getConfig } from "./config/index.js";
+import { sessionLogger } from "./utils/logger.js";
 
 interface SessionState {
   activeSessionId: string | null;
   selectedModel: { providerID: string; modelID: string } | null;
+  selectedAgent: string | null;
+  selectedSttProvider: string | null;
 }
 
 const store = new JsonStore<SessionState>("session.json", {
   activeSessionId: null,
   selectedModel: null,
+  selectedAgent: null,
+  selectedSttProvider: null,
 });
 
 // Load persisted state (or fall back to config for model)
 const persisted = store.load();
 
 let activeSessionId: string | null = persisted.activeSessionId;
+let selectedAgent: string | null = persisted.selectedAgent ?? null;
+let selectedSttProvider: string | null = persisted.selectedSttProvider ?? null;
 let selectedModel: { providerID: string; modelID: string } | null = persisted.selectedModel ?? (() => {
   const envModel = getConfig().opencodeModel;
   if (envModel && envModel.includes("/")) {
@@ -29,17 +36,25 @@ let selectedModel: { providerID: string; modelID: string } | null = persisted.se
 let createSessionPromise: Promise<string> | null = null;
 
 export async function getOrCreateSession(): Promise<string> {
-  if (activeSessionId) return activeSessionId;
+  if (activeSessionId) {
+    sessionLogger.info({ sessionId: activeSessionId }, "Using existing session");
+    return activeSessionId;
+  }
 
   // If another call is already creating a session, wait for it
-  if (createSessionPromise) return createSessionPromise;
+  if (createSessionPromise) {
+    sessionLogger.info("Waiting for concurrent session creation");
+    return createSessionPromise;
+  }
 
+  sessionLogger.info("Creating new session");
   createSessionPromise = (async () => {
     try {
       const provider = getProvider();
       const session = await provider.createSession("Telegram Session");
       activeSessionId = session.id;
       persist();
+      sessionLogger.info({ sessionId: activeSessionId }, "New session created");
       return activeSessionId;
     } finally {
       createSessionPromise = null;
@@ -54,12 +69,16 @@ export function getActiveSessionId(): string | null {
 }
 
 export function setActiveSessionId(id: string): void {
+  const previousId = activeSessionId;
   activeSessionId = id;
+  sessionLogger.info({ sessionId: id, previousId }, "Session switched");
   persist();
 }
 
 export function clearActiveSession(): void {
+  const previousId = activeSessionId;
   activeSessionId = null;
+  sessionLogger.info({ previousId }, "Session cleared");
   persist();
 }
 
@@ -69,14 +88,48 @@ export function getSelectedModel(): { providerID: string; modelID: string } | nu
 
 export function setSelectedModel(providerID: string, modelID: string): void {
   selectedModel = { providerID, modelID };
+  sessionLogger.info({ providerID, modelID }, "Model selected");
   persist();
 }
 
 export function clearSelectedModel(): void {
+  const previous = selectedModel;
   selectedModel = null;
+  sessionLogger.info({ previous }, "Model cleared");
+  persist();
+}
+
+export function getSelectedAgent(): string | null {
+  return selectedAgent;
+}
+
+export function setSelectedAgent(agent: string): void {
+  selectedAgent = agent;
+  sessionLogger.info({ agent }, "Agent selected");
+  persist();
+}
+
+export function clearSelectedAgent(): void {
+  const previous = selectedAgent;
+  selectedAgent = null;
+  sessionLogger.info({ previous }, "Agent cleared");
+  persist();
+}
+
+export function getSelectedSttProvider(): string | null {
+  return selectedSttProvider;
+}
+
+export function setSelectedSttProvider(provider: string): void {
+  selectedSttProvider = provider;
+  persist();
+}
+
+export function clearSelectedSttProvider(): void {
+  selectedSttProvider = null;
   persist();
 }
 
 function persist(): void {
-  store.save({ activeSessionId, selectedModel });
+  store.save({ activeSessionId, selectedModel, selectedAgent, selectedSttProvider });
 }

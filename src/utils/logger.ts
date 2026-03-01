@@ -1,9 +1,7 @@
 import pino from "pino";
 
-const level = process.env.LOG_LEVEL ?? "info";
-
 const logger = pino({
-  level,
+  level: "info",
   timestamp: pino.stdTimeFunctions.isoTime,
   transport: process.stdout.isTTY
     ? { target: "pino/file", options: { destination: 1 } }
@@ -12,8 +10,11 @@ const logger = pino({
 
 export default logger;
 
+export const authLogger = logger.child({ component: "auth" });
 export const botLogger = logger.child({ component: "bot" });
 export const chatLogger = logger.child({ component: "chat" });
+export const mediaLogger = logger.child({ component: "media" });
 export const providerLogger = logger.child({ component: "provider" });
+export const sessionLogger = logger.child({ component: "session" });
 export const sttLogger = logger.child({ component: "stt" });
 export const streamLogger = logger.child({ component: "stream" });

@@ -1,4 +1,5 @@
 import type { Context, NextFunction } from "grammy";
+import { authLogger } from "./utils/logger.js";
 
 // Initialized by initAuth() from index.ts
 let allowedUserId = NaN;
@@ -9,7 +10,9 @@ const rateBuckets = new Map<number, number[]>();
 
 export function initAuth(userId: number): boolean {
   allowedUserId = userId;
-  return isAuthConfigured();
+  const configured = isAuthConfigured();
+  authLogger.info({ userId, configured }, "Auth initialized");
+  return configured;
 }
 
 export function isAuthConfigured(): boolean {
@@ -26,6 +29,7 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
   if (!ctx.from) return;  // channel posts, etc. — silently ignore
   const userId = ctx.from.id;
   if (userId !== allowedUserId) {
+    authLogger.info({ userId }, "Unauthorized access attempt");
     await ctx.reply("Unauthorized.");
     return;
   }
@@ -34,6 +38,7 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
   const now = Date.now();
   const bucket = (rateBuckets.get(userId) ?? []).filter((t) => now - t < 60_000);
   if (bucket.length >= RATE_LIMIT) {
+    authLogger.info({ userId, bucketSize: bucket.length }, "Rate limit hit");
     await ctx.reply("Too many requests — wait a moment.");
     return;
   }

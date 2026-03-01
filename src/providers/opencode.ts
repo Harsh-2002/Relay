@@ -5,7 +5,6 @@ import {
 } from "@opencode-ai/sdk";
 import type {
   Provider,
-  ProviderCapabilities,
   Session,
   SessionInfo,
   PromptOptions,
@@ -15,8 +14,10 @@ import type {
   FileDiff,
   SearchResult,
   FileStatus,
+  FileNode,
   ProjectInfo,
   CommandInfo,
+  ToolInfo,
   HealthInfo,
   ModelDetail,
   McpServerConfig,
@@ -31,21 +32,6 @@ let serverClose: (() => void) | undefined;
 
 export class OpenCodeProvider implements Provider {
   readonly name = "opencode" as const;
-  readonly capabilities: ProviderCapabilities = {
-    streaming: true,
-    todos: true,
-    diff: true,
-    fork: true,
-    revert: true,
-    share: true,
-    summarize: true,
-    history: true,
-    fileOps: true,
-    shell: true,
-    commands: true,
-    fileOutput: true,
-    mcp: true,
-  };
 
   async init(): Promise<void> {
     const config = getConfig();
@@ -53,6 +39,7 @@ export class OpenCodeProvider implements Provider {
 
     if (mode === "connect") {
       const baseUrl = config.opencodeUrl;
+      providerLogger.info({ mode, baseUrl }, "Initializing provider");
       try {
         const url = new URL(baseUrl);
         if (
@@ -70,6 +57,7 @@ export class OpenCodeProvider implements Provider {
     } else {
       const hostname = config.opencodeHostname;
       const port = config.opencodePort;
+      providerLogger.info({ mode, hostname, port }, "Initializing provider");
       const result = await createOpencode({ hostname, port });
       client = result.client;
       serverClose = result.server.close;
@@ -77,17 +65,20 @@ export class OpenCodeProvider implements Provider {
   }
 
   shutdown(): void {
+    providerLogger.info("Shutting down provider");
     serverClose?.();
   }
 
   // --- Sessions ---
 
   async createSession(title?: string): Promise<Session> {
+    providerLogger.info({ title: title ?? "Telegram Session" }, "Creating session");
     const result = await client.session.create({
       body: { title: title ?? "Telegram Session" },
     });
     if (result.error) throw sdkError(result.error);
     if (result.data) {
+      providerLogger.info({ sessionId: result.data.id }, "Session created");
       return { id: result.data.id, title: result.data.title };
     }
     throw new Error("Failed to create session");
@@ -111,11 +102,39 @@ export class OpenCodeProvider implements Provider {
   }
 
   async deleteSession(id: string): Promise<boolean> {
+    providerLogger.info({ sessionId: id }, "Deleting session");
     try {
       await client.session.delete({ path: { id } });
+      providerLogger.info({ sessionId: id }, "Session deleted");
+      return true;
+    } catch (err: any) {
+      providerLogger.info({ sessionId: id, err: err?.message }, "Session delete failed");
+      return false;
+    }
+  }
+
+  async renameSession(id: string, title: string): Promise<boolean> {
+    try {
+      await client.session.update({ path: { id }, body: { title } });
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async getSessionStatuses(): Promise<Record<string, string>> {
+    try {
+      const result = await client.session.status();
+      if (result.error) return {};
+      const data = result.data as Record<string, any> | undefined;
+      if (!data) return {};
+      const statuses: Record<string, string> = {};
+      for (const [id, status] of Object.entries(data)) {
+        statuses[id] = status?.type ?? "unknown";
+      }
+      return statuses;
+    } catch {
+      return {};
     }
   }
 
@@ -126,11 +145,18 @@ export class OpenCodeProvider implements Provider {
     text: string,
     options?: PromptOptions
   ): Promise<PromptResult> {
+    const startMs = Date.now();
+    providerLogger.info(
+      { sessionId, textLen: text.length, model: options?.model, agent: options?.agent },
+      "Starting prompt"
+    );
+
     const body: any = {
       parts: options?.parts ?? [{ type: "text", text }],
     };
     if (options?.model) body.model = options.model;
     if (options?.system) body.system = options.system;
+    if (options?.agent) body.agent = options.agent;
 
     const result = await client.session.prompt({
       path: { id: sessionId },
@@ -139,14 +165,21 @@ export class OpenCodeProvider implements Provider {
 
     if (result.error) throw sdkError(result.error);
 
+    const responseText = formatPartsToText(result.data?.parts ?? []);
+    providerLogger.info(
+      { sessionId, durationMs: Date.now() - startMs, responseLen: responseText.length },
+      "Prompt completed"
+    );
+
     return {
-      text: formatPartsToText(result.data?.parts ?? []),
+      text: responseText,
       parts: result.data?.parts,
       raw: result.data,
     };
   }
 
   async abort(sessionId: string): Promise<void> {
+    providerLogger.info({ sessionId }, "Aborting session");
     await client.session.abort({ path: { id: sessionId } });
   }
 
@@ -157,11 +190,18 @@ export class OpenCodeProvider implements Provider {
     text: string,
     options?: PromptOptions
   ): AsyncGenerator<StreamChunk> {
+    const startMs = Date.now();
+    providerLogger.info(
+      { sessionId, textLen: text.length, model: options?.model, agent: options?.agent },
+      "Starting streaming prompt"
+    );
+
     const body: any = {
       parts: options?.parts ?? [{ type: "text", text }],
     };
     if (options?.model) body.model = options.model;
     if (options?.system) body.system = options.system;
+    if (options?.agent) body.agent = options.agent;
 
     await client.session.promptAsync({
       path: { id: sessionId },
@@ -171,6 +211,10 @@ export class OpenCodeProvider implements Provider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120_000);
     const sseResult = await client.event.subscribe();
+    providerLogger.info({ sessionId }, "SSE subscription opened");
+
+    let chunkCount = 0;
+    let toolEvents = 0;
 
     try {
       for await (const event of sseResult.stream) {
@@ -182,6 +226,7 @@ export class OpenCodeProvider implements Provider {
           const { part, delta } = evt.properties;
           if (part.type === "text") {
             if (delta) {
+              chunkCount++;
               yield { type: "text", content: delta };
             }
           } else if (part.type === "file") {
@@ -190,7 +235,12 @@ export class OpenCodeProvider implements Provider {
               content: part.filename ?? "file",
               file: { mime: part.mime, filename: part.filename ?? "file", url: part.url },
             };
+          } else if (part.type === "reasoning") {
+            if (delta) {
+              yield { type: "reasoning", content: delta };
+            }
           } else if (part.type === "tool") {
+            toolEvents++;
             const toolName = part.tool;
             if (part.state.status === "running") {
               yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
@@ -210,6 +260,10 @@ export class OpenCodeProvider implements Provider {
       }
     } finally {
       clearTimeout(timeout);
+      providerLogger.info(
+        { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents },
+        "Stream completed"
+      );
       try { sseResult.stream?.return?.(undefined as any); } catch {}
     }
   }
@@ -291,6 +345,15 @@ export class OpenCodeProvider implements Provider {
     return (result.data as any)?.share?.url ?? null;
   }
 
+  async unshare(sessionId: string): Promise<boolean> {
+    try {
+      await client.session.unshare({ path: { id: sessionId } });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async summarize(sessionId: string): Promise<boolean> {
     try {
       await client.session.summarize({ path: { id: sessionId } });
@@ -315,6 +378,21 @@ export class OpenCodeProvider implements Provider {
     if (result.error) throw sdkError(result.error);
     const fileData = result.data as any;
     return fileData?.content ?? JSON.stringify(fileData, null, 2);
+  }
+
+  async listFiles(path: string): Promise<FileNode[] | null> {
+    try {
+      const result = await client.file.list({ query: { path } });
+      if (result.error) return null;
+      return ((result.data ?? []) as any[]).map((f: any) => ({
+        name: f.name,
+        path: f.path,
+        type: f.type === "directory" ? "directory" : "file",
+        ignored: f.ignored ?? false,
+      }));
+    } catch {
+      return null;
+    }
   }
 
   async findFiles(query: string): Promise<string[] | null> {
@@ -351,6 +429,7 @@ export class OpenCodeProvider implements Provider {
   // --- Shell ---
 
   async shell(sessionId: string, command: string): Promise<string | null> {
+    providerLogger.info({ sessionId, command }, "Executing shell command");
     const result = await client.session.shell({
       path: { id: sessionId },
       body: { command, agent: "default" },
@@ -358,10 +437,11 @@ export class OpenCodeProvider implements Provider {
     if (result.error) throw sdkError(result.error);
     const data = result.data as any;
     const output = data?.output ?? data?.result ?? data?.text;
-    if (output) return String(output);
-    return data?.modelID
+    const resultStr = output ? String(output) : (data?.modelID
       ? `Shell command completed (model: ${data.modelID}).`
-      : "Shell command completed.";
+      : "Shell command completed.");
+    providerLogger.info({ sessionId, resultLen: resultStr.length }, "Shell command completed");
+    return resultStr;
   }
 
   async runCommand(
@@ -404,10 +484,31 @@ export class OpenCodeProvider implements Provider {
     };
   }
 
-  async getTools(): Promise<string[] | null> {
+  async getTools(): Promise<ToolInfo[] | null> {
+    // Try tool.list with current model for descriptions; fall back to tool.ids
+    const config = getConfig();
+    const envModel = config.opencodeModel;
+    if (envModel && envModel.includes("/")) {
+      const [providerID, ...rest] = envModel.split("/");
+      try {
+        const result = await client.tool.list({
+          query: { provider: providerID, model: rest.join("/") },
+        });
+        if (!result.error && result.data) {
+          return ((result.data ?? []) as any[]).map((t: any) => ({
+            id: t.id ?? t.name ?? String(t),
+            description: t.description,
+          }));
+        }
+      } catch {
+        // Fall through to tool.ids
+      }
+    }
+
+    // Fallback: tool IDs without descriptions
     const result = await client.tool.ids();
     if (result.error) throw sdkError(result.error);
-    return (result.data ?? []) as string[];
+    return ((result.data ?? []) as string[]).map((id) => ({ id }));
   }
 
   async getCommands(): Promise<CommandInfo[] | null> {
@@ -469,12 +570,15 @@ export class OpenCodeProvider implements Provider {
     for (const prov of providers) {
       if (!prov.models) continue;
       for (const [key, m] of Object.entries(prov.models) as [string, any][]) {
+        const cost = m.cost;
+        const isFree = cost != null && cost.input === 0 && cost.output === 0;
         models.push({
           id: m.id ?? key,
           name: m.name ?? key,
           provider: prov.id ?? prov.name ?? "unknown",
           reasoning: m.reasoning ?? m.capabilities?.reasoning ?? false,
           attachment: m.attachment ?? m.capabilities?.attachment ?? false,
+          free: isFree,
           modalities: m.modalities,
           active: false, // Caller checks against selected model
         });
@@ -521,6 +625,15 @@ export class OpenCodeProvider implements Provider {
   async removeMcpServer(name: string): Promise<boolean> {
     try {
       await client.mcp.disconnect({ path: { name } });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async connectMcpServer(name: string): Promise<boolean> {
+    try {
+      await client.mcp.connect({ path: { name } });
       return true;
     } catch {
       return false;

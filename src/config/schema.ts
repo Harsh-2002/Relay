@@ -7,7 +7,7 @@ export interface RelayConfig {
   webhookPort: number;
   webhookSecret: string;
 
-  // Provider
+  // Provider (always "opencode" — only supported value)
   provider: "opencode";
   opencodeMode: "start" | "connect";
   opencodeUrl: string;
@@ -16,18 +16,19 @@ export interface RelayConfig {
   opencodeModel: string;
 
   // STT
-  sttProvider: "auto" | "openai" | "groq" | "assemblyai";
+  sttProvider: "auto" | "openai" | "groq" | "assemblyai" | "sarvam" | "sarvam-translate";
   groqApiKey: string;
   openaiSttApiKey: string;
   assemblyaiApiKey: string;
   groqSttModel: string;
   openaiSttModel: string;
+  sarvamApiKey: string;
+  sarvamSttModel: string;
 
   // Behavior
   streamingEnabled: boolean;
   streamEditIntervalMs: number;
   promptTimeoutMs: number;
-  logLevel: string;
 
   // Paths
   dataDir: string;
@@ -55,11 +56,12 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   assemblyaiApiKey: "",
   groqSttModel: "whisper-large-v3-turbo",
   openaiSttModel: "gpt-4o-mini-transcribe",
+  sarvamApiKey: "",
+  sarvamSttModel: "saaras:v3",
 
   streamingEnabled: false,
   streamEditIntervalMs: 2000,
   promptTimeoutMs: 300_000,
-  logLevel: "info",
 
   dataDir: "",
   systemPromptFile: "",

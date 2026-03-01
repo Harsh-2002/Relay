@@ -37,7 +37,6 @@ function printHelp(): void {
     --allowed-user-id <id>      Telegram user ID
     --bot-mode <mode>           Bot mode: polling, webhook
     --streaming-enabled <bool>  Enable streaming responses
-    --log-level <level>         Log level: debug, info, warn, error
     --data-dir <path>           Data directory (default: .relay/)
     --system-prompt-file <path> System prompt file path
 

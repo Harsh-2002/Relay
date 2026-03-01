@@ -1,12 +1,13 @@
 import type { Bot } from "grammy";
 import { getProvider } from "../providers/index.js";
-import { getOrCreateSession, getSelectedModel } from "../session.js";
+import { getOrCreateSession, getSelectedModel, getSelectedAgent } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
 import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
 import { extractFileParts, sendResponseFiles } from "../utils/files.js";
+import { markdownToHtml } from "../utils/markdown.js";
 import { chatLogger } from "../utils/logger.js";
 import { InputFile } from "grammy";
 
@@ -17,9 +18,10 @@ export function registerChat(bot: Bot): void {
     const text = ctx.message.text;
     if (text.startsWith("/")) return;
 
-    chatLogger.info({ from: ctx.from?.id, len: text.length }, "Inbound message");
+    chatLogger.info({ from: ctx.from?.id, len: text.length }, "Inbound text message");
 
     if (text.length > MAX_INPUT_LENGTH) {
+      chatLogger.info({ from: ctx.from?.id, len: text.length }, "Message rejected (too long)");
       await ctx.reply(
         `Message too long (${text.length.toLocaleString()} chars). ` +
         `Maximum is ${MAX_INPUT_LENGTH.toLocaleString()} characters. ` +
@@ -32,15 +34,25 @@ export function registerChat(bot: Bot): void {
     try {
       const sessionId = await getOrCreateSession();
       const model = getSelectedModel();
+      const agent = getSelectedAgent();
       const system = getSystemPrompt();
       const provider = getProvider();
+      const streaming = isStreamingEnabled() && !!provider.promptStream;
+
+      chatLogger.info(
+        { sessionId, model, agent, streaming },
+        "Processing message"
+      );
 
       // Streaming: use provider's promptStream if available
-      if (isStreamingEnabled() && provider.promptStream) {
+      if (streaming) {
+        chatLogger.info({ sessionId }, "Routing to streaming prompt");
         const parts = [{ type: "text" as const, text }];
-        await streamPrompt({ ctx, sessionId, parts, model, system });
+        await streamPrompt({ ctx, sessionId, parts, model, system, agent });
         return;
       }
+
+      chatLogger.info({ sessionId }, "Routing to non-streaming prompt");
 
       // Keep typing indicator active while waiting for response
       const typingInterval = setInterval(() => {
@@ -49,10 +61,12 @@ export function registerChat(bot: Bot): void {
       await ctx.replyWithChatAction("typing");
 
       try {
+        const startMs = Date.now();
         const result = await withTimeout(
           provider.prompt(sessionId, text, {
             parts: [{ type: "text" as const, text }],
             ...(model && { model }),
+            ...(agent && { agent }),
             system,
           }),
           getPromptTimeout(),
@@ -60,20 +74,28 @@ export function registerChat(bot: Bot): void {
         );
 
         if (!result.text.trim() || result.text === "(empty response)") {
+          chatLogger.info({ sessionId }, "Empty response from provider");
           await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
           return;
         }
+
+        chatLogger.info(
+          { sessionId, durationMs: Date.now() - startMs, responseLen: result.text.length },
+          "Prompt completed"
+        );
         await sendResponse(ctx, result.text);
 
         // Send any file attachments from the response
         const files = extractFileParts(result.parts ?? []);
         if (files.length > 0) {
+          chatLogger.info({ sessionId, filesCount: files.length }, "Sending file attachments");
           await sendResponseFiles(ctx, files);
         }
       } finally {
         clearInterval(typingInterval);
       }
     } catch (err: any) {
+      chatLogger.info({ err: err?.message }, "Chat error");
       await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
     }
   });
@@ -86,16 +108,18 @@ async function sendResponse(ctx: any, text: string): Promise<void> {
     return;
   }
 
-  const chunks = chunkMessage(text);
+  const html = markdownToHtml(text);
+  const chunks = chunkMessage(html);
   for (const chunk of chunks) {
     try {
-      await ctx.reply(chunk, { parse_mode: "Markdown" });
+      await ctx.reply(chunk, { parse_mode: "HTML" });
     } catch (sendErr: any) {
       const desc = sendErr?.description ?? sendErr?.message ?? "";
       if (!desc.includes("can't parse")) {
         chatLogger.warn({ err: desc }, "Failed to send message chunk");
       }
-      await ctx.reply(chunk);
+      // Fall back to plain text (strip HTML tags)
+      await ctx.reply(chunk.replace(/<[^>]+>/g, ""));
     }
   }
 }

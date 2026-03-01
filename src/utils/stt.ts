@@ -1,40 +1,67 @@
+import { Readable } from "stream";
 import { getConfig } from "../config/index.js";
+import { getSelectedSttProvider as getSessionSttProvider } from "../session.js";
 import { sttLogger } from "./logger.js";
 
 export interface TranscriptionResult {
   text: string;
-  provider: "openai" | "groq" | "assemblyai";
+  provider: "openai" | "groq" | "assemblyai" | "sarvam" | "sarvam-translate";
 }
 
-type SttProvider = "openai" | "groq" | "assemblyai" | "auto";
+type SttProvider = "openai" | "groq" | "assemblyai" | "sarvam" | "sarvam-translate" | "auto";
 
 export function isSttAvailable(): boolean {
   const config = getConfig();
   return !!(
     config.openaiSttApiKey ||
     config.groqApiKey ||
-    config.assemblyaiApiKey
+    config.assemblyaiApiKey ||
+    config.sarvamApiKey
   );
 }
 
 export function getSttProvider(): string | null {
   const config = getConfig();
-  const provider = config.sttProvider as SttProvider;
+
+  // Runtime override from /stt command takes priority
+  const sessionProv = getSessionSttProvider();
+  const provider = (sessionProv ?? config.sttProvider) as SttProvider;
 
   if (provider !== "auto") {
     const keyMap: Record<string, string | undefined> = {
       groq: config.groqApiKey,
       openai: config.openaiSttApiKey,
       assemblyai: config.assemblyaiApiKey,
+      sarvam: config.sarvamApiKey,
+      "sarvam-translate": config.sarvamApiKey,
     };
     return keyMap[provider] ? provider : null;
   }
 
-  // Auto-detect: cheapest first (Groq > AssemblyAI > OpenAI)
+  // Auto-detect: Groq > Sarvam > AssemblyAI > OpenAI
   if (config.groqApiKey) return "groq";
+  if (config.sarvamApiKey) return "sarvam";
   if (config.assemblyaiApiKey) return "assemblyai";
   if (config.openaiSttApiKey) return "openai";
   return null;
+}
+
+/** All known STT providers with their configuration status. */
+export interface SttProviderInfo {
+  id: string;
+  name: string;
+  configured: boolean;
+}
+
+export function listSttProviders(): SttProviderInfo[] {
+  const config = getConfig();
+  return [
+    { id: "groq", name: "Groq", configured: !!config.groqApiKey },
+    { id: "openai", name: "OpenAI", configured: !!config.openaiSttApiKey },
+    { id: "assemblyai", name: "AssemblyAI", configured: !!config.assemblyaiApiKey },
+    { id: "sarvam", name: "Sarvam", configured: !!config.sarvamApiKey },
+    { id: "sarvam-translate", name: "Sarvam Translate", configured: !!config.sarvamApiKey },
+  ];
 }
 
 export async function transcribeAudio(
@@ -48,7 +75,7 @@ export async function transcribeAudio(
     );
   }
 
-  sttLogger.debug({ provider, filename }, "Transcribing audio");
+  sttLogger.info({ provider, filename }, "Transcribing audio");
 
   switch (provider) {
     case "groq":
@@ -57,6 +84,10 @@ export async function transcribeAudio(
       return transcribeWithOpenAI(buffer, filename);
     case "assemblyai":
       return transcribeWithAssemblyAI(buffer);
+    case "sarvam":
+      return transcribeWithSarvam(buffer, filename);
+    case "sarvam-translate":
+      return translateWithSarvam(buffer, filename);
     default:
       throw new Error(`Unknown STT provider: ${provider}`);
   }
@@ -84,11 +115,12 @@ async function transcribeWithOpenAI(
   );
 
   if (!response.ok) {
+    sttLogger.info({ provider: "openai", status: response.status }, "STT HTTP error");
     throw new Error(`Voice transcription failed (OpenAI, HTTP ${response.status})`);
   }
 
   const data = (await response.json()) as { text: string };
-  sttLogger.debug({ provider: "openai", chars: data.text.length }, "Transcription complete");
+  sttLogger.info({ provider: "openai", chars: data.text.length }, "Transcription complete");
   return { text: data.text, provider: "openai" };
 }
 
@@ -114,11 +146,12 @@ async function transcribeWithGroq(
   );
 
   if (!response.ok) {
+    sttLogger.info({ provider: "groq", status: response.status }, "STT HTTP error");
     throw new Error(`Voice transcription failed (Groq, HTTP ${response.status})`);
   }
 
   const data = (await response.json()) as { text: string };
-  sttLogger.debug({ provider: "groq", chars: data.text.length }, "Transcription complete");
+  sttLogger.info({ provider: "groq", chars: data.text.length }, "Transcription complete");
   return { text: data.text, provider: "groq" };
 }
 
@@ -139,6 +172,7 @@ async function transcribeWithAssemblyAI(
   });
 
   if (!uploadResp.ok) {
+    sttLogger.info({ provider: "assemblyai", status: uploadResp.status, phase: "upload" }, "STT HTTP error");
     throw new Error(`Voice transcription failed (AssemblyAI upload, HTTP ${uploadResp.status})`);
   }
 
@@ -158,6 +192,7 @@ async function transcribeWithAssemblyAI(
   );
 
   if (!transcriptResp.ok) {
+    sttLogger.info({ provider: "assemblyai", status: transcriptResp.status, phase: "transcript" }, "STT HTTP error");
     throw new Error(`Voice transcription failed (AssemblyAI, HTTP ${transcriptResp.status})`);
   }
 
@@ -172,6 +207,7 @@ async function transcribeWithAssemblyAI(
     );
 
     if (!pollResp.ok) {
+      sttLogger.info({ provider: "assemblyai", status: pollResp.status, phase: "polling" }, "STT HTTP error");
       throw new Error(`Voice transcription failed (AssemblyAI polling, HTTP ${pollResp.status})`);
     }
 
@@ -182,7 +218,7 @@ async function transcribeWithAssemblyAI(
     };
 
     if (result.status === "completed") {
-      sttLogger.debug({ provider: "assemblyai", chars: result.text?.length ?? 0 }, "Transcription complete");
+      sttLogger.info({ provider: "assemblyai", chars: result.text?.length ?? 0 }, "Transcription complete");
       return { text: result.text ?? "", provider: "assemblyai" };
     }
     if (result.status === "error") {
@@ -193,4 +229,61 @@ async function transcribeWithAssemblyAI(
   }
 
   throw new Error("AssemblyAI transcription timed out (60s)");
+}
+
+async function transcribeWithSarvam(
+  buffer: Buffer,
+  filename: string
+): Promise<TranscriptionResult> {
+  const config = getConfig();
+  const apiKey = config.sarvamApiKey;
+  const model = config.sarvamSttModel as any;
+
+  try {
+    const { SarvamAIClient } = await import("sarvamai");
+    const client = new SarvamAIClient({ apiSubscriptionKey: apiKey });
+    const stream = Readable.from(buffer);
+    const result = await client.speechToText.transcribe({
+      file: stream,
+      model,
+      mode: "transcribe",
+    });
+
+    const text = result.transcript ?? "";
+    sttLogger.info({ provider: "sarvam", chars: text.length }, "Transcription complete");
+    return { text, provider: "sarvam" };
+  } catch (err: any) {
+    const status = err.statusCode ?? err.status ?? "";
+    const message = err.message ?? "unknown error";
+    throw new Error(`Voice transcription failed (Sarvam${status ? `, HTTP ${status}` : ""}: ${message})`);
+  }
+}
+
+async function translateWithSarvam(
+  buffer: Buffer,
+  filename: string
+): Promise<TranscriptionResult> {
+  const config = getConfig();
+  const apiKey = config.sarvamApiKey;
+  const model = config.sarvamSttModel as any;
+
+  try {
+    const { SarvamAIClient } = await import("sarvamai");
+    const client = new SarvamAIClient({ apiSubscriptionKey: apiKey });
+    const stream = Readable.from(buffer);
+    // Use saaras:v3 transcribe endpoint with mode=translate (newer than the separate translate endpoint)
+    const result = await client.speechToText.transcribe({
+      file: stream,
+      model,
+      mode: "translate",
+    });
+
+    const text = result.transcript ?? "";
+    sttLogger.info({ provider: "sarvam-translate", chars: text.length }, "Translation complete");
+    return { text, provider: "sarvam-translate" };
+  } catch (err: any) {
+    const status = err.statusCode ?? err.status ?? "";
+    const message = err.message ?? "unknown error";
+    throw new Error(`Voice translation failed (Sarvam${status ? `, HTTP ${status}` : ""}: ${message})`);
+  }
 }

@@ -4,8 +4,9 @@ import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import { sendResponseFiles, type ResponseFile } from "./files.js";
+import { markdownToHtml } from "./markdown.js";
 import { getConfig } from "../config/index.js";
-import { providerLogger } from "./logger.js";
+import { streamLogger } from "./logger.js";
 
 function getEditInterval(): number {
   return getConfig().streamEditIntervalMs;
@@ -21,6 +22,7 @@ export interface StreamPromptOptions {
   parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; filename?: string; url: string }>;
   model?: { providerID: string; modelID: string } | null;
   system?: string;
+  agent?: string | null;
 }
 
 export async function streamPrompt({
@@ -29,15 +31,21 @@ export async function streamPrompt({
   parts,
   model,
   system,
+  agent,
 }: StreamPromptOptions): Promise<void> {
   const provider = getProvider();
+  const startMs = Date.now();
+
+  streamLogger.info({ sessionId, partsCount: parts.length }, "Starting stream prompt");
 
   if (!provider.promptStream) {
+    streamLogger.info({ sessionId }, "No promptStream — falling back to non-streaming");
     // Fallback to non-streaming prompt
     const result = await provider.prompt(sessionId, parts[0]?.type === "text" ? (parts[0] as any).text : "", {
       parts: parts as any,
       ...(model && { model }),
       ...(system && { system }),
+      ...(agent && { agent }),
     });
     await sendPlainText(ctx, result.text);
     return;
@@ -47,6 +55,7 @@ export async function streamPrompt({
   const placeholder = await ctx.reply("Thinking...");
   const chatId = placeholder.chat.id;
   const messageId = placeholder.message_id;
+  streamLogger.info({ chatId, messageId }, "Placeholder message sent");
 
   // Keep typing indicator active
   const typingInterval = setInterval(() => {
@@ -54,10 +63,13 @@ export async function streamPrompt({
   }, 4000);
 
   let accumulated = "";
+  let reasoning = "";
   let toolStatus = "";
   let lastEditTime = 0;
   let lastEditedText = "";
   let errorMsg: string | null = null;
+  let chunkCount = 0;
+  let editCount = 0;
   const collectedFiles: ResponseFile[] = [];
 
   try {
@@ -65,11 +77,15 @@ export async function streamPrompt({
       parts: parts as any,
       ...(model && { model }),
       ...(system && { system }),
+      ...(agent && { agent }),
     });
 
     for await (const chunk of stream) {
       if (chunk.type === "text") {
+        chunkCount++;
         accumulated += chunk.content;
+      } else if (chunk.type === "reasoning") {
+        reasoning += chunk.content;
       } else if (chunk.type === "tool_use") {
         toolStatus = chunk.content;
       } else if (chunk.type === "file" && chunk.file) {
@@ -81,19 +97,26 @@ export async function streamPrompt({
       // Throttled edit — use Markdown so the final edit doesn't cause a visual flash
       const now = Date.now();
       if (now - lastEditTime >= getEditInterval()) {
-        const display = buildDisplayText(accumulated, toolStatus);
+        const display = buildDisplayText(accumulated, toolStatus, reasoning);
         if (display !== lastEditedText) {
-          await safeEditMarkdown(ctx, chatId, messageId, display);
+          await safeEditHtml(ctx, chatId, messageId, display);
           lastEditedText = display;
           lastEditTime = now;
+          editCount++;
         }
       }
     }
   } catch (err: any) {
+    streamLogger.info({ sessionId, err: err?.message, chunkCount }, "Stream error");
     errorMsg = formatCatchError(err, "streaming response");
   } finally {
     clearInterval(typingInterval);
   }
+
+  streamLogger.info(
+    { sessionId, durationMs: Date.now() - startMs, chunkCount, editCount, responseLen: accumulated.length, filesCount: collectedFiles.length },
+    "Stream completed"
+  );
 
   // Final response
   if (errorMsg) {
@@ -106,14 +129,18 @@ export async function streamPrompt({
     return;
   }
 
-  const finalDisplay = buildDisplayText(accumulated, "");
-  const chunks = chunkMessage(accumulated);
+  // Prepend reasoning as italic block if present
+  const finalText = reasoning
+    ? `_Thinking:_\n_${reasoning.slice(0, 2000)}${reasoning.length > 2000 ? "..." : ""}_\n\n${accumulated}`
+    : accumulated;
+  const finalDisplay = buildDisplayText(accumulated, "", reasoning);
+  const chunks = chunkMessage(finalText);
 
   if (chunks.length <= 1 && finalDisplay === lastEditedText) {
     // Already showing the complete response — nothing to do
   } else if (chunks.length <= 1) {
     // Fits in one message but last streaming edit was throttled — do one final edit
-    await safeEditMarkdown(ctx, chatId, messageId, finalDisplay);
+    await safeEditHtml(ctx, chatId, messageId, finalDisplay);
   } else {
     // Too long for one message — delete placeholder and send as multiple messages
     await sendFinalResponse(ctx, chatId, messageId, accumulated);
@@ -125,8 +152,15 @@ export async function streamPrompt({
   }
 }
 
-function buildDisplayText(text: string, toolStatus: string): string {
-  let display = text || "Thinking...";
+function buildDisplayText(text: string, toolStatus: string, reasoning = ""): string {
+  let display = "";
+  if (reasoning && !text) {
+    // Still in reasoning phase — show thinking indicator
+    const truncated = reasoning.length > 500 ? reasoning.slice(-500) + "..." : reasoning;
+    display = `_Thinking: ${truncated}_`;
+  } else {
+    display = text || "Thinking...";
+  }
   if (toolStatus) {
     display += `\n\n${toolStatus}`;
   }
@@ -155,20 +189,21 @@ async function safeEditMessage(
 }
 
 /**
- * Edit a message with Markdown formatting. Falls back to plain text if Markdown parsing fails.
- * This is used for streaming edits so the final message doesn't need a re-render.
+ * Edit a message with HTML formatting (converted from markdown).
+ * Falls back to plain text if HTML parsing fails.
  */
-async function safeEditMarkdown(
+async function safeEditHtml(
   ctx: Context,
   chatId: number,
   messageId: number,
   text: string,
 ): Promise<void> {
+  const html = markdownToHtml(text);
   try {
-    await ctx.api.editMessageText(chatId, messageId, text, { parse_mode: "Markdown" });
+    await ctx.api.editMessageText(chatId, messageId, html, { parse_mode: "HTML" });
   } catch (err: any) {
     if (isNotModifiedError(err)) return;
-    // Markdown parse failure — retry without formatting
+    // HTML parse failure — retry without formatting
     if (isParseError(err)) {
       try {
         await ctx.api.editMessageText(chatId, messageId, text);
@@ -181,7 +216,7 @@ async function safeEditMarkdown(
       return;
     }
     await retryOnRateLimit(err, () =>
-      ctx.api.editMessageText(chatId, messageId, text, { parse_mode: "Markdown" })
+      ctx.api.editMessageText(chatId, messageId, html, { parse_mode: "HTML" })
     );
   }
 }
@@ -203,7 +238,7 @@ async function retryOnRateLimit(err: any, fn: () => Promise<any>): Promise<void>
     await new Promise((r) => setTimeout(r, retryAfter * 1000));
     try { await fn(); } catch { /* give up after retry */ }
   } else {
-    providerLogger.warn({ err: desc }, "Telegram edit failed");
+    streamLogger.info({ err: desc }, "Telegram edit failed");
   }
 }
 
@@ -215,13 +250,17 @@ async function sendFinalResponse(
 ): Promise<void> {
   const chunks = chunkMessage(text);
 
+  // Convert to HTML for sending
+  const html = markdownToHtml(text);
+  const htmlChunks = chunkMessage(html);
+
   // If it fits in a single message, just edit the placeholder in place (no flash)
-  if (chunks.length === 1) {
+  if (htmlChunks.length === 1) {
     try {
-      await ctx.api.editMessageText(chatId, placeholderMsgId, chunks[0], { parse_mode: "Markdown" });
+      await ctx.api.editMessageText(chatId, placeholderMsgId, htmlChunks[0], { parse_mode: "HTML" });
       return;
     } catch {
-      // Markdown failed — try plain text edit
+      // HTML failed — try plain text edit
       try {
         await ctx.api.editMessageText(chatId, placeholderMsgId, chunks[0]);
         return;
@@ -238,11 +277,14 @@ async function sendFinalResponse(
     // May fail if message was already deleted
   }
 
-  for (const chunk of chunks) {
+  for (const chunk of htmlChunks) {
     try {
-      await ctx.api.sendMessage(chatId, chunk, { parse_mode: "Markdown" });
+      await ctx.api.sendMessage(chatId, chunk, { parse_mode: "HTML" });
     } catch {
-      await ctx.api.sendMessage(chatId, chunk);
+      // Fall back to plain text for this chunk
+      const plainIdx = htmlChunks.indexOf(chunk);
+      const plainChunk = plainIdx < chunks.length ? chunks[plainIdx] : chunk.replace(/<[^>]+>/g, "");
+      await ctx.api.sendMessage(chatId, plainChunk);
     }
   }
 }
@@ -258,13 +300,14 @@ async function sendPlainText(ctx: Context, text: string, chatId?: number): Promi
     return;
   }
 
-  // Chunk and send
-  const chunks = chunkMessage(text);
+  // Convert to HTML and chunk
+  const html = markdownToHtml(text);
+  const chunks = chunkMessage(html);
   for (const chunk of chunks) {
     try {
-      await ctx.api.sendMessage(targetChatId, chunk, { parse_mode: "Markdown" });
+      await ctx.api.sendMessage(targetChatId, chunk, { parse_mode: "HTML" });
     } catch {
-      await ctx.api.sendMessage(targetChatId, chunk);
+      await ctx.api.sendMessage(targetChatId, chunk.replace(/<[^>]+>/g, ""));
     }
   }
 }

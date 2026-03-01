@@ -1,7 +1,7 @@
-import { execFileSync, spawnSync } from "child_process";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execCmd, spawnCmd, sleepSync } from "./utils/shell.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROCESS_NAME = "relay";
@@ -35,7 +35,7 @@ function formatMemory(bytes: number): string {
 
 function isPm2Available(): boolean {
   try {
-    execFileSync("pm2", ["--version"], { stdio: "ignore" });
+    execCmd("pm2", ["--version"], { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -47,7 +47,7 @@ function ensurePm2(): void {
 
   console.log("  pm2 not found. Installing globally...\n");
   try {
-    execFileSync("npm", ["install", "-g", "pm2"], { stdio: "inherit" });
+    execCmd("npm", ["install", "-g", "pm2"], { stdio: "inherit" });
     console.log();
   } catch {
     console.error(
@@ -66,10 +66,10 @@ function ensurePm2(): void {
 
 function getProcessInfo(): Pm2ProcessInfo | null {
   try {
-    const result = execFileSync("pm2", ["jlist"], {
+    const result = execCmd("pm2", ["jlist"], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
-    });
+    }) as string;
     const processes = JSON.parse(result);
     const proc = processes.find(
       (p: { name: string }) => p.name === PROCESS_NAME
@@ -134,7 +134,7 @@ export function daemonStart(): void {
   // If there's a stopped/errored process, delete it first
   if (info) {
     try {
-      execFileSync("pm2", ["delete", PROCESS_NAME], { stdio: "ignore" });
+      execCmd("pm2", ["delete", PROCESS_NAME], { stdio: "ignore" });
     } catch {
       // ignore
     }
@@ -158,14 +158,14 @@ export function daemonStart(): void {
   }
 
   try {
-    execFileSync("pm2", pm2Args, { stdio: "inherit" });
+    execCmd("pm2", pm2Args, { stdio: "inherit" });
   } catch {
     console.error("\n  Failed to start daemon.\n");
     process.exit(1);
   }
 
   // Brief pause for pm2 to register the process
-  spawnSync("sleep", ["1"]);
+  sleepSync(1);
 
   const newInfo = getProcessInfo();
   if (newInfo) {
@@ -188,8 +188,8 @@ export function daemonStop(): void {
   }
 
   try {
-    execFileSync("pm2", ["stop", PROCESS_NAME], { stdio: "ignore" });
-    execFileSync("pm2", ["delete", PROCESS_NAME], { stdio: "ignore" });
+    execCmd("pm2", ["stop", PROCESS_NAME], { stdio: "ignore" });
+    execCmd("pm2", ["delete", PROCESS_NAME], { stdio: "ignore" });
   } catch {
     // ignore — may already be stopped
   }
@@ -209,13 +209,13 @@ export function daemonRestart(): void {
   }
 
   try {
-    execFileSync("pm2", ["restart", PROCESS_NAME], { stdio: "inherit" });
+    execCmd("pm2", ["restart", PROCESS_NAME], { stdio: "inherit" });
   } catch {
     console.error("\n  Failed to restart daemon.\n");
     process.exit(1);
   }
 
-  spawnSync("sleep", ["1"]);
+  sleepSync(1);
 
   const newInfo = getProcessInfo();
   if (newInfo) {
@@ -239,7 +239,7 @@ export function daemonLogs(): void {
     process.exit(1);
   }
 
-  spawnSync("pm2", ["logs", PROCESS_NAME, "--lines", "50"], {
+  spawnCmd("pm2", ["logs", PROCESS_NAME, "--lines", "50"], {
     stdio: "inherit",
   });
 }

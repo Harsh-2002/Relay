@@ -1,7 +1,8 @@
-import { execFileSync, execSync } from "child_process";
+import { execSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve, normalize } from "path";
 import { fileURLToPath } from "url";
+import { execCmd } from "./utils/shell.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_NAME = "@4via6/relay";
@@ -19,10 +20,10 @@ function getLocalVersion(): string {
 
 function getLatestVersion(): string | null {
   try {
-    return execFileSync("npm", ["view", PACKAGE_NAME, "version"], {
+    return (execCmd("npm", ["view", PACKAGE_NAME, "version"], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
-    }).trim();
+    }) as string).trim();
   } catch {
     return null;
   }
@@ -34,12 +35,14 @@ function isGitRepo(): boolean {
 
 function isGlobalNpmInstall(): boolean {
   try {
-    const globalPrefix = execFileSync("npm", ["prefix", "-g"], {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "ignore"],
-    }).trim();
-    // If our package dir is inside the global prefix, it's a global install
-    const pkgRoot = join(__dirname, "..");
+    const globalPrefix = normalize(
+      (execCmd("npm", ["prefix", "-g"], {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "ignore"],
+      }) as string).trim()
+    );
+    // Normalize both paths to handle Windows backslashes and trailing separators
+    const pkgRoot = normalize(resolve(__dirname, ".."));
     return pkgRoot.startsWith(globalPrefix);
   } catch {
     return false;
@@ -48,10 +51,10 @@ function isGlobalNpmInstall(): boolean {
 
 function isDaemonRunning(): boolean {
   try {
-    const result = execFileSync("pm2", ["jlist"], {
+    const result = execCmd("pm2", ["jlist"], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
-    });
+    }) as string;
     const processes = JSON.parse(result);
     const proc = processes.find(
       (p: { name: string }) => p.name === "relay"
@@ -64,7 +67,7 @@ function isDaemonRunning(): boolean {
 
 function restartDaemon(): void {
   try {
-    execFileSync("pm2", ["restart", "relay"], { stdio: "ignore" });
+    execCmd("pm2", ["restart", "relay"], { stdio: "ignore" });
     console.log("  Daemon restarted.\n");
   } catch {
     console.log("  Failed to restart daemon. Run `relay restart` manually.\n");
@@ -74,7 +77,7 @@ function restartDaemon(): void {
 function updateFromNpm(): boolean {
   console.log(`  Updating ${PACKAGE_NAME} via npm...\n`);
   try {
-    execFileSync("npm", ["install", "-g", `${PACKAGE_NAME}@latest`], {
+    execCmd("npm", ["install", "-g", `${PACKAGE_NAME}@latest`], {
       stdio: "inherit",
     });
     return true;

@@ -63,6 +63,12 @@ async function main() {
 
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  // Windows: SIGTERM doesn't fire. Use 'message' from pm2 for graceful shutdown.
+  if (process.platform === "win32") {
+    process.on("message", (msg) => {
+      if (msg === "shutdown") gracefulShutdown("shutdown");
+    });
+  }
 
   if (botMode === "webhook") {
     if (!config.webhookUrl) {

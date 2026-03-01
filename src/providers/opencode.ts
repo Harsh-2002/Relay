@@ -26,6 +26,7 @@ import type {
 import type { Event as OcEvent } from "@opencode-ai/sdk";
 import { getConfig } from "../config/index.js";
 import { providerLogger } from "../utils/logger.js";
+import { spawnAsync } from "../utils/shell.js";
 
 let client: OpencodeClient;
 let serverClose: (() => void) | undefined;
@@ -58,9 +59,19 @@ export class OpenCodeProvider implements Provider {
       const hostname = config.opencodeHostname;
       const port = config.opencodePort;
       providerLogger.info({ mode, hostname, port }, "Initializing provider");
-      const result = await createOpencode({ hostname, port });
-      client = result.client;
-      serverClose = result.server.close;
+
+      // On Windows, the SDK's createOpencode() fails with ENOENT because
+      // spawn("opencode") can't find .cmd shims. We spawn manually with
+      // shell:true and then connect as a client.
+      // See: https://github.com/anomalyco/opencode/issues/8160
+      if (process.platform === "win32") {
+        const baseUrl = await spawnOpencodeWindows(hostname, port);
+        client = createOpencodeClient({ baseUrl });
+      } else {
+        const result = await createOpencode({ hostname, port });
+        client = result.client;
+        serverClose = result.server.close;
+      }
     }
   }
 
@@ -729,6 +740,69 @@ export class OpenCodeProvider implements Provider {
       return false;
     }
   }
+}
+
+// --- Windows spawn workaround ---
+// SDK's createOpencode() uses spawn("opencode") without shell:true,
+// which fails on Windows because npm installs opencode as a .cmd shim.
+// We use spawnAsync() which adds shell:true on Windows automatically.
+// See: https://github.com/anomalyco/opencode/issues/8160
+
+function spawnOpencodeWindows(hostname: string, port: number): Promise<string> {
+  const TIMEOUT = 15_000;
+  const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
+
+  providerLogger.info({ hostname, port }, "Spawning OpenCode server (Windows)");
+
+  const proc = spawnAsync("opencode", args, {
+    env: { ...process.env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  // Store kill function for shutdown
+  serverClose = () => {
+    try { proc.kill(); } catch {}
+  };
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`OpenCode server did not start within ${TIMEOUT / 1000}s`));
+    }, TIMEOUT);
+
+    let output = "";
+
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+      for (const line of output.split("\n")) {
+        if (line.includes("opencode server listening")) {
+          const match = line.match(/on\s+(https?:\/\/[^\s]+)/);
+          if (match) {
+            clearTimeout(timer);
+            providerLogger.info({ url: match[1] }, "OpenCode server started (Windows)");
+            resolve(match[1]);
+            return;
+          }
+        }
+      }
+    });
+
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(new Error(`Failed to spawn OpenCode: ${err.message}`));
+    });
+
+    proc.on("exit", (code) => {
+      clearTimeout(timer);
+      let msg = `OpenCode server exited with code ${code}`;
+      if (output.trim()) msg += `\nOutput: ${output.trim()}`;
+      reject(new Error(msg));
+    });
+  });
 }
 
 // --- Helpers ---

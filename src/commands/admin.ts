@@ -10,9 +10,7 @@ import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../uti
 import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 
-const MODELS_PER_PAGE = 8;
-
-type ModelFilter = "all" | "free";
+const PROVIDER_MODELS_PER_PAGE = 8;
 
 const SENSITIVE_KEYS = new Set([
   "botToken",
@@ -23,82 +21,94 @@ const SENSITIVE_KEYS = new Set([
   "webhookSecret",
 ]);
 
-function buildModelKeyboard(
+/** Extract a group name from a model's family or name (e.g. "claude-sonnet" → "Claude", "GPT-5 Codex" → "GPT") */
+function modelGroup(m: ModelDetail): string {
+  if (m.family) {
+    // Take first segment before hyphen: "claude-sonnet" → "claude", "gpt-codex" → "gpt"
+    const base = m.family.split("-")[0];
+    // Title-case it
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }
+  // Fallback: first word of model name
+  return m.name.split(/[\s-]/)[0];
+}
+
+function buildGroupKeyboard(
   models: ModelDetail[],
-  page: number,
   selectedModel?: { providerID: string; modelID: string } | null,
-  filter: ModelFilter = "all",
 ): { keyboard: InlineKeyboard; text: string } {
-  // Sort free models first within each provider, then alphabetically
-  const sorted = [...models].sort((a, b) => {
-    if (a.provider !== b.provider) return 0;
-    if (a.free !== b.free) return a.free ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  // Group by provider
-  const grouped = new Map<string, ModelDetail[]>();
-  for (const m of sorted) {
-    const list = grouped.get(m.provider) ?? [];
-    list.push(m);
-    grouped.set(m.provider, list);
-  }
-
-  // Apply filter
-  if (filter === "free") {
-    for (const [provId, provModels] of grouped) {
-      const filtered = provModels.filter(m => m.free);
-      if (filtered.length === 0) {
-        grouped.delete(provId);
-      } else {
-        grouped.set(provId, filtered);
-      }
-    }
-  }
-
-  // Flatten into display order
-  const modelItems: { type: "model"; model: ModelDetail }[] = [];
-  for (const [, provModels] of grouped) {
-    for (const m of provModels) {
-      modelItems.push({ type: "model", model: m });
-    }
+  // Count models per group and total free models
+  const groupCounts = new Map<string, number>();
+  let freeCount = 0;
+  for (const m of models) {
+    const group = modelGroup(m);
+    groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+    if (m.free) freeCount++;
   }
 
   const kb = new InlineKeyboard();
 
-  // Filter buttons row
-  const freeLabel = filter === "free" ? "* Free *" : "Free";
-  const allLabel = filter === "all" ? "* All *" : "All";
-  kb.row().text(freeLabel, "mdl_filter:free").text(allLabel, "mdl_filter:all");
-
-  // Empty state
-  if (modelItems.length === 0) {
-    const headerText = filter === "free"
-      ? `<b>No free models available.</b>`
-      : `<b>No models available.</b>`;
-    return { keyboard: kb, text: headerText };
+  // "Free Models" shortcut at top
+  if (freeCount > 0) {
+    kb.row().text(`⭐ Free Models (${freeCount})`, "mdl_prov:free");
   }
 
-  const totalPages = Math.max(1, Math.ceil(modelItems.length / MODELS_PER_PAGE));
-  const safePage = Math.max(0, Math.min(page, totalPages - 1));
-
-  // Get the slice of models for this page
-  const pageModels = modelItems.slice(safePage * MODELS_PER_PAGE, (safePage + 1) * MODELS_PER_PAGE);
-
-  const filterLabel = filter === "free" ? " (Free)" : "";
-  let headerText = `<b>Available Models${filterLabel}</b>  (${modelItems.length})`;
-  if (totalPages > 1) headerText += `  —  page ${safePage + 1}/${totalPages}`;
-
-  let lastProvider = "";
-  for (const item of pageModels) {
-    const m = item.model;
-
-    // Add provider header row if new provider
-    if (m.provider !== lastProvider) {
-      kb.row().text(`— ${m.provider} —`, "mdl_noop");
-      lastProvider = m.provider;
+  // Group buttons sorted alphabetically, 2 per row
+  const groups = [...groupCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  for (let i = 0; i < groups.length; i += 2) {
+    kb.row();
+    kb.text(`${groups[i][0]} (${groups[i][1]})`, `mdl_prov:${groups[i][0]}`);
+    if (i + 1 < groups.length) {
+      kb.text(`${groups[i + 1][0]} (${groups[i + 1][1]})`, `mdl_prov:${groups[i + 1][0]}`);
     }
+  }
 
+  let text = `<b>Select a Provider</b>`;
+  if (selectedModel) {
+    text += `\n\n<b>Current:</b>  <code>${escapeHtml(selectedModel.providerID)}/${escapeHtml(selectedModel.modelID)}</code>`;
+  }
+
+  return { keyboard: kb, text };
+}
+
+function buildGroupModelsKeyboard(
+  models: ModelDetail[],
+  groupID: string,
+  page: number,
+  selectedModel?: { providerID: string; modelID: string } | null,
+): { keyboard: InlineKeyboard; text: string } {
+  let filtered: ModelDetail[];
+  let headerLabel: string;
+
+  if (groupID === "free") {
+    filtered = models.filter(m => m.free);
+    headerLabel = "Free Models";
+  } else {
+    filtered = models.filter(m => modelGroup(m) === groupID);
+    headerLabel = groupID;
+  }
+
+  // Sort: free first, then alphabetical
+  filtered.sort((a, b) => {
+    if (a.free !== b.free) return a.free ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const kb = new InlineKeyboard();
+
+  // Back button
+  kb.row().text("« Back", "mdl_back");
+
+  if (filtered.length === 0) {
+    const text = `<b>${escapeHtml(headerLabel)}</b>  —  No models available`;
+    return { keyboard: kb, text };
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PROVIDER_MODELS_PER_PAGE));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const pageModels = filtered.slice(safePage * PROVIDER_MODELS_PER_PAGE, (safePage + 1) * PROVIDER_MODELS_PER_PAGE);
+
+  for (const m of pageModels) {
     const isActive =
       selectedModel?.providerID === m.provider && selectedModel?.modelID === m.id;
 
@@ -109,24 +119,25 @@ function buildModelKeyboard(
     const badgeStr = badges.length > 0 ? "  [" + badges.join(", ") + "]" : "";
 
     const label = isActive ? `✓ ${m.name}${badgeStr}` : `${m.name}${badgeStr}`;
-    const callbackData = `mdl:${m.provider}/${m.id}`;
-
-    kb.row().text(label, callbackData);
+    kb.row().text(label, `mdl:${m.provider}/${m.id}`);
   }
 
-  // Pagination row
+  // Pagination
   if (totalPages > 1) {
     kb.row();
     if (safePage > 0) {
-      kb.text("« Prev", `mdl_pg:${safePage - 1}:${filter}`);
+      kb.text("« Prev", `mdl_ppg:${groupID}:${safePage - 1}`);
     }
     kb.text(`${safePage + 1}/${totalPages}`, "mdl_noop");
     if (safePage < totalPages - 1) {
-      kb.text("Next »", `mdl_pg:${safePage + 1}:${filter}`);
+      kb.text("Next »", `mdl_ppg:${groupID}:${safePage + 1}`);
     }
   }
 
-  return { keyboard: kb, text: headerText };
+  let text = `<b>${escapeHtml(headerLabel)}</b>  (${filtered.length} models)`;
+  if (totalPages > 1) text += `  —  page ${safePage + 1}/${totalPages}`;
+
+  return { keyboard: kb, text };
 }
 
 function formatConfigResponse(data: any): string {
@@ -464,14 +475,7 @@ export function registerAdminCommands(bot: Bot): void {
         return;
       }
 
-      // Mark the active model
-      for (const m of models) {
-        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
-          m.active = true;
-        }
-      }
-
-      const { keyboard, text } = buildModelKeyboard(models, 0, selected);
+      const { keyboard, text } = buildGroupKeyboard(models, selected);
       await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing models"), { parse_mode: "HTML" });
@@ -608,21 +612,47 @@ export function registerAdminCommands(bot: Bot): void {
     }
   });
 
-  bot.callbackQuery(/^mdl_pg:(\d+):(\w+)$/, async (ctx) => {
+  // Group selection — show models for that group
+  bot.callbackQuery(/^mdl_prov:(.+)$/, async (ctx) => {
     try {
-      const page = parseInt(ctx.match[1], 10);
-      const filter = (ctx.match[2] === "free" ? "free" : "all") as ModelFilter;
+      const groupID = ctx.match[1];
       const provider = getProvider();
       const models = await provider.listModels();
       const selected = getSelectedModel();
 
-      for (const m of models) {
-        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
-          m.active = true;
-        }
-      }
+      const { keyboard, text } = buildGroupModelsKeyboard(models, groupID, 0, selected);
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to load models" });
+    }
+  });
 
-      const { keyboard, text } = buildModelKeyboard(models, page, selected, filter);
+  // Back to group list
+  bot.callbackQuery("mdl_back", async (ctx) => {
+    try {
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      const { keyboard, text } = buildGroupKeyboard(models, selected);
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to go back" });
+    }
+  });
+
+  // Pagination within a group's models
+  bot.callbackQuery(/^mdl_ppg:(.+):(\d+)$/, async (ctx) => {
+    try {
+      const groupID = ctx.match[1];
+      const page = parseInt(ctx.match[2], 10);
+      const provider = getProvider();
+      const models = await provider.listModels();
+      const selected = getSelectedModel();
+
+      const { keyboard, text } = buildGroupModelsKeyboard(models, groupID, page, selected);
       await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
       await ctx.answerCallbackQuery();
     } catch (err: any) {
@@ -630,49 +660,7 @@ export function registerAdminCommands(bot: Bot): void {
     }
   });
 
-  // Legacy pagination fallback (no filter)
-  bot.callbackQuery(/^mdl_pg:(\d+)$/, async (ctx) => {
-    try {
-      const page = parseInt(ctx.match[1], 10);
-      const provider = getProvider();
-      const models = await provider.listModels();
-      const selected = getSelectedModel();
-
-      for (const m of models) {
-        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
-          m.active = true;
-        }
-      }
-
-      const { keyboard, text } = buildModelKeyboard(models, page, selected);
-      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
-      await ctx.answerCallbackQuery();
-    } catch (err: any) {
-      await ctx.answerCallbackQuery({ text: "Failed to load page" });
-    }
-  });
-
-  bot.callbackQuery(/^mdl_filter:(.+)$/, async (ctx) => {
-    try {
-      const filter = (ctx.match[1] === "free" ? "free" : "all") as ModelFilter;
-      const provider = getProvider();
-      const models = await provider.listModels();
-      const selected = getSelectedModel();
-
-      for (const m of models) {
-        if (selected && selected.providerID === m.provider && selected.modelID === m.id) {
-          m.active = true;
-        }
-      }
-
-      const { keyboard, text } = buildModelKeyboard(models, 0, selected, filter);
-      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
-      await ctx.answerCallbackQuery();
-    } catch (err: any) {
-      await ctx.answerCallbackQuery({ text: "Failed to apply filter" });
-    }
-  });
-
+  // Noop for pagination counter button
   bot.callbackQuery("mdl_noop", async (ctx) => {
     await ctx.answerCallbackQuery();
   });

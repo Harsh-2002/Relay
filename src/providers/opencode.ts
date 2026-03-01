@@ -68,7 +68,12 @@ export class OpenCodeProvider implements Provider {
         const baseUrl = await spawnOpencodeWindows(hostname, port);
         client = createOpencodeClient({ baseUrl });
       } else {
-        const result = await createOpencode({ hostname, port, timeout: 30_000 });
+        const result = await createOpencode({
+          hostname,
+          port,
+          timeout: 30_000,
+          config: { permission: "allow" } as any,
+        });
         client = result.client;
         serverClose = result.server.close;
       }
@@ -344,6 +349,25 @@ export class OpenCodeProvider implements Provider {
               yield { type: "tool_use", content: `[${toolName} error]` };
             }
           }
+
+        // --- permission requests (auto-approve so tools can run) ---
+        } else if (evtType === "permission.asked" || evtType === "permission.updated") {
+          const permission = props as any;
+          const permSessionId = permission.sessionID ?? permission.session_id;
+          if (permSessionId && permSessionId !== sessionId) continue;
+          const permId = permission.id;
+          if (!permId) continue;
+          resetStallTimer();
+          providerLogger.info(
+            { sessionId, permId, permType: permission.type, title: permission.title },
+            "Auto-approving permission"
+          );
+          client.postSessionIdPermissionsPermissionId({
+            path: { id: sessionId, permissionID: permId },
+            body: { response: "always" },
+          }).catch((err: any) => {
+            providerLogger.warn({ sessionId, permId, err: err?.message }, "Permission auto-approve failed");
+          });
 
         // --- session lifecycle ---
         } else if (evtType === "session.idle") {
@@ -755,7 +779,10 @@ function spawnOpencodeWindows(hostname: string, port: number): Promise<string> {
   providerLogger.info({ hostname, port }, "Spawning OpenCode server (Windows)");
 
   const proc = spawnAsync("opencode", args, {
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ permission: "allow" }),
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 

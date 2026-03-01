@@ -76,8 +76,9 @@ Configure at least one speech-to-text provider during `relay onboard`, or set ke
 ```json
 {
   "groqApiKey": "gsk_...",
-  "openaiSttApiKey": "sk-...",
-  "assemblyaiApiKey": "..."
+  "sarvamApiKey": "...",
+  "assemblyaiApiKey": "...",
+  "openaiSttApiKey": "sk-..."
 }
 ```
 
@@ -94,8 +95,13 @@ If multiple providers are configured, the cheapest available one is selected aut
 ### Provider priority
 
 1. **Groq** — Fastest, free tier available
-2. **OpenAI** — Reliable, widely available
-3. **AssemblyAI** — Alternative option
+2. **Sarvam AI** — Optimized for Indian languages (Hindi, Tamil, Telugu, etc.)
+3. **AssemblyAI** — Reliable general-purpose
+4. **OpenAI** — Widely available fallback
+
+### Translation
+
+Sarvam AI also supports a **translate mode** (`sttProvider: "sarvam-translate"`) that transcribes non-English voice messages and translates them to English in one step. See [Providers](providers.md#translation-sarvam) for details.
 
 ---
 

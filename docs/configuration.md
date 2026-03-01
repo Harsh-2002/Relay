@@ -121,8 +121,10 @@ The file is watched for changes and reloaded automatically. Use `/system reload`
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `sttProvider` | `--stt-provider` | `auto` | STT provider: `groq`, `openai`, `assemblyai`, or `auto` |
+| `sttProvider` | `--stt-provider` | `auto` | STT provider: `groq`, `sarvam`, `sarvam-translate`, `openai`, `assemblyai`, or `auto` |
 | `groqApiKey` | `--groq-api-key` | -- | Groq API key for Whisper |
+| `sarvamApiKey` | `--sarvam-api-key` | -- | Sarvam AI API key (supports Indian languages) |
+| `sarvamSttModel` | -- | `saaras:v3` | Sarvam transcription model |
 | `openaiSttApiKey` | `--openai-stt-api-key` | -- | OpenAI API key for speech-to-text |
 | `assemblyaiApiKey` | `--assemblyai-api-key` | -- | AssemblyAI API key |
 | `groqSttModel` | -- | `whisper-large-v3-turbo` | Groq transcription model |
@@ -131,8 +133,11 @@ The file is watched for changes and reloaded automatically. Use `/system reload`
 Set at least one API key during `relay onboard` to enable voice message support. When `sttProvider` is `auto` (default), the cheapest available provider is selected:
 
 1. **Groq** (fastest, has a free tier)
-2. **AssemblyAI**
-3. **OpenAI**
+2. **Sarvam** (optimized for Indian languages)
+3. **AssemblyAI**
+4. **OpenAI**
+
+Use `sarvam-translate` to transcribe and translate non-English voice messages to English. See [Providers](providers.md#translation-sarvam) for details.
 
 ## Example Config
 
@@ -142,7 +147,6 @@ Set at least one API key during `relay onboard` to enable voice message support.
   "allowedUserId": 987654321,
   "provider": "opencode",
   "streamingEnabled": true,
-  "logLevel": "info",
   "groqApiKey": "gsk_..."
 }
 ```

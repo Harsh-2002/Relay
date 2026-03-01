@@ -239,28 +239,24 @@ export class OpenCodeProvider implements Provider {
     );
 
     const controller = new AbortController();
-    const GLOBAL_TIMEOUT = 120_000;
-    const STALL_TIMEOUT = 60_000;
-    const globalTimer = setTimeout(() => {
-      providerLogger.warn({ sessionId }, "Stream timeout — aborting after 120s");
-      controller.abort();
-    }, GLOBAL_TIMEOUT);
+    const STALL_TIMEOUT = 120_000;
 
-    // Per-chunk stall detection: abort if no session-relevant events for 60s
+    // Stall detection: abort if no session-relevant events arrive for 120s.
+    // There is no global wall-clock timeout — the stream stays open as long as
+    // OpenCode is making progress (tool runs, reasoning steps, etc.)
     let stallTimer = setTimeout(() => {
-      providerLogger.warn({ sessionId }, "Stream stall — no activity for 60s, aborting");
+      providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
       controller.abort();
     }, STALL_TIMEOUT);
     const resetStallTimer = () => {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => {
-        providerLogger.warn({ sessionId }, "Stream stall — no activity for 60s, aborting");
+        providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
         controller.abort();
       }, STALL_TIMEOUT);
     };
 
     const sseResult = await client.event.subscribe();
-    providerLogger.info({ sessionId }, "SSE subscription opened");
 
     let chunkCount = 0;
     let toolEvents = 0;
@@ -275,14 +271,6 @@ export class OpenCodeProvider implements Provider {
         const evtType = evt.type as string;
         const props = evt.properties as any;
 
-        // Log non-delta events individually; delta events are logged in batches
-        if (evtType !== "message.part.delta") {
-          providerLogger.info(
-            { type: evtType, elapsedMs: Date.now() - startMs },
-            "SSE event"
-          );
-        }
-
         // --- v2 API: message.part.delta (streaming text/reasoning tokens) ---
         if (evtType === "message.part.delta") {
           if (props.sessionID !== sessionId) continue;
@@ -291,22 +279,10 @@ export class OpenCodeProvider implements Provider {
 
           if (props.delta) {
             chunkCount++;
-            // Log progress every 50 chunks
-            if (chunkCount % 50 === 0) {
-              providerLogger.info(
-                { sessionId, chunkCount, field: props.field, elapsedMs: Date.now() - startMs },
-                "Stream progress"
-              );
-            }
             if (props.field === "text") {
               yield { type: "text", content: props.delta };
             } else if (props.field === "reasoning") {
               yield { type: "reasoning", content: props.delta };
-            } else {
-              providerLogger.info(
-                { sessionId, field: props.field, partID: props.partID },
-                "Unhandled delta field"
-              );
             }
           }
 
@@ -319,11 +295,6 @@ export class OpenCodeProvider implements Provider {
             || (partId && sessionPartIds.has(partId));
           if (!isOurSession) continue;
           resetStallTimer();
-
-          providerLogger.info(
-            { sessionId, partType: part?.type, partId },
-            "message.part.updated"
-          );
 
           // v1 compat: updated events may carry a delta field
           const delta = props.delta;
@@ -372,18 +343,25 @@ export class OpenCodeProvider implements Provider {
         // --- session lifecycle ---
         } else if (evtType === "session.idle") {
           if (!matchesSession(evt, sessionId)) continue;
-          providerLogger.info({ sessionId, elapsedMs: Date.now() - startMs }, "session.idle — done");
+          providerLogger.info({ sessionId, elapsedMs: Date.now() - startMs }, "session.idle");
           yield { type: "done", content: "" };
           break;
+        } else if (evtType === "session.status") {
+          // v2 API completion signal: session.status with type "idle"
+          if (!matchesSession(evt, sessionId)) continue;
+          if (props.status?.type === "idle") {
+            providerLogger.info({ sessionId, elapsedMs: Date.now() - startMs }, "session idle");
+            yield { type: "done", content: "" };
+            break;
+          }
         } else if (evtType === "session.error") {
           if (!matchesSession(evt, sessionId)) continue;
           const rawError = props.error ?? "Unknown session error";
-          providerLogger.info({ sessionId, error: rawError }, "session.error");
+          providerLogger.warn({ sessionId, error: rawError }, "session.error");
           throw new Error(rawError);
         }
       }
     } finally {
-      clearTimeout(globalTimer);
       clearTimeout(stallTimer);
       providerLogger.info(
         { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents },

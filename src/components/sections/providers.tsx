@@ -29,13 +29,6 @@ const aiProviders = [
   "Local models (Ollama, etc.)",
 ];
 
-const sttProviders = [
-  "Groq (fastest, free tier)",
-  "Sarvam AI (Indian languages + translate)",
-  "AssemblyAI",
-  "OpenAI Whisper",
-];
-
 export function Providers() {
   return (
     <Section id="providers" background="primary">
@@ -85,21 +78,6 @@ export function Providers() {
             <p className="mt-4 text-xs text-text-tertiary">
               And many more &mdash; any provider supported by OpenCode works with Relay.
             </p>
-
-            <h3 className="text-lg font-semibold text-text-primary mt-6 mb-4">
-              Speech-to-Text
-            </h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Voice messages are transcribed automatically. Auto-selects the cheapest available provider.
-            </p>
-            <ul className="space-y-2">
-              {sttProviders.map((p) => (
-                <li key={p} className="flex items-center gap-2 text-sm text-text-secondary">
-                  <Check size={14} className="text-accent shrink-0" />
-                  {p}
-                </li>
-              ))}
-            </ul>
           </Card>
         </AnimateIn>
       </div>

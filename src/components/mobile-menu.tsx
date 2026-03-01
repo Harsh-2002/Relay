@@ -4,8 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Button } from "./ui/button";
-import { siteConfig } from "@/lib/metadata";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
@@ -46,16 +44,6 @@ export function MobileMenu() {
                   {link.label}
                 </Link>
               ))}
-              <div className="mt-2 pt-2 border-t border-border-primary">
-                <Button
-                  href={`${siteConfig.github}#getting-started`}
-                  variant="primary"
-                  size="sm"
-                  className="w-full"
-                >
-                  Get Started
-                </Button>
-              </div>
             </nav>
           </motion.div>
         )}

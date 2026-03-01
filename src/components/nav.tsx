@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Logo } from "./logo";
-import { Button } from "./ui/button";
 import { MobileMenu } from "./mobile-menu";
 import { Github } from "lucide-react";
 import { siteConfig } from "@/lib/metadata";
@@ -44,14 +43,6 @@ export function Nav() {
           >
             <Github size={20} />
           </a>
-          <Button
-            href={`${siteConfig.github}#getting-started`}
-            variant="primary"
-            size="sm"
-            className="hidden sm:inline-flex"
-          >
-            Get Started
-          </Button>
           <MobileMenu />
         </div>
       </div>

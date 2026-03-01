@@ -41,7 +41,7 @@ export function Voice() {
     <Section id="voice" background="secondary">
       <SectionHeader
         title="Speak Your Language"
-        subtitle="Send voice messages in Hindi, Tamil, Telugu, and 7+ more Indian languages. Sarvam AI transcribes and translates automatically."
+        subtitle="Send voice messages in Hindi, Tamil, Telugu, and 7 more Indian languages. Sarvam AI transcribes and translates automatically."
       />
 
       {/* Flow steps */}
@@ -80,12 +80,6 @@ export function Voice() {
         </div>
       </AnimateIn>
 
-      {/* STT fallback note */}
-      <AnimateIn delay={0.4}>
-        <p className="mt-10 text-center text-xs text-text-tertiary">
-          4 STT providers with automatic fallback &mdash; Groq &middot; Sarvam AI &middot; AssemblyAI &middot; OpenAI
-        </p>
-      </AnimateIn>
     </Section>
   );
 }

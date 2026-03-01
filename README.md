@@ -29,25 +29,10 @@ Docs are written as `.mdx` files in `src/content/docs/`:
 |------|-------|
 | `getting-started.mdx` | Installation, setup wizard, first steps |
 | `configuration.mdx` | Config fields, CLI flags, `.relay/config.json` |
-| `providers.mdx` | OpenCode, Claude Code, Codex setup |
+| `providers.mdx` | OpenCode AI providers, STT, translation |
 | `commands.mdx` | Full command reference |
 | `features.mdx` | Streaming, voice, MCP, model selection, SKILL.md |
 | `troubleshooting.mdx` | Common issues and solutions |
-
-## Relay
-
-Relay supports three AI coding agent backends:
-
-- **[OpenCode](https://github.com/opencode-ai/opencode)** — full feature set, recommended
-- **[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)** — Anthropic Claude with coding agent capabilities
-- **[OpenAI Codex](https://github.com/openai/codex)** — OpenAI reasoning models
-
-Get started:
-
-```bash
-npm install -g @4via6/relay
-relay onboard
-```
 
 ## License
 

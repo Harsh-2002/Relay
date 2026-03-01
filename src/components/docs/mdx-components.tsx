@@ -45,12 +45,12 @@ export const mdxComponents: MDXComponents = {
     );
   },
   ul: ({ children, ...props }) => (
-    <ul className="list-disc pl-5 space-y-1 mb-4 text-text-secondary text-sm sm:text-base" {...props}>
+    <ul className="list-disc pl-4 space-y-1 mb-4 text-text-secondary text-sm sm:text-base" {...props}>
       {children}
     </ul>
   ),
   ol: ({ children, ...props }) => (
-    <ol className="list-decimal pl-5 space-y-1 mb-4 text-text-secondary text-sm sm:text-base" {...props}>
+    <ol className="list-decimal pl-4 space-y-1 mb-4 text-text-secondary text-sm sm:text-base" {...props}>
       {children}
     </ol>
   ),

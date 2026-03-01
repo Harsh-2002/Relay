@@ -18,7 +18,7 @@ interface TerminalProps {
 
 const lineStyles: Record<TerminalLine["type"], { prefix: string; className: string }> = {
   command: {
-    prefix: "$ ",
+    prefix: "$",
     className: "text-text-primary",
   },
   output: {
@@ -26,11 +26,11 @@ const lineStyles: Record<TerminalLine["type"], { prefix: string; className: stri
     className: "text-text-tertiary",
   },
   prompt: {
-    prefix: "? ",
+    prefix: "?",
     className: "text-cyan-400",
   },
   success: {
-    prefix: "\u2713 ",
+    prefix: "\u2713",
     className: "text-accent",
   },
   blank: {
@@ -84,7 +84,7 @@ export function Terminal({
               {style.prefix && (
                 <span
                   className={clsx(
-                    "select-none shrink-0",
+                    "select-none shrink-0 mr-2",
                     line.type === "command" && "text-accent",
                     line.type === "prompt" && "text-cyan-400",
                     line.type === "success" && "text-accent"

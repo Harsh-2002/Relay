@@ -201,9 +201,8 @@ On some systems you may need to fix npm's global prefix permissions instead of u
 
 ### Daemon won't start
 
-1. Make sure the project is built: `npm run build`
-2. Check if another instance is already running: `relay status`
-3. Check logs for errors: `relay logs`
+1. Check if another instance is already running: `relay status`
+2. Check logs for errors: `relay logs`
 
 ### "Relay daemon is not running" but the bot was started
 
@@ -223,20 +222,6 @@ Or access the raw files directly:
 ~/.pm2/logs/relay-out.log    # stdout
 ~/.pm2/logs/relay-error.log  # stderr
 ```
-
-### "relay update" / "relay start" — command not found
-
-These commands were added in v1.1.0. If you're on an older version, update manually first:
-
-```bash
-# npm
-npm install -g @4via6/relay@latest
-
-# From source
-git pull && npm install && npm run build
-```
-
-After that, `relay update` will work for all future updates.
 
 ---
 

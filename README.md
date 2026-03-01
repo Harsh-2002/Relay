@@ -42,24 +42,12 @@ Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https
 
 ## Install
 
-### From npm
-
 ```bash
 npm install -g @4via6/relay
 relay onboard
 ```
 
 The setup wizard will ask for your bot token, user ID, and provider config, then save everything to `.relay/config.json`.
-
-### From source
-
-```bash
-git clone https://github.com/Harsh-2002/Relay.git
-cd Relay
-npm install
-npm run build
-npm start -- onboard
-```
 
 ### With npx (no install)
 
@@ -101,17 +89,7 @@ The daemon uses [pm2](https://pm2.keymetrics.io/) under the hood (auto-installed
 relay update
 ```
 
-Detects how Relay was installed (npm global or git source) and updates accordingly. If the daemon is running, it's automatically restarted after the update.
-
-**Upgrading from v1.0.x** (before `relay update` existed):
-
-```bash
-# npm
-npm install -g @4via6/relay@latest
-
-# From source
-git pull && npm install && npm run build
-```
+Updates to the latest version. If the daemon is running, it's automatically restarted after the update.
 
 ## Configuration
 

@@ -11,8 +11,6 @@ This guide walks you through setting up Relay from scratch.
 
 ## Installation
 
-### From npm (recommended)
-
 Relay is published as [`@4via6/relay`](https://www.npmjs.com/package/@4via6/relay) on npm:
 
 ```bash
@@ -23,15 +21,6 @@ Or run directly without installing:
 
 ```bash
 npx @4via6/relay
-```
-
-### From source
-
-```bash
-git clone https://github.com/Harsh-2002/Relay.git
-cd Relay
-npm install
-npm run build
 ```
 
 ## Configuration
@@ -65,11 +54,7 @@ See [Configuration](configuration.md) for all available options.
 ### Foreground (default)
 
 ```bash
-# If installed globally
 relay
-
-# If running from source
-npm start
 ```
 
 On first run with no config, the setup wizard starts automatically.
@@ -94,19 +79,7 @@ pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
 relay update
 ```
 
-Auto-detects your install method (npm or git source) and updates to the latest version. Restarts the daemon automatically if it's running.
-
-**Upgrading from v1.0.x:** The `relay update` command was added in v1.1.0. To upgrade from an older version, run the one-time manual update for your install method:
-
-```bash
-# npm
-npm install -g @4via6/relay@latest
-
-# From source
-git pull && npm install && npm run build
-```
-
-After that, `relay update` will work for all future updates.
+Updates to the latest version. Restarts the daemon automatically if it's running.
 
 ## First Steps
 

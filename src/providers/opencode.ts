@@ -68,7 +68,7 @@ export class OpenCodeProvider implements Provider {
         const baseUrl = await spawnOpencodeWindows(hostname, port);
         client = createOpencodeClient({ baseUrl });
       } else {
-        const result = await createOpencode({ hostname, port });
+        const result = await createOpencode({ hostname, port, timeout: 30_000 });
         client = result.client;
         serverClose = result.server.close;
       }

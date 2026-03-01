@@ -92,14 +92,18 @@ The bot loads `SKILL.md` from the project root if it exists, otherwise uses a bu
 
 ## Voice / Speech-to-Text
 
-- `sttProvider` — STT provider: `groq`, `openai`, `assemblyai`, or `auto` (default: `auto`)
+- `sttProvider` — STT provider: `groq`, `sarvam`, `sarvam-translate`, `openai`, `assemblyai`, or `auto` (default: `auto`)
 - `groqApiKey` — Groq API key for Whisper
 - `groqSttModel` — Groq transcription model (default: `whisper-large-v3-turbo`)
-- `openaiApiKey` — OpenAI API key for Whisper
+- `sarvamApiKey` — Sarvam AI API key (supports Indian languages)
+- `sarvamSttModel` — Sarvam transcription model (default: `saaras:v3`)
+- `openaiSttApiKey` — OpenAI API key for speech-to-text
 - `openaiSttModel` — OpenAI transcription model (default: `gpt-4o-mini-transcribe`)
 - `assemblyaiApiKey` — AssemblyAI API key
 
-Set at least one API key to enable voice support. When `auto`, the cheapest available provider is selected: Groq > AssemblyAI > OpenAI.
+Set at least one API key to enable voice support. When `auto`, the cheapest available provider is selected: Groq > Sarvam > AssemblyAI > OpenAI.
+
+Use `sarvam-translate` to transcribe and translate non-English voice messages to English. See [Providers](/docs/providers#translation-sarvam) for details.
 
 ## Example config.json
 

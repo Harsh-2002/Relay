@@ -20,13 +20,20 @@ const capabilities = [
   "State persistence",
 ];
 
-const providers = [
+const aiProviders = [
   "Anthropic (Claude)",
   "OpenAI (GPT, o-series)",
   "Google (Gemini)",
   "DeepSeek",
   "Mistral",
   "Local models (Ollama, etc.)",
+];
+
+const sttProviders = [
+  "Groq (fastest, free tier)",
+  "Sarvam AI (Indian languages + translate)",
+  "AssemblyAI",
+  "OpenAI Whisper",
 ];
 
 export function Providers() {
@@ -62,13 +69,13 @@ export function Providers() {
         <AnimateIn delay={0.1}>
           <Card className="h-full">
             <h3 className="text-lg font-semibold text-text-primary mb-4">
-              Supported Providers
+              AI Providers
             </h3>
             <p className="text-sm text-text-secondary mb-6">
               OpenCode supports 75+ AI providers through a unified interface. Switch models at runtime with <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">/models</code>.
             </p>
-            <ul className="space-y-3">
-              {providers.map((p) => (
+            <ul className="space-y-2">
+              {aiProviders.map((p) => (
                 <li key={p} className="flex items-center gap-2 text-sm text-text-secondary">
                   <Check size={14} className="text-accent shrink-0" />
                   {p}
@@ -78,6 +85,21 @@ export function Providers() {
             <p className="mt-4 text-xs text-text-tertiary">
               And many more &mdash; any provider supported by OpenCode works with Relay.
             </p>
+
+            <h3 className="text-lg font-semibold text-text-primary mt-6 mb-4">
+              Speech-to-Text
+            </h3>
+            <p className="text-sm text-text-secondary mb-4">
+              Voice messages are transcribed automatically. Auto-selects the cheapest available provider.
+            </p>
+            <ul className="space-y-2">
+              {sttProviders.map((p) => (
+                <li key={p} className="flex items-center gap-2 text-sm text-text-secondary">
+                  <Check size={14} className="text-accent shrink-0" />
+                  {p}
+                </li>
+              ))}
+            </ul>
           </Card>
         </AnimateIn>
       </div>

@@ -39,11 +39,14 @@ Send voice notes to the bot and they'll be transcribed and processed as text inp
 
 ```json
 "groqApiKey": "gsk_...",
-"openaiApiKey": "sk-...",
-"assemblyaiApiKey": "..."
+"sarvamApiKey": "...",
+"assemblyaiApiKey": "...",
+"openaiSttApiKey": "sk-..."
 ```
 
-Provider priority (when `sttProvider` is `auto`): Groq > OpenAI > AssemblyAI.
+Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest available provider is selected: Groq > Sarvam > AssemblyAI > OpenAI.
+
+Sarvam AI also supports a **translate mode** (`sttProvider: "sarvam-translate"`) that transcribes non-English voice messages and translates them to English in one step. See [Providers](/docs/providers#translation-sarvam) for details.
 
 ---
 

@@ -40,7 +40,7 @@ export function Hero() {
             </h1>
 
             <p className="mt-6 text-lg text-text-secondary/80 max-w-2xl mx-auto leading-relaxed">
-              Switch between OpenCode, Claude Code, and Codex &mdash; stream responses,
+              Powered by OpenCode with 75+ AI providers &mdash; stream responses,
               manage sessions, run commands, all from your chat.
             </p>
 

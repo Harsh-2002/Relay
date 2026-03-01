@@ -4,13 +4,23 @@ description: "Complete reference for all Relay Telegram commands"
 order: 4
 ---
 
-Complete reference for all Relay commands. Commands marked with a provider name are only available with that provider.
+Complete reference for all Relay commands.
 
 ## Chat
 
-No command needed — just send a message. Supports text, voice notes (requires STT config), photos (vision models), and file attachments.
+No command needed — just send a message.
+
+**Supported input types:**
+- Text messages
+- Voice notes (requires STT configuration)
+- Photos (sent to vision-capable models)
+- File attachments (text files are embedded, binary files referenced)
+- **Reply to a message** to include it as context in your prompt
+- **Edit a sent message** to re-prompt with the corrected text
 
 Input limit: 32,000 characters. Send longer content as a file.
+
+When the model provides reasoning/thinking, it appears in a collapsible blockquote above the answer.
 
 ---
 
@@ -40,7 +50,7 @@ Show the active session's ID and title.
 
 ### /fork [messageId]
 
-Fork the current session. Optionally fork from a specific message. OpenCode and Claude only.
+Fork the current session. Optionally fork from a specific message.
 
 Examples: `/fork` or `/fork msg_abc123`
 
@@ -50,7 +60,7 @@ Examples: `/fork` or `/fork msg_abc123`
 
 ### /todo
 
-View the AI's task checklist with status icons. OpenCode only.
+View the AI's task checklist with status icons.
 
 ### /diff
 
@@ -102,15 +112,15 @@ View the last 10 messages in the current session.
 
 ### /summarize
 
-Generate a session summary. OpenCode only.
+Generate a session summary.
 
 ### /revert
 
-Undo the last AI change. OpenCode only.
+Undo the last AI change.
 
 ### /unrevert
 
-Redo a reverted change. OpenCode only.
+Redo a reverted change.
 
 ### /abort
 
@@ -118,7 +128,7 @@ Cancel the currently running operation.
 
 ### /share
 
-Get a shareable URL for the current session. OpenCode only.
+Get a shareable URL for the current session.
 
 ---
 
@@ -126,19 +136,19 @@ Get a shareable URL for the current session. OpenCode only.
 
 ### /shell \<cmd\>
 
-Run a shell command. On OpenCode, runs natively. On Claude and Codex, the command is sent as a prompt.
+Run a shell command natively on the OpenCode server.
 
 Examples: `/shell ls -la` or `/shell npm test`
 
 ### /cmd \<command\>
 
-Run an OpenCode-specific command. OpenCode only.
+Run an OpenCode-specific command.
 
 Example: `/cmd compact`
 
 ### /commands
 
-List available OpenCode commands. OpenCode only.
+List available OpenCode commands.
 
 ---
 
@@ -158,7 +168,7 @@ Examples: `/model` to view current, `/model sonnet` to switch by partial match
 
 ## MCP
 
-MCP servers extend the AI with additional tools. OpenCode and Claude only.
+MCP servers extend the AI with additional tools.
 
 ### /mcp
 

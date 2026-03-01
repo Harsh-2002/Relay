@@ -39,7 +39,7 @@ export function Architecture() {
             <Cpu size={32} className="text-text-secondary" />
             <h3 className="font-semibold text-text-primary">AI Provider</h3>
             <p className="text-xs text-text-tertiary text-center">
-              OpenCode, Claude Code, or Codex processes & responds
+              OpenCode processes your request & responds
             </p>
           </div>
         </div>

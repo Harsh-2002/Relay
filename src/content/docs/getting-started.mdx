@@ -9,7 +9,7 @@ order: 1
 - [Node.js](https://nodejs.org/) >= 18 (or [Bun](https://bun.sh/))
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - Your Telegram user ID (get it from [@userinfobot](https://t.me/userinfobot))
-- Credentials for at least one coding agent provider (see [Providers](/docs/providers))
+- An API key for at least one AI provider (Anthropic, OpenAI, Google, etc. — see [Providers](/docs/providers))
 
 ## Installation
 
@@ -40,9 +40,9 @@ The wizard will prompt you for:
 
 - **Bot token** — from [@BotFather](https://t.me/BotFather)
 - **Allowed user ID** — your Telegram user ID
-- **Provider** — `opencode`, `claude`, or `codex`
+- **Provider** — `opencode` (the only supported value)
 
-Then configure your chosen provider. See [Providers](/docs/providers) for details.
+Provider API keys are set in OpenCode's environment. See [Providers](/docs/providers) for details.
 
 ## Run
 
@@ -70,7 +70,7 @@ relay restart                # Restart the daemon
 relay stop                   # Stop the daemon
 ```
 
-pm2 is auto-installed on first `relay start`. CLI flags are forwarded — e.g. `relay start --provider=claude`.
+pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
 
 ### Updating
 

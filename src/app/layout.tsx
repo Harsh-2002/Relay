@@ -13,24 +13,25 @@ export const metadata: Metadata = {
     template: "%s | Relay",
   },
   description:
-    "Control OpenCode, Claude Code, and OpenAI Codex from Telegram. Streaming responses, voice input, session management, and 30+ commands.",
+    "Control AI coding agents from Telegram via OpenCode. 75+ AI providers, streaming responses, voice input, session management, and 30+ commands.",
   keywords: [
     "Telegram bot",
     "AI coding agent",
-    "Claude Code",
     "OpenCode",
-    "OpenAI Codex",
     "developer tools",
     "coding assistant",
     "Telegram",
     "open source",
+    "Anthropic",
+    "OpenAI",
+    "Google",
   ],
   authors: [{ name: "Harsh-2002", url: siteConfig.github }],
   creator: "Harsh-2002",
   openGraph: {
     title: "Relay — Telegram bot for AI coding agents",
     description:
-      "Control OpenCode, Claude Code, and OpenAI Codex from Telegram. Streaming responses, voice input, session management, and 30+ commands.",
+      "Control AI coding agents from Telegram via OpenCode. 75+ AI providers, streaming responses, voice input, session management, and 30+ commands.",
     url: siteConfig.url,
     siteName: "Relay",
     type: "website",
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Relay — Telegram bot for AI coding agents",
     description:
-      "Control OpenCode, Claude Code, and OpenAI Codex from Telegram.",
+      "Control AI coding agents from Telegram via OpenCode. 75+ AI providers.",
   },
   robots: { index: true, follow: true },
   alternates: {

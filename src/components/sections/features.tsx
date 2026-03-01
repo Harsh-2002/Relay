@@ -16,9 +16,9 @@ import { AnimateIn } from "@/components/ui/animate-in";
 const features = [
   {
     icon: Zap,
-    title: "Multi-Provider",
+    title: "75+ AI Providers",
     description:
-      "Switch between OpenCode, Claude Code, and Codex with one config change.",
+      "Anthropic, OpenAI, Google, DeepSeek, local models, and more via OpenCode.",
   },
   {
     icon: Radio,

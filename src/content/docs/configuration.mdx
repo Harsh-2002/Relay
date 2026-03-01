@@ -25,7 +25,7 @@ Config resolution order: CLI flags > config file > defaults.
 
 - `botToken` — Telegram bot token from [@BotFather](https://t.me/BotFather)
 - `allowedUserId` — Your Telegram user ID (only this user can interact with the bot)
-- `provider` — Which coding agent to use: `opencode`, `claude`, or `codex`
+- `provider` — `"opencode"` (the only supported value)
 
 ## Provider Configuration
 
@@ -39,20 +39,7 @@ Each provider has its own config fields. See [Providers](/docs/providers) for de
 - `opencodePort` — Port number when using start mode (default: `4096`)
 - `opencodeModel` — Model override, e.g. `anthropic/claude-sonnet-4-20250514`
 
-### Claude Code
-
-- `claudeModel` — Model name or ID (default: `sonnet`)
-- `claudePermissionMode` — How Claude handles file edits (default: `acceptEdits`)
-- `claudeCwd` — Working directory for Claude (default: current directory)
-
-The `ANTHROPIC_API_KEY` environment variable must be set in the coding agent's environment.
-
-### OpenAI Codex
-
-- `codexModel` — Model name or ID (default: `o3`)
-- `codexCwd` — Working directory for Codex (default: current directory)
-
-The `CODEX_API_KEY` or `OPENAI_API_KEY` environment variable must be set in the coding agent's environment.
+Provider API keys are configured in OpenCode's environment, not in Relay. See [Providers](/docs/providers) for details.
 
 ## Bot Mode
 

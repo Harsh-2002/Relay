@@ -25,7 +25,7 @@ Streaming is enabled by default. To disable, set in `.relay/config.json`:
 
 ## File Attachments
 
-When the AI generates files, takes screenshots, or creates artifacts, they are sent as Telegram attachments. This is available with the OpenCode provider only — Claude and Codex do not support file output.
+When the AI generates files, takes screenshots, or creates artifacts, they are sent as Telegram attachments automatically.
 
 Supported types:
 - Images (`png`, `jpeg`, etc.) — sent as Telegram photos
@@ -63,7 +63,7 @@ Text messages have a 32,000-character limit. For larger content, send as a file 
 
 ## MCP Servers
 
-MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools. Supported by OpenCode (full API) and Claude (persisted to disk). Not available with Codex.
+MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs.
 
 ### Local servers
 
@@ -84,10 +84,7 @@ Switch between AI models at runtime. `/models` displays an interactive inline ke
 
 For text-based selection, use `/model sonnet`, `/model deepseek`, or a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
-Provider behavior:
-- OpenCode — lists all models from all configured providers
-- Claude — fetches available models dynamically from the Anthropic API; if the API key is unavailable, no models are listed
-- Codex — fetches available models dynamically from the OpenAI API; if the API key is unavailable, no models are listed
+Models are fetched dynamically from all configured OpenCode providers. If no provider API keys are set, no models are listed.
 
 ---
 
@@ -100,6 +97,29 @@ Customize the AI's behavior with a system prompt file. The bot loads `SKILL.md` 
 ```
 
 The file is watched for changes and reloaded automatically. Force reload with `/system reload`.
+
+---
+
+## Reasoning / Thinking Display
+
+When using models that support extended thinking (like Claude with reasoning or DeepSeek), the AI's reasoning process is displayed separately from the final answer.
+
+- Reasoning is shown in a **collapsible blockquote** (tap to expand) above the answer
+- If the answer is short enough, reasoning and answer appear in the same message
+- For longer answers, reasoning is sent as a separate message before the answer chunks
+- During streaming, reasoning is hidden (shows "Thinking...") until the final answer arrives
+
+---
+
+## Reply Context
+
+Reply to any bot message to reference it in your next prompt. The quoted message text is included as context so the AI knows what you're referring to. Useful for asking follow-up questions about a specific part of a long conversation.
+
+---
+
+## Edited Messages
+
+Edit a sent message to re-prompt the AI with the corrected text. The AI processes the edit as a new message with an `[Edited message]` prefix so it understands this is a correction.
 
 ---
 
@@ -116,8 +136,6 @@ Create sessions with `/new` or `/new Refactoring auth module`. Fork a session wi
 Relay persists critical state to disk so it survives restarts:
 
 - `.relay/session.json` — Current session ID and selected model
-- `.relay/claude-mcp.json` — Claude MCP server configurations
-- `.relay/codex-threads.json` — Codex thread ID mappings
 
 State is written atomically (temp file + rename) to prevent corruption.
 

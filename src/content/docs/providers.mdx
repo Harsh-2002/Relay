@@ -1,16 +1,12 @@
 ---
 title: "Providers"
-description: "Detailed setup for OpenCode, Claude Code, and Codex providers"
+description: "Setting up OpenCode as Relay's AI backend"
 order: 3
 ---
 
-Relay supports three coding agent backends. Set `provider` in `.relay/config.json` (or run `relay onboard`) to choose one.
+Relay uses [OpenCode](https://github.com/opencode-ai/opencode) as its AI backend. OpenCode supports 75+ AI providers (Anthropic, OpenAI, Google, DeepSeek, local models, and more) through a single unified interface. The OpenCode SDK is bundled — no extra installation needed.
 
-## OpenCode
-
-[OpenCode](https://github.com/opencode-ai/opencode) is the recommended provider with the most complete feature set. The SDK is included as a core dependency — no extra installation needed.
-
-### Start mode (recommended)
+## Start Mode (recommended)
 
 Relay spawns and manages the OpenCode server automatically.
 
@@ -21,9 +17,9 @@ Relay spawns and manages the OpenCode server automatically.
 "opencodePort": 4096
 ```
 
-### Connect mode
+## Connect Mode
 
-Connect to an already-running OpenCode server.
+Connect to an already-running OpenCode server — useful for remote setups or shared servers.
 
 ```json
 "provider": "opencode",
@@ -31,7 +27,7 @@ Connect to an already-running OpenCode server.
 "opencodeUrl": "http://localhost:4096"
 ```
 
-### Model selection
+## Model Selection
 
 Set a default model:
 
@@ -39,96 +35,25 @@ Set a default model:
 "opencodeModel": "anthropic/claude-sonnet-4-20250514"
 ```
 
-Or change at runtime with `/models` and `/model sonnet`.
+Or change at runtime with `/models` (interactive keyboard) and `/model sonnet` (text-based).
 
-### Supported features
+## API Keys
 
-All Relay features: sessions, streaming, file operations, todos, diffs, forking, shell access, MCP management, dynamic model listing, and file attachments.
-
----
-
-## Claude Code
-
-[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) connects to the Anthropic Claude AI.
-
-### Installation
+Provider API keys are configured in OpenCode's environment, not in Relay's config. Set them as environment variables before starting Relay:
 
 ```bash
-npm install @anthropic-ai/claude-code
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# Google
+export GOOGLE_API_KEY="..."
 ```
 
-### Configuration
+See the [OpenCode documentation](https://github.com/opencode-ai/opencode) for the full list of supported providers and their environment variables.
 
-Set the provider in `.relay/config.json`:
+## Supported Features
 
-```json
-"provider": "claude",
-"claudeModel": "sonnet",
-"claudePermissionMode": "acceptEdits",
-"claudeCwd": "/path/to/your/project"
-```
-
-The `ANTHROPIC_API_KEY` environment variable must be set in the coding agent's environment. `claudePermissionMode: "acceptEdits"` is required — other modes require interactive approval that doesn't work in a bot.
-
-### Supported features
-
-- Chat and streaming — Yes
-- Sessions — Create, list, delete, fork
-- Shell access — Via prompt
-- MCP management — Persisted to disk
-- Model selection — Fetched dynamically via Anthropic API; if the API key is unavailable, no models are listed
-- File operations and diffs — Via prompt
-- History — Yes
-- Todos and sharing — Not supported
-
----
-
-## OpenAI Codex
-
-[OpenAI Codex](https://github.com/openai/codex) provides coding agent capabilities using OpenAI's reasoning models.
-
-### Installation
-
-```bash
-npm install @openai/codex
-```
-
-### Configuration
-
-Set the provider in `.relay/config.json`:
-
-```json
-"provider": "codex",
-"codexModel": "o3",
-"codexCwd": "/path/to/your/project"
-```
-
-Either `CODEX_API_KEY` or `OPENAI_API_KEY` must be set in the coding agent's environment. If both are set, `CODEX_API_KEY` takes priority.
-
-### Supported features
-
-- Chat and streaming — Yes
-- Sessions — Create, list, delete
-- Shell access — Via prompt
-- Model selection — Fetched dynamically via OpenAI API; if the API key is unavailable, no models are listed
-- File operations and diffs — Via prompt
-- MCP, todos, and sharing — Not supported
-
----
-
-## Comparison
-
-All three providers support chat, streaming, sessions, and dynamic model listing. Here's where they differ:
-
-- **File output** (screenshots, generated files) — OpenCode only
-- **MCP servers** — OpenCode (full API), Claude (persisted to disk), Codex (no)
-- **Todo tracking** — OpenCode only
-- **Code diffs** — OpenCode (native), Claude and Codex (via prompt)
-- **Session forking** — OpenCode and Claude only
-- **Revert changes** — OpenCode only
-- **Shell commands** — OpenCode (native), Claude and Codex (via prompt)
-- **Session sharing** — OpenCode only
-
-## Switching Providers
-
-Update `provider` in `.relay/config.json` (or re-run `relay onboard`) and restart the bot. Sessions are provider-specific and not shared between providers.
+All Relay features work with OpenCode: sessions, streaming, file operations, todos, diffs, forking, shell access, MCP management, dynamic model listing, file attachments, revert/unrevert, session sharing, and custom commands.

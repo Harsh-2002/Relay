@@ -18,15 +18,7 @@ Get a token from [@BotFather](https://t.me/BotFather).
 
 ### "Unknown provider: xyz"
 
-Check `provider` in `.relay/config.json` for typos. Must be `opencode`, `claude`, or `codex`.
-
-### "Could not load the Claude Code SDK"
-
-Claude Code is not installed or not accessible. See the [Claude Code docs](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) for installation methods.
-
-### "Could not load the Codex SDK"
-
-OpenAI Codex is not installed or not accessible. See the [Codex repo](https://github.com/openai/codex) for installation methods.
+Check `provider` in `.relay/config.json`. The only supported value is `opencode`.
 
 ---
 
@@ -59,34 +51,6 @@ Check that OpenCode is installed and the port isn't already in use.
 
 ---
 
-## Claude Code Issues
-
-### "Invalid API key"
-
-Verify your `ANTHROPIC_API_KEY` environment variable at [console.anthropic.com](https://console.anthropic.com/) and ensure it has Claude Code API access. This key must be set in the coding agent's environment, not in `.relay/config.json`.
-
-### No models listed for Claude
-
-Claude fetches models dynamically from the Anthropic API. If the API key is unavailable or invalid, no models will be listed. Ensure `ANTHROPIC_API_KEY` is set correctly in the environment.
-
-### Claude doesn't modify files
-
-Set `claudePermissionMode` to `acceptEdits` in `.relay/config.json`. Without this, Claude prompts for interactive approval which doesn't work in a bot.
-
----
-
-## Codex Issues
-
-### "Invalid API key"
-
-Check your OpenAI API key environment variable. Either `CODEX_API_KEY` or `OPENAI_API_KEY` works. These must be set in the coding agent's environment, not in `.relay/config.json`.
-
-### No models listed for Codex
-
-Codex fetches models dynamically from the OpenAI API. If the API key is unavailable or invalid, no models will be listed. Ensure `CODEX_API_KEY` or `OPENAI_API_KEY` is set correctly in the environment.
-
----
-
 ## Voice Messages
 
 ### "No STT provider available"
@@ -103,7 +67,7 @@ Add at least one speech-to-text API key to `.relay/config.json`:
 
 ### "MCP not supported"
 
-MCP is only available with OpenCode and Claude.
+MCP requires OpenCode to be running.
 
 ### MCP server shows "failed"
 

@@ -43,6 +43,13 @@ export const metadata: Metadata = {
     description:
       "Control AI coding agents from Telegram via OpenCode. 75+ AI providers.",
   },
+  icons: {
+    icon: [
+      { url: "/Relay/favicon.svg", type: "image/svg+xml" },
+      { url: "/Relay/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/Relay/apple-touch-icon.png",
+  },
   robots: { index: true, follow: true },
   alternates: {
     canonical: siteConfig.url,

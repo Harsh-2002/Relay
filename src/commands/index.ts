@@ -24,6 +24,7 @@ export function getBotCommands(): BotCommand[] {
     // Models & Agents
     { command: "models", description: "List available models" },
     { command: "model", description: "View or change model" },
+    { command: "stt", description: "Switch voice transcription provider" },
     { command: "agent", description: "View or change agent" },
 
     // Monitor

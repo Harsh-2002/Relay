@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 import { parseArgs } from "util";
 import type { RelayConfig } from "./schema.js";
@@ -6,19 +7,22 @@ import { CONFIG_DEFAULTS } from "./schema.js";
 
 const CONFIG_FILENAME = "config.json";
 
-/** Resolve the data directory (bootstrap — no config dependency). */
-function resolveDataDir(cliDataDir?: string): string {
-  return cliDataDir || join(process.cwd(), ".relay");
+/** Resolve the data directory. Default: ~/.relay (global). --dev: ./.relay (cwd). */
+function resolveDataDir(cliDataDir?: string, dev?: boolean): string {
+  if (cliDataDir) return cliDataDir;
+  if (dev) return join(process.cwd(), ".relay");
+  return join(homedir(), ".relay");
 }
 
 /** Parse CLI args into a partial config. */
-function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersion: boolean } {
+function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersion: boolean; dev: boolean } {
   try {
     const { values } = parseArgs({
       strict: false,
       options: {
         help: { type: "boolean", short: "h", default: false },
         version: { type: "boolean", short: "v", default: false },
+        dev: { type: "boolean", default: false },
         "bot-token": { type: "string" },
         "allowed-user-id": { type: "string" },
         "bot-mode": { type: "string" },
@@ -68,9 +72,10 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
       flags,
       showHelp: !!values["help"],
       showVersion: !!values["version"],
+      dev: !!values["dev"],
     };
   } catch {
-    return { flags: {}, showHelp: false, showVersion: false };
+    return { flags: {}, showHelp: false, showVersion: false, dev: false };
   }
 }
 
@@ -109,7 +114,7 @@ export interface LoadResult {
  */
 export function loadConfig(): LoadResult {
   const cli = parseCli();
-  const dataDir = resolveDataDir(cli.flags.dataDir);
+  const dataDir = resolveDataDir(cli.flags.dataDir, cli.dev);
   const fileConfig = readConfigFile(dataDir);
 
   // Merge: CLI > file > defaults

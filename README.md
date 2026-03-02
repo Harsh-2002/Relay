@@ -47,7 +47,7 @@ npm install -g @4via6/relay
 relay onboard
 ```
 
-The setup wizard will ask for your bot token, user ID, and provider config, then save everything to `.relay/config.json`.
+The setup wizard will ask for your bot token, user ID, and provider config, then save everything to `~/.relay/config.json`.
 
 ### With npx (no install)
 
@@ -93,7 +93,7 @@ Updates to the latest version. If the daemon is running, it's automatically rest
 
 ## Configuration
 
-Config is stored in `.relay/config.json`. Use the setup wizard or CLI flags:
+Config is stored in `~/.relay/config.json` (global). Use the setup wizard or CLI flags:
 
 ```bash
 relay onboard                    # Interactive wizard
@@ -109,8 +109,8 @@ relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 | `--bot-token` | Telegram bot token |
 | `--allowed-user-id` | Telegram user ID |
 | `--bot-mode` | `polling` or `webhook` |
-| `--streaming-enabled` | `true` or `false` |
-| `--data-dir` | Data directory (default: `.relay/`) |
+| `--dev` | Use `./.relay/` in current directory instead of `~/.relay/` |
+| `--data-dir` | Data directory (default: `~/.relay/`) |
 | `--system-prompt-file` | Custom system prompt file |
 
 
@@ -206,7 +206,7 @@ Configure speech-to-text providers during `relay onboard` or pass API keys via C
 
 ## System Prompt
 
-The bot loads a system prompt from `.relay/SKILL.md` (or `./SKILL.md` in cwd for backward compatibility, or a custom path via `--system-prompt-file`). If no file exists, a default prompt is used. The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
+The bot loads a system prompt from `~/.relay/SKILL.md` (or `./SKILL.md` in cwd for backward compatibility, or a custom path via `--system-prompt-file`). If no file exists, a default prompt is used. The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
 
 ## Architecture
 
@@ -233,9 +233,8 @@ src/
     mcp.ts         -- MCP server management
   utils/
     logger.ts      -- Pino-based structured logging
-    store.ts       -- JSON file-backed persistence (.relay/)
-    stream.ts      -- Streaming response handler
-    reply.ts       -- Shared response sending (reasoning, chunking, fallback)
+    store.ts       -- JSON file-backed persistence (~/.relay/)
+    stream.ts      -- Streaming response handler (reasoning, chunking, fallback)
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- HTML-aware Telegram message chunking
     markdown.ts    -- Markdown to Telegram HTML conversion
@@ -243,8 +242,7 @@ src/
     html.ts        -- HTML escaping for Telegram
     media.ts       -- File upload/download
     stt.ts         -- Speech-to-text
-    system-prompt.ts -- System prompt loading
-    timeout.ts     -- Prompt timeout utility
+    system-prompt.ts -- System prompt loading with IST timestamp
 ```
 
 The provider implements the `Provider` interface with sessions, prompts, streaming, file operations, and MCP management. Messages are processed through a serial prompt queue to prevent interleaved responses.

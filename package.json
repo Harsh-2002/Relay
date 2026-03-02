@@ -1,6 +1,6 @@
 {
   "name": "@4via6/relay",
-  "version": "2.1.9",
+  "version": "2.1.10",
   "description": "Telegram bot for AI coding agents — powered by OpenCode",
   "type": "module",
   "main": "dist/index.js",
@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/cli.js",
-    "dev": "tsc --watch & node --watch dist/cli.js",
+    "dev": "tsc --watch & node --watch dist/cli.js --dev",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

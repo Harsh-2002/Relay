@@ -36,11 +36,11 @@ function printHelp(): void {
     --bot-token <token>         Telegram bot token
     --allowed-user-id <id>      Telegram user ID
     --bot-mode <mode>           Bot mode: polling, webhook
-    --streaming-enabled <bool>  Enable streaming responses
-    --data-dir <path>           Data directory (default: .relay/)
+    --dev                       Use ./.relay/ in current directory instead of ~/.relay/
+    --data-dir <path>           Data directory (default: ~/.relay/)
     --system-prompt-file <path> System prompt file path
 
-  Config is loaded from: .relay/config.json
+  Config is loaded from: ~/.relay/config.json (or ./.relay/ with --dev)
   Run 'relay onboard' to create or update config interactively.
 
   Documentation: https://github.com/Harsh-2002/Relay

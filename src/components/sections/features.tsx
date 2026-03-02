@@ -30,7 +30,7 @@ const features = [
     icon: Mic,
     title: "Voice Input",
     description:
-      "Send voice notes \u2014 auto transcription via Groq, OpenAI, or AssemblyAI.",
+      "Send voice notes \u2014 auto transcription via Groq, Sarvam AI, OpenAI, or AssemblyAI.",
   },
   {
     icon: GitBranch,
@@ -52,9 +52,9 @@ const features = [
   },
   {
     icon: Puzzle,
-    title: "MCP Servers",
+    title: "Built-in MCP Tools",
     description:
-      "Extend AI capabilities with Model Context Protocol servers.",
+      "Browser, Fetch, Memory, and Filesystem tools built in. Add custom MCP servers too.",
   },
   {
     icon: Terminal,

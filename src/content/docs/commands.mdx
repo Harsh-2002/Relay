@@ -48,6 +48,10 @@ Delete a session. Example: `/delete abc123`
 
 Show the active session's ID and title.
 
+### /rename \<title\>
+
+Rename the current session. Example: `/rename Auth refactor`
+
 ### /fork [messageId]
 
 Fork the current session. Optionally fork from a specific message.
@@ -73,6 +77,12 @@ Download the full diff as a text file.
 ---
 
 ## File Operations
+
+### /ls [path]
+
+List files and directories. Defaults to the project root.
+
+Example: `/ls src/`
 
 ### /read \<path\>
 
@@ -130,6 +140,10 @@ Cancel the currently running operation.
 
 Get a shareable URL for the current session.
 
+### /unshare
+
+Revoke a previously shared session URL.
+
 ---
 
 ## Shell
@@ -140,9 +154,9 @@ Run a shell command natively on the OpenCode server.
 
 Examples: `/shell ls -la` or `/shell npm test`
 
-### /cmd \<command\>
+### /cmd [command]
 
-Run an OpenCode-specific command.
+Run an OpenCode-specific command. Without arguments, shows an interactive picker.
 
 Example: `/cmd compact`
 
@@ -156,7 +170,7 @@ List available OpenCode commands.
 
 ### /models
 
-Display an interactive inline keyboard of available models with capability badges: `[reasoning]`, `[vision]`, `[active]`. Tap a button to select a model directly.
+Display an interactive inline keyboard of available models with capability badges: `[reasoning]`, `[vision]`, `[free]`, `[active]`. Tap a button to select a model directly.
 
 ### /model [id]
 
@@ -168,17 +182,17 @@ Examples: `/model` to view current, `/model sonnet` to switch by partial match
 
 ## MCP
 
-MCP servers extend the AI with additional tools.
+MCP servers extend the AI with additional tools. Relay includes 4 built-in tools (Browser, Fetch, Memory, Filesystem) that can be enabled during setup. You can also add custom servers.
 
 ### /mcp
 
-Show MCP server status.
+Show MCP server status for all configured servers.
 
 ### /mcp add \<name\> local \<cmd\>
 
 Add a local MCP server.
 
-Example: `/mcp add memory local npx -y @modelcontextprotocol/server-memory`
+Example: `/mcp add db local npx -y @modelcontextprotocol/server-sqlite`
 
 ### /mcp add \<name\> remote \<url\>
 
@@ -190,17 +204,49 @@ Example: `/mcp add api remote https://mcp.example.com/sse`
 
 Remove and disconnect a server.
 
+### /mcp connect \<name\>
+
+Reconnect a disconnected or failed server.
+
 ---
 
-## Settings
+## Admin
 
 ### /health
 
-Server status dashboard: provider, model, streaming, voice, uptime.
+Server status dashboard: provider, model, voice, uptime.
 
 ### /config
 
 Show the full provider configuration.
+
+### /agent [name]
+
+View or change the current agent mode.
+
+### /agents
+
+List all available agents.
+
+### /tools
+
+List all available tools (including MCP tools).
+
+### /providers
+
+Show configured AI providers.
+
+### /project
+
+Show current project information.
+
+### /git
+
+Show git repository status.
+
+### /stt
+
+Show current speech-to-text provider information.
 
 ### /system
 
@@ -209,3 +255,7 @@ View the current system prompt. Use `/system reload` to force-reload from file.
 ### /help
 
 Compact command reference.
+
+### /start
+
+Show the welcome message with quick-start instructions.

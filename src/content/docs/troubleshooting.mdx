@@ -6,19 +6,29 @@ order: 6
 
 ## Bot won't start
 
-### "BOT_TOKEN is required"
+### "No config found" / Setup wizard starts automatically
 
-Run `relay onboard` to set up your config, or add your Telegram bot token to `.relay/config.json`:
+If no config exists, Relay will start the setup wizard automatically on first run. You can also run it manually:
 
-```json
-"botToken": "123456:ABC-DEF..."
+```bash
+relay onboard
 ```
 
-Get a token from [@BotFather](https://t.me/BotFather).
+This creates `~/.relay/config.json` with your bot token, user ID, and other settings.
 
 ### "Unknown provider: xyz"
 
-Check `provider` in `.relay/config.json`. The only supported value is `opencode`.
+Check `provider` in `~/.relay/config.json`. The only supported value is `opencode`.
+
+### OpenCode not found
+
+Relay requires OpenCode as its AI backend. Install it:
+
+```bash
+npm i -g opencode-ai@latest
+```
+
+Verify it's installed: `opencode --version`. The setup wizard (`relay onboard`) will detect OpenCode automatically.
 
 ---
 
@@ -26,7 +36,7 @@ Check `provider` in `.relay/config.json`. The only supported value is `opencode`
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Verify `allowedUserId` in `.relay/config.json`. Get your ID from [@userinfobot](https://t.me/userinfobot).
+Relay only responds to authorized users. Verify `allowedUserId` in `~/.relay/config.json`. Get your ID from [@userinfobot](https://t.me/userinfobot).
 
 For multiple users, separate IDs with commas:
 
@@ -42,12 +52,14 @@ For multiple users, separate IDs with commas:
 
 The OpenCode server isn't running or isn't reachable. Check:
 1. The server is running
-2. `opencodeUrl` is correct in `.relay/config.json`
+2. `opencodeUrl` is correct in `~/.relay/config.json`
 3. If remote, the port is open
+
+**HTTP warning**: If connecting to a remote OpenCode server, use HTTPS in production to encrypt traffic.
 
 ### "Failed to start OpenCode server"
 
-Check that OpenCode is installed and the port isn't already in use.
+Check that OpenCode is installed (`npm i -g opencode-ai@latest`) and the port isn't already in use.
 
 ---
 
@@ -55,7 +67,7 @@ Check that OpenCode is installed and the port isn't already in use.
 
 ### "No STT provider available"
 
-Add at least one speech-to-text API key to `.relay/config.json`:
+Add at least one speech-to-text API key to `~/.relay/config.json`:
 
 ```json
 "groqApiKey": "gsk_..."
@@ -63,7 +75,7 @@ Add at least one speech-to-text API key to `.relay/config.json`:
 
 ---
 
-## MCP Servers
+## MCP Tools
 
 ### "MCP not supported"
 
@@ -72,6 +84,28 @@ MCP requires OpenCode to be running.
 ### MCP server shows "failed"
 
 Run `/mcp` to see the error. Common causes: command not found, connection refused (remote), or permission denied.
+
+Use `/mcp connect <name>` to attempt to reconnect a failed server.
+
+### Fetch MCP fails to start
+
+The Fetch MCP requires `uvx` (Python package runner). Install it:
+
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows:**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+After installing, restart Relay. The setup wizard checks for `uvx` when Fetch MCP is selected.
+
+### Memory MCP data location
+
+Memory MCP stores its knowledge graph in `~/.relay/memory.jsonl`. This file is created automatically when Memory MCP is enabled and grows as the AI stores information.
 
 ---
 

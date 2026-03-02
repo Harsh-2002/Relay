@@ -6,7 +6,7 @@ order: 5
 
 ## Streaming Responses
 
-Relay can stream AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
+Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
 
 1. You send a message
 2. The bot sends a "thinking" indicator
@@ -15,13 +15,7 @@ Relay can stream AI responses in real time. As the AI generates text, the Telegr
 
 Messages are updated every 2 seconds by default to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
 
-Enable streaming in `.relay/config.json`:
-
-```json
-"streamingEnabled": true
-```
-
-You can also adjust the update interval with `streamEditIntervalMs` (default: `2000` ms).
+You can adjust the update interval with `streamEditIntervalMs` (default: `2000` ms) in `~/.relay/config.json`.
 
 ---
 
@@ -37,7 +31,7 @@ Supported types:
 
 ## Voice Messages
 
-Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text API key in `.relay/config.json`:
+Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text API key in `~/.relay/config.json`:
 
 ```json
 "groqApiKey": "gsk_...",
@@ -66,26 +60,68 @@ Text messages have a 32,000-character limit. For larger content, send as a file 
 
 ---
 
-## MCP Servers
+## Built-in MCP Tools
 
-MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs.
+Relay includes 4 built-in MCP (Model Context Protocol) tools that can be enabled during setup or in `~/.relay/config.json`. When enabled, Relay auto-configures them in OpenCode.
 
-### Local servers
+### Browser (Playwright MCP)
 
-Run as subprocesses on the same machine. Examples:
+Headless browser automation powered by Playwright. The AI can:
+- Navigate to URLs and take screenshots
+- Fill forms and click buttons
+- Extract page content
+- Execute JavaScript on pages
 
+Enable: `"browserEnabled": true`
+
+### Fetch (Fetch MCP)
+
+Read web pages as clean markdown. The AI can:
+- Fetch any URL and get readable content
+- Check API endpoints
+- Look up documentation
+
+Enable: `"fetchEnabled": true`
+
+Requires `uvx` (Python package runner). See [Troubleshooting](/docs/troubleshooting#fetch-mcp-fails-to-start) if you encounter issues.
+
+### Memory (Memory MCP)
+
+Persistent knowledge graph that survives across sessions. The AI can:
+- Remember user preferences and decisions
+- Store project context and patterns
+- Build up knowledge over time
+
+Enable: `"memoryEnabled": true`
+
+Data is stored in `~/.relay/memory.jsonl`.
+
+### Filesystem (Filesystem MCP)
+
+Read and write files outside the current project directory. The AI can:
+- Access files in specified directories
+- Work across multiple projects
+- Read configuration files from other locations
+
+Enable: `"filesystemEnabled": true` and set `"filesystemPaths": ["/path/to/dir"]`
+
+### Custom MCP Servers
+
+You can also add custom MCP servers beyond the 4 built-in tools:
+
+**Local servers** — run as subprocesses:
 - `/mcp add memory local npx -y @modelcontextprotocol/server-memory`
-- `/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer`
 
-### Remote servers
+**Remote servers** — connect via URL:
+- `/mcp add api remote https://mcp.example.com/sse`
 
-Connect via URL: `/mcp add api remote https://mcp.example.com/sse`
+Use `/mcp` to see all server statuses and `/mcp connect <name>` to reconnect a server.
 
 ---
 
 ## Model Selection
 
-Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[active]`. Tap a button to select a model directly.
+Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[free]`, `[active]`. Tap a button to select a model directly.
 
 For text-based selection, use `/model sonnet`, `/model deepseek`, or a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
@@ -95,7 +131,7 @@ Models are fetched dynamically from all configured OpenCode providers. If no pro
 
 ## System Prompt
 
-Customize the AI's behavior with a system prompt file. Place a `SKILL.md` file in the `.relay/` directory and the bot loads it automatically. Change the path in `.relay/config.json`:
+Customize the AI's behavior with a system prompt file. Place a `SKILL.md` file in the `~/.relay/` directory and the bot loads it automatically. Change the path in `~/.relay/config.json`:
 
 ```json
 "systemPromptFile": "prompts/my-prompt.md"
@@ -132,7 +168,7 @@ Edit a sent message to re-prompt the AI with the corrected text. The AI processe
 
 Sessions keep conversations organized. Each session maintains its own message history.
 
-Create sessions with `/new` or `/new Refactoring auth module`. Fork a session with `/fork` or `/fork msg_abc123`.
+Create sessions with `/new` or `/new Refactoring auth module`. Fork a session with `/fork` or `/fork msg_abc123`. Rename with `/rename New title`.
 
 ---
 
@@ -140,7 +176,8 @@ Create sessions with `/new` or `/new Refactoring auth module`. Fork a session wi
 
 Relay persists critical state to disk so it survives restarts:
 
-- `.relay/session.json` — Current session ID and selected model
+- `~/.relay/session.json` — Current session ID and selected model
+- `~/.relay/memory.jsonl` — Memory MCP knowledge graph data
 
 State is written atomically (temp file + rename) to prevent corruption.
 

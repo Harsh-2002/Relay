@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { clsx } from "clsx";
 
 interface TerminalLine {
-  type: "command" | "output" | "prompt" | "success" | "blank" | "highlight";
+  type: "command" | "output" | "prompt" | "success" | "blank" | "highlight" | "info";
   text: string;
 }
 
@@ -40,6 +40,10 @@ const lineStyles: Record<TerminalLine["type"], { prefix: string; className: stri
   highlight: {
     prefix: "",
     className: "text-amber-400",
+  },
+  info: {
+    prefix: "",
+    className: "text-text-secondary",
   },
 };
 

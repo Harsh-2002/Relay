@@ -4,7 +4,7 @@ description: "All configuration options for Relay"
 order: 2
 ---
 
-All configuration is stored in `.relay/config.json`. Run `relay onboard` to create it interactively, or edit the file directly.
+All configuration is stored in `~/.relay/config.json`. Run `relay onboard` to create it interactively, or edit the file directly.
 
 Config resolution order: CLI flags > config file > defaults.
 
@@ -13,7 +13,7 @@ Config resolution order: CLI flags > config file > defaults.
 | Command | Description |
 |---------|-------------|
 | `relay` | Start the bot in the foreground |
-| `relay onboard` | Interactive configuration wizard |
+| `relay onboard` | Interactive configuration wizard (5-step flow) |
 | `relay start` | Start the bot as a background daemon |
 | `relay stop` | Stop the background daemon |
 | `relay restart` | Restart the background daemon |
@@ -40,6 +40,20 @@ Each provider has its own config fields. See [Providers](/docs/providers) for de
 - `opencodeModel` — Model override, e.g. `anthropic/claude-sonnet-4-20250514`
 
 Provider API keys are configured in OpenCode's environment, not in Relay. See [Providers](/docs/providers) for details.
+
+## MCP Tools
+
+Built-in MCP tools are configured during `relay onboard` or directly in the config file:
+
+- `browserEnabled` — Enable headless browser via Playwright MCP (default: `false`)
+- `fetchEnabled` — Enable web page fetching as markdown via Fetch MCP (default: `false`, requires `uvx`)
+- `memoryEnabled` — Enable persistent knowledge graph across sessions (default: `false`)
+- `filesystemEnabled` — Enable read/write access to files outside the project (default: `false`)
+- `filesystemPaths` — Allowed directories for Filesystem MCP (default: `[]`)
+
+When enabled, Relay auto-injects the corresponding MCP server configs into OpenCode's configuration.
+
+You can also add custom MCP servers via `/mcp add` commands. See [Commands](/docs/commands#mcp) for details.
 
 ## Bot Mode
 
@@ -71,14 +85,20 @@ Requires a public HTTPS URL that Telegram can reach.
 
 ## Data Persistence
 
-- `dataDir` — Directory for persisted bot state (default: `.relay/`)
+- `dataDir` — Directory for persisted bot state (default: `~/.relay/`, or `./.relay/` with `--dev` flag)
 
-Relay persists session state, model selection, and provider data to disk so they survive restarts. The `.relay/` directory is created automatically and excluded from git.
+Relay persists session state, model selection, and provider data to disk so they survive restarts:
+
+- `~/.relay/config.json` — User configuration (0600 permissions)
+- `~/.relay/session.json` — Active session ID and selected model
+- `~/.relay/SKILL.md` — Custom system prompt (optional)
+- `~/.relay/memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ## Streaming
 
-- `streamingEnabled` — Enable progressive message editing during responses (default: `false`)
 - `streamEditIntervalMs` — How often in ms to update the Telegram message while streaming (default: `2000`)
+
+Streaming is always enabled. Responses are progressively edited in Telegram as the AI generates text.
 
 ## Timeout
 
@@ -88,7 +108,7 @@ Relay persists session state, model selection, and provider data to disk so they
 
 - `systemPromptFile` — Path to your custom system prompt file (default: `SKILL.md`)
 
-The bot loads `SKILL.md` from the `.relay/` directory if it exists, otherwise uses a built-in default. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
+The bot loads `SKILL.md` from the `~/.relay/` directory if it exists, otherwise uses a built-in default. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
 
 ## Voice / Speech-to-Text
 
@@ -114,7 +134,8 @@ Use `sarvam-translate` to transcribe and translate non-English voice messages to
   "provider": "opencode",
   "opencodeMode": "start",
   "botMode": "polling",
-  "streamingEnabled": true,
+  "browserEnabled": true,
+  "memoryEnabled": true,
   "streamEditIntervalMs": 2000,
   "promptTimeoutMs": 300000,
   "groqApiKey": "gsk_..."

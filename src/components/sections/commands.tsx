@@ -29,6 +29,7 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
       { name: "/switch <id>", description: "Switch to a session" },
       { name: "/delete <id>", description: "Delete a session" },
       { name: "/current", description: "Show active session info" },
+      { name: "/rename <title>", description: "Rename the current session" },
       { name: "/fork [msgId]", description: "Fork current session" },
     ],
   },
@@ -45,6 +46,7 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     id: "files",
     label: "Files",
     commands: [
+      { name: "/ls [path]", description: "List files and directories" },
       { name: "/read <path>", description: "Read file contents" },
       { name: "/find <query>", description: "Find files by name pattern" },
       { name: "/search <pattern>", description: "Search file contents" },
@@ -62,6 +64,7 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
       { name: "/unrevert", description: "Redo reverted change" },
       { name: "/abort", description: "Cancel running operation" },
       { name: "/share", description: "Share session URL" },
+      { name: "/unshare", description: "Revoke shared session URL" },
     ],
   },
   {
@@ -69,7 +72,7 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     label: "Shell",
     commands: [
       { name: "/shell <cmd>", description: "Run shell command" },
-      { name: "/cmd <command>", description: "Run OpenCode command" },
+      { name: "/cmd [command]", description: "Run OpenCode command (interactive picker without args)" },
       { name: "/commands", description: "List available commands" },
     ],
   },
@@ -77,7 +80,7 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     id: "models",
     label: "Models",
     commands: [
-      { name: "/models", description: "List all available models" },
+      { name: "/models", description: "List models with [free], [reasoning], [vision] badges" },
       { name: "/model [id]", description: "View or change current model" },
     ],
   },
@@ -85,10 +88,11 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     id: "mcp",
     label: "MCP",
     commands: [
-      { name: "/mcp", description: "Show MCP server status" },
+      { name: "/mcp", description: "Show MCP server status (4 built-in tools)" },
       { name: "/mcp add <name> local <cmd>", description: "Add local server" },
       { name: "/mcp add <name> remote <url>", description: "Add remote server" },
       { name: "/mcp remove <name>", description: "Remove a server" },
+      { name: "/mcp connect <name>", description: "Reconnect a server" },
     ],
   },
   {
@@ -97,8 +101,16 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     commands: [
       { name: "/health", description: "Server status dashboard" },
       { name: "/config", description: "Show full configuration" },
+      { name: "/agent [name]", description: "View or change agent mode" },
+      { name: "/agents", description: "List available agents" },
+      { name: "/tools", description: "List available tools" },
+      { name: "/providers", description: "Show AI providers" },
+      { name: "/project", description: "Show project info" },
+      { name: "/git", description: "Show git status" },
       { name: "/system", description: "View system prompt" },
+      { name: "/stt", description: "Show STT provider info" },
       { name: "/help", description: "Command reference" },
+      { name: "/start", description: "Show welcome message" },
     ],
   },
 ];

@@ -7,6 +7,7 @@ order: 1
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 18 (or [Bun](https://bun.sh/))
+- [OpenCode](https://github.com/opencode-ai/opencode) — the AI backend (`npm i -g opencode-ai@latest`)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - Your Telegram user ID (get it from [@userinfobot](https://t.me/userinfobot))
 - An API key for at least one AI provider (Anthropic, OpenAI, Google, etc. — see [Providers](/docs/providers))
@@ -19,19 +20,23 @@ npm install -g @4via6/relay
 
 ## Configuration
 
-Run the interactive setup wizard to create your config at `.relay/config.json`:
+Run the interactive setup wizard to create your config at `~/.relay/config.json`:
 
 ```bash
 relay onboard
 ```
 
-The wizard will prompt you for:
+The wizard walks you through 5 steps:
 
-- **Bot token** — from [@BotFather](https://t.me/BotFather)
-- **Allowed user ID** — your Telegram user ID
-- **Provider** — `opencode` (the only supported value)
+1. **OpenCode** — Detects your OpenCode installation (installs if missing)
+2. **Bot Token** — Telegram bot token from [@BotFather](https://t.me/BotFather)
+3. **User ID** — Your Telegram user ID (only this user can interact with the bot)
+4. **MCP Tools** — Select built-in tools: Browser (Playwright), Fetch, Memory, Filesystem
+5. **Voice** — Speech-to-text provider configuration
 
 Provider API keys are set in OpenCode's environment. See [Providers](/docs/providers) for details.
+
+Re-running `relay onboard` on an existing config enters **update mode** — shows current values and lets you press Enter to keep them, or type a new value to replace.
 
 ## Run
 
@@ -64,6 +69,15 @@ relay update
 Updates to the latest version. Restarts the daemon if it's running.
 
 Open your bot in Telegram and send `/start` to verify the connection. Use `/help` to see all available commands.
+
+## Data Directory
+
+Relay stores all state in `~/.relay/` (or `./.relay/` in dev mode with `--dev` flag):
+
+- `config.json` — User configuration
+- `session.json` — Active session ID and selected model
+- `SKILL.md` — Custom system prompt (optional)
+- `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ## Next Steps
 

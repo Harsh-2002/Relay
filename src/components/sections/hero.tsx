@@ -10,9 +10,11 @@ import { ArrowRight } from "lucide-react";
 
 const heroTerminalLines = [
   { type: "command" as const, text: "relay onboard" },
-  { type: "success" as const, text: "Bot token verified" },
-  { type: "success" as const, text: "Connected to OpenCode" },
-  { type: "success" as const, text: "Ready \u2014 send a message in Telegram" },
+  { type: "success" as const, text: "OpenCode detected (v1.2.15)" },
+  { type: "success" as const, text: "Bot token verified \u2014 @YourBot" },
+  { type: "success" as const, text: "User ID saved" },
+  { type: "success" as const, text: "MCP tools configured: Browser, Memory" },
+  { type: "success" as const, text: "Configuration saved to ~/.relay/config.json" },
 ];
 
 export function Hero() {
@@ -44,7 +46,7 @@ export function Hero() {
               <Badge variant="default">
                 Open Source &middot; MIT Licensed
               </Badge>
-              <Badge variant="accent">v2.0</Badge>
+              <Badge variant="accent">v2.2</Badge>
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-7xl">

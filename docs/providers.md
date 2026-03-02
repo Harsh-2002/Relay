@@ -94,7 +94,6 @@ Fastest option with a free tier. Uses the Whisper model via Groq's inference API
 | Config key | `groqApiKey` |
 | Model config | `groqSttModel` |
 | Default model | `whisper-large-v3-turbo` |
-| Endpoint | `api.groq.com/openai/v1/audio/transcriptions` |
 
 ```json
 "groqApiKey": "gsk_..."
@@ -109,7 +108,6 @@ Indian-language optimized STT with support for Hindi, Tamil, Telugu, and other I
 | Config key | `sarvamApiKey` |
 | Model config | `sarvamSttModel` |
 | Default model | `saaras:v3` |
-| SDK | `sarvamai` (npm package) |
 
 ```json
 "sarvamApiKey": "..."
@@ -122,7 +120,6 @@ Reliable alternative with good accuracy. Uses a two-step upload-then-transcribe 
 | Field | Value |
 |-------|-------|
 | Config key | `assemblyaiApiKey` |
-| Endpoint | `api.assemblyai.com/v2/` |
 
 ```json
 "assemblyaiApiKey": "..."
@@ -137,7 +134,6 @@ Standard OpenAI Whisper API.
 | Config key | `openaiSttApiKey` |
 | Model config | `openaiSttModel` |
 | Default model | `gpt-4o-mini-transcribe` |
-| Endpoint | `api.openai.com/v1/audio/transcriptions` |
 
 ```json
 "openaiSttApiKey": "sk-..."

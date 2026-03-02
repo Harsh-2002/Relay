@@ -6,34 +6,32 @@ Detailed guide to Relay's key features.
 
 ## Streaming Responses
 
-Relay live-streams AI responses by editing a single message in-place via `editMessageText`. A "Thinking." message is sent first, then edited as tokens arrive — no flickering, no pinned notification banner.
+Relay live-streams AI responses in real time. You see the text appear as the AI generates it.
 
 ### How it works
 
 1. You send a message
-2. The bot sends a "Thinking." message via `sendMessage`
-3. As tokens arrive from the OpenCode SSE stream, the message is edited in-place with accumulated text
-4. When the response is complete, a final `editMessageText` applies the fully-formatted HTML
+2. The bot shows a "Thinking..." indicator
+3. Text appears progressively as the AI generates it
+4. The final formatted response replaces the draft
 
 ### Streaming behavior
 
-- Draft updates are throttled by `streamEditIntervalMs` to avoid Telegram rate limits
-- Very long responses are split into multiple messages (Telegram's 4096-character limit)
+- Very long responses are split into multiple messages automatically
 - Tool use indicators (e.g., "Reading file...", "Running command...") appear during processing
-- If the AI is using tools, you'll see status updates before the final text response
-- For long responses during streaming, the draft shows the most recent content (tail end) rather than the beginning
-- Unclosed code fences are automatically closed during intermediate drafts to prevent broken formatting
-- A 120-second inactivity timeout detects stalled streams and recovers gracefully
+- For long responses, the most recent content is shown during streaming
 
 ### Configuration
 
-Streaming is always enabled. The edit interval can be adjusted in `~/.relay/config.json`:
+Streaming is always enabled. The update speed can be adjusted in `~/.relay/config.json`:
 
 ```json
 {
   "streamEditIntervalMs": 2000
 }
 ```
+
+Lower values = faster updates, but may hit Telegram rate limits.
 
 ---
 
@@ -48,14 +46,12 @@ When the AI generates files, takes screenshots, or creates artifacts, they are a
 
 ### How it works
 
-OpenCode returns structured file parts in its responses. Relay extracts these automatically and sends them after the text response. No action is needed from the user.
+Files and images are extracted automatically and sent after the text response. No action is needed from you.
 
 Common scenarios where you receive file attachments:
-- The AI takes a browser screenshot (via Playwright MCP)
+- The AI takes a browser screenshot
 - The AI generates an image or diagram
 - The AI creates a downloadable file
-
-Markdown image syntax (`![alt](url)`) in the AI's text is automatically stripped since Telegram cannot render inline images. The actual files are delivered separately.
 
 ---
 
@@ -72,8 +68,6 @@ Enable during `relay onboard` (Step 5), or set in `~/.relay/config.json`:
   "browserEnabled": true
 }
 ```
-
-Relay auto-injects the Playwright MCP server into OpenCode's config on startup.
 
 ### What the AI can do
 

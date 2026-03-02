@@ -90,27 +90,18 @@ Updates to the latest version. Restarts the daemon automatically if it's running
 4. Use `/help` to see all available commands
 5. Use `/health` to check the server status
 
-## Project Structure
+## Data Directory
+
+Relay stores its data in `~/.relay/`:
 
 ```
-~/.relay/               -- Config and persisted state (auto-created, global)
-relay/                  -- Project directory (if developing from source)
-    config.json         -- Your configuration
-    session.json        -- Active session state
-    SKILL.md            -- Custom system prompt (optional)
-  package.json          -- Dependencies and scripts
-  src/
-    cli.ts              -- CLI entry point (onboard, --help, --version)
-    index.ts            -- Bot startup
-    bot.ts              -- Bot setup and middleware
-    auth.ts             -- User authentication
-    session.ts          -- Session state management
-    config/             -- Config schema, loader, setup wizard
-    providers/          -- Provider implementations
-    commands/           -- Telegram command handlers
-    utils/              -- Shared utilities (logger, store, stream, etc.)
-  docs/                 -- This documentation
+~/.relay/
+  config.json         -- Your configuration
+  session.json        -- Active session and model
+  SKILL.md            -- Custom system prompt (optional, create manually)
 ```
+
+This directory is created automatically on first run.
 
 ## Next Steps
 

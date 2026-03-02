@@ -679,6 +679,7 @@ export class OpenCodeProvider implements Provider {
           id: m.id ?? key,
           name: m.name ?? key,
           provider: prov.id ?? prov.name ?? "unknown",
+          providerName: prov.name ?? prov.id ?? undefined,
           family: m.family ?? undefined,
           reasoning: m.reasoning ?? m.capabilities?.reasoning ?? false,
           attachment: m.attachment ?? m.capabilities?.attachment ?? false,

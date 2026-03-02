@@ -1,6 +1,6 @@
 {
   "name": "@4via6/relay",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Telegram bot for AI coding agents — powered by OpenCode",
   "type": "module",
   "main": "dist/index.js",

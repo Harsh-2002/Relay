@@ -21,28 +21,20 @@ const SENSITIVE_KEYS = new Set([
   "webhookSecret",
 ]);
 
-/** Extract a group name from a model's family or name (e.g. "claude-sonnet" → "Claude", "GPT-5 Codex" → "GPT") */
-function modelGroup(m: ModelDetail): string {
-  if (m.family) {
-    // Take first segment before hyphen: "claude-sonnet" → "claude", "gpt-codex" → "gpt"
-    const base = m.family.split("-")[0];
-    // Title-case it
-    return base.charAt(0).toUpperCase() + base.slice(1);
-  }
-  // Fallback: first word of model name
-  return m.name.split(/[\s-]/)[0];
-}
-
 function buildGroupKeyboard(
   models: ModelDetail[],
   selectedModel?: { providerID: string; modelID: string } | null,
 ): { keyboard: InlineKeyboard; text: string } {
-  // Count models per group and total free models
-  const groupCounts = new Map<string, number>();
+  // Count models per provider ID, track display name
+  const providerInfo = new Map<string, { name: string; count: number }>();
   let freeCount = 0;
   for (const m of models) {
-    const group = modelGroup(m);
-    groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+    const info = providerInfo.get(m.provider);
+    if (info) {
+      info.count++;
+    } else {
+      providerInfo.set(m.provider, { name: m.providerName ?? m.provider, count: 1 });
+    }
     if (m.free) freeCount++;
   }
 
@@ -53,13 +45,13 @@ function buildGroupKeyboard(
     kb.row().text(`⭐ Free Models (${freeCount})`, "mdl_prov:free");
   }
 
-  // Group buttons sorted alphabetically, 2 per row
-  const groups = [...groupCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  for (let i = 0; i < groups.length; i += 2) {
+  // Provider buttons sorted by display name, 2 per row
+  const providers = [...providerInfo.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name));
+  for (let i = 0; i < providers.length; i += 2) {
     kb.row();
-    kb.text(`${groups[i][0]} (${groups[i][1]})`, `mdl_prov:${groups[i][0]}`);
-    if (i + 1 < groups.length) {
-      kb.text(`${groups[i + 1][0]} (${groups[i + 1][1]})`, `mdl_prov:${groups[i + 1][0]}`);
+    kb.text(`${providers[i][1].name} (${providers[i][1].count})`, `mdl_prov:${providers[i][0]}`);
+    if (i + 1 < providers.length) {
+      kb.text(`${providers[i + 1][1].name} (${providers[i + 1][1].count})`, `mdl_prov:${providers[i + 1][0]}`);
     }
   }
 
@@ -84,8 +76,8 @@ function buildGroupModelsKeyboard(
     filtered = models.filter(m => m.free);
     headerLabel = "Free Models";
   } else {
-    filtered = models.filter(m => modelGroup(m) === groupID);
-    headerLabel = groupID;
+    filtered = models.filter(m => m.provider === groupID);
+    headerLabel = filtered[0]?.providerName ?? groupID;
   }
 
   // Sort: free first, then alphabetical

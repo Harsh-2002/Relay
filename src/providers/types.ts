@@ -101,6 +101,7 @@ export interface ModelDetail {
   id: string;
   name: string;
   provider: string;
+  providerName?: string;
   family?: string;
   reasoning: boolean;
   attachment: boolean;

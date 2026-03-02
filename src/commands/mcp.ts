@@ -1,7 +1,32 @@
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import { getProvider } from "../providers/index.js";
-import { formatCatchError } from "../utils/errors.js";
+import type { McpServerStatus } from "../providers/types.js";
+import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+
+function buildMcpStatus(servers: McpServerStatus[]): { text: string; keyboard: InlineKeyboard } {
+  let text = `<b>MCP Servers</b>  (${servers.length})\n\n`;
+
+  for (const srv of servers) {
+    const statusIcon = srv.status === "connected" ? "ok" : srv.status;
+    text += `<code>${escapeHtml(srv.name)}</code>  ${statusIcon}`;
+    if (srv.error) {
+      text += `\n  <i>${escapeHtml(srv.error)}</i>`;
+    }
+    text += "\n";
+  }
+
+  const kb = new InlineKeyboard();
+  for (const srv of servers) {
+    const connectLabel = srv.status === "disabled" ? "Connect" : "Reconnect";
+    kb.row()
+      .text(connectLabel, `mcp_conn:${srv.name}`)
+      .text("🗑", `mcp_rm:${srv.name}`);
+  }
+
+  return { text, keyboard: kb };
+}
 
 export function registerMcpCommands(bot: Bot): void {
   bot.command("mcp", async (ctx) => {
@@ -26,8 +51,64 @@ export function registerMcpCommands(bot: Bot): void {
       return;
     }
 
-    // /mcp — show status
+    // /mcp — show status with picker
     await handleMcpStatus(ctx);
+  });
+
+  // --- MCP picker callback handlers ---
+
+  bot.callbackQuery(/^mcp_conn:(.+)$/, async (ctx) => {
+    try {
+      const name = ctx.match[1];
+      const provider = getProvider();
+      await provider.connectMcpServer(name);
+
+      // Re-fetch and rebuild
+      const servers = await provider.getMcpStatus();
+      if (servers && servers.length > 0) {
+        const { text, keyboard } = buildMcpStatus(servers);
+        try {
+          await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      }
+      await ctx.answerCallbackQuery({ text: `Reconnecting ${name}...` });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to connect server" });
+    }
+  });
+
+  bot.callbackQuery(/^mcp_rm:(.+)$/, async (ctx) => {
+    try {
+      const name = ctx.match[1];
+      const provider = getProvider();
+      await provider.removeMcpServer(name);
+
+      // Re-fetch and rebuild
+      const servers = await provider.getMcpStatus();
+      if (!servers || servers.length === 0) {
+        try {
+          await ctx.editMessageText(
+            `<b>MCP Servers</b>\n\nNo MCP servers configured.\n\n` +
+            `<i>Use /mcp add &lt;name&gt; local &lt;command&gt; or /mcp add &lt;name&gt; remote &lt;url&gt;</i>`,
+            { parse_mode: "HTML" }
+          );
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      } else {
+        const { text, keyboard } = buildMcpStatus(servers);
+        try {
+          await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      }
+      await ctx.answerCallbackQuery({ text: `${name} removed` });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to remove server" });
+    }
   });
 }
 
@@ -50,18 +131,8 @@ async function handleMcpStatus(ctx: any): Promise<void> {
       return;
     }
 
-    let text = `<b>MCP Servers</b>  (${servers.length})\n\n`;
-
-    for (const srv of servers) {
-      const statusIcon = srv.status === "connected" ? "ok" : srv.status;
-      text += `<code>${escapeHtml(srv.name)}</code>  ${statusIcon}`;
-      if (srv.error) {
-        text += `\n  <i>${escapeHtml(srv.error)}</i>`;
-      }
-      text += "\n";
-    }
-
-    await ctx.reply(text, { parse_mode: "HTML" });
+    const { text, keyboard } = buildMcpStatus(servers);
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
   } catch (err: any) {
     await ctx.reply(formatCatchError(err, "checking MCP status"), { parse_mode: "HTML" });
   }

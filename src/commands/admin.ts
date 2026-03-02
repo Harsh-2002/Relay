@@ -7,15 +7,10 @@ import { chunkMessage } from "../utils/chunker.js";
 import { isSttAvailable, getSttProvider, listSttProviders } from "../utils/stt.js";
 
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
-import { formatCatchError } from "../utils/errors.js";
+import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 
 const PROVIDER_MODELS_PER_PAGE = 8;
-
-/** Telegram throws 400 "message is not modified" when edit content is identical — safe to ignore */
-function isNotModified(err: any): boolean {
-  return err?.description?.includes("message is not modified");
-}
 
 const SENSITIVE_KEYS = new Set([
   "botToken",
@@ -260,6 +255,43 @@ function buildAgentKeyboard(
   }
 
   return { keyboard: kb, text };
+}
+
+function buildSttPicker(
+  providers: ReturnType<typeof listSttProviders>,
+  active: string,
+  currentResolved: string | null,
+): { text: string; keyboard: InlineKeyboard } {
+  const kb = new InlineKeyboard();
+  const autoLabel = active === "auto" ? "✓ Auto" : "Auto";
+  kb.row().text(autoLabel, "stt:auto");
+
+  const configured = providers.filter((p) => p.configured);
+  const notConfigured = providers.filter((p) => !p.configured);
+
+  if (configured.length > 0) {
+    kb.row().text("— Configured —", "stt_noop");
+    for (const p of configured) {
+      const label = active === p.id ? `✓ ${p.name}` : p.name;
+      kb.row().text(label, `stt:${p.id}`);
+    }
+  }
+
+  if (notConfigured.length > 0) {
+    kb.row().text("— Not Configured —", "stt_noop");
+    for (const p of notConfigured) {
+      kb.row().text(`${p.name}  (no key)`, `stt_nokey:${p.id}`);
+    }
+  }
+
+  let text = `<b>Speech-to-Text</b>\n\n`;
+  text += `<b>Active:</b>  ${escapeHtml(active)}`;
+  if (active === "auto" && currentResolved) {
+    text += ` (using ${escapeHtml(currentResolved)})`;
+  }
+  text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
+
+  return { text, keyboard: kb };
 }
 
 export function registerAdminCommands(bot: Bot): void {
@@ -725,38 +757,8 @@ export function registerAdminCommands(bot: Bot): void {
     const providers = listSttProviders();
     const active = getSelectedSttProvider() ?? "auto";
     const currentResolved = getSttProvider();
-
-    const kb = new InlineKeyboard();
-    const autoLabel = active === "auto" ? "* Auto *" : "Auto";
-    kb.row().text(autoLabel, "stt:auto");
-
-    const configured = providers.filter((p) => p.configured);
-    const notConfigured = providers.filter((p) => !p.configured);
-
-    if (configured.length > 0) {
-      kb.row().text("— Configured —", "stt_noop");
-      for (const p of configured) {
-        const isActive = active === p.id;
-        const label = isActive ? `* ${p.name} *` : p.name;
-        kb.row().text(label, `stt:${p.id}`);
-      }
-    }
-
-    if (notConfigured.length > 0) {
-      kb.row().text("— Not Configured —", "stt_noop");
-      for (const p of notConfigured) {
-        kb.row().text(`${p.name}  (no key)`, `stt_nokey:${p.id}`);
-      }
-    }
-
-    let text = `<b>Speech-to-Text</b>\n\n`;
-    text += `<b>Active:</b>  ${escapeHtml(active)}`;
-    if (active === "auto" && currentResolved) {
-      text += ` (using ${escapeHtml(currentResolved)})`;
-    }
-    text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
-
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+    const { text, keyboard } = buildSttPicker(providers, active, currentResolved);
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
   });
 
   bot.callbackQuery(/^stt:(.+)$/, async (ctx) => {
@@ -779,39 +781,10 @@ export function registerAdminCommands(bot: Bot): void {
     const providers = listSttProviders();
     const active = getSelectedSttProvider() ?? "auto";
     const currentResolved = getSttProvider();
-
-    const kb = new InlineKeyboard();
-    const autoLabel = active === "auto" ? "* Auto *" : "Auto";
-    kb.row().text(autoLabel, "stt:auto");
-
-    const configured = providers.filter((p) => p.configured);
-    const notConfigured = providers.filter((p) => !p.configured);
-
-    if (configured.length > 0) {
-      kb.row().text("— Configured —", "stt_noop");
-      for (const p of configured) {
-        const isActive = active === p.id;
-        const label = isActive ? `* ${p.name} *` : p.name;
-        kb.row().text(label, `stt:${p.id}`);
-      }
-    }
-
-    if (notConfigured.length > 0) {
-      kb.row().text("— Not Configured —", "stt_noop");
-      for (const p of notConfigured) {
-        kb.row().text(`${p.name}  (no key)`, `stt_nokey:${p.id}`);
-      }
-    }
-
-    let text = `<b>Speech-to-Text</b>\n\n`;
-    text += `<b>Active:</b>  ${escapeHtml(active)}`;
-    if (active === "auto" && currentResolved) {
-      text += ` (using ${escapeHtml(currentResolved)})`;
-    }
-    text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
+    const { text, keyboard } = buildSttPicker(providers, active, currentResolved);
 
     try {
-      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
     } catch (err: any) {
       if (!isNotModified(err)) throw err;
     }

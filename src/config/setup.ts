@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync, renameSync } from "fs";
 import { join } from "path";
 import type { RelayConfig } from "./schema.js";
 import { CONFIG_DEFAULTS } from "./schema.js";
+import { ensurePlaywrightMcp } from "../utils/opencode-config.js";
 
 async function validateSttApiKey(
   provider: "groq" | "openai" | "assemblyai" | "sarvam",
@@ -242,6 +243,26 @@ export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
       } else {
         console.log(`  ✗ ${result.error}\n`);
       }
+    }
+  }
+
+  // Step 5: Browser (optional)
+  console.log("\n  Step 5: Headless Browser (Optional)\n");
+  console.log("  Enable a headless Chromium browser via Playwright MCP.");
+  console.log("  This lets the AI navigate URLs, scrape pages, fill forms, and take screenshots.\n");
+
+  const configureBrowser = await confirm({
+    message: "Enable headless browser (Playwright MCP)?",
+    default: false,
+  });
+
+  if (configureBrowser) {
+    config.browserEnabled = true;
+    try {
+      ensurePlaywrightMcp();
+      console.log("  ✓ Browser enabled — Playwright MCP written to OpenCode config.\n");
+    } catch {
+      console.log("  ✓ Browser enabled — Playwright MCP will be configured on startup.\n");
     }
   }
 

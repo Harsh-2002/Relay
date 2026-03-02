@@ -269,6 +269,7 @@ export class OpenCodeProvider implements Provider {
     // Track partIDs from delta events so we can match message.part.updated
     // events (v2 API: updated events lack sessionID at top level)
     const sessionPartIds = new Set<string>();
+    const sessionMessageIds = new Set<string>();            // message IDs confirmed for our session
     const partTypeMap = new Map<string, string>();          // partID → definitive part type from updated events
     const reasoningDeltaPartIds = new Set<string>();        // partIDs that yielded reasoning via deltas
     const snapshotYieldedPartIds = new Set<string>();       // partIDs whose full snapshot was already yielded
@@ -312,11 +313,18 @@ export class OpenCodeProvider implements Provider {
         // --- message.part.updated (files, tool state, full part snapshots) ---
         } else if (evtType === "message.part.updated") {
           const part = props.part;
-          // v2: no sessionID on updated events — match by tracked partID or sessionID (v1 compat)
+          // v2: no sessionID on updated events — match by tracked partID, messageID, or sessionID (v1 compat)
           const partId = part?.id ?? props.partID;
+          const msgId = props.messageID ?? props.message_id;
           const isOurSession = matchesSession(evt, sessionId)
-            || (partId && sessionPartIds.has(partId));
-          if (!isOurSession) continue;
+            || (partId && sessionPartIds.has(partId))
+            || (msgId && sessionMessageIds.has(msgId));
+          if (!isOurSession) {
+            if (part?.type === "tool" || part?.type === "file") {
+              providerLogger.info({ sessionId, partType: part.type, partId, msgId, tool: part.tool }, "Filtered out part.updated (session mismatch)");
+            }
+            continue;
+          }
           resetStallTimer();
 
           // Always track part type for cross-referencing with delta events
@@ -362,13 +370,25 @@ export class OpenCodeProvider implements Provider {
             const toolName = part.tool;
             const status = part.state?.status;
             providerLogger.info(
-              { sessionId, tool: toolName, status, title: part.state?.title, input: part.state?.input ?? undefined },
+              { sessionId, tool: toolName, status, title: part.state?.title, input: part.state?.input ?? undefined, attachments: part.state?.attachments?.length },
               "Tool event"
             );
             if (status === "running") {
               yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
             } else if (status === "completed") {
               yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
+              // Yield tool attachments (e.g. Playwright screenshots) as file chunks
+              if (part.state?.attachments?.length) {
+                for (const att of part.state.attachments) {
+                  if (att?.type === "file" && att.url) {
+                    yield {
+                      type: "file" as const,
+                      content: att.filename ?? "file",
+                      file: { mime: att.mime ?? "application/octet-stream", filename: att.filename ?? "file", url: att.url },
+                    };
+                  }
+                }
+              }
             } else if (status === "error") {
               yield { type: "tool_use", content: `[${toolName} error]` };
             }
@@ -392,6 +412,14 @@ export class OpenCodeProvider implements Provider {
           }).catch((err: any) => {
             providerLogger.warn({ sessionId, permId, err: err?.message }, "Permission auto-approve failed");
           });
+
+        // --- message.updated: track message IDs for our session ---
+        } else if (evtType === "message.updated") {
+          const info = props.info ?? props;
+          const msgSessionId = info.sessionID ?? info.session_id;
+          if (msgSessionId === sessionId && info.id) {
+            sessionMessageIds.add(info.id);
+          }
 
         // --- session lifecycle ---
         } else if (evtType === "session.idle") {
@@ -512,12 +540,21 @@ export class OpenCodeProvider implements Provider {
     }
   }
 
-  async summarize(sessionId: string): Promise<boolean> {
+  async summarize(sessionId: string): Promise<{ title: string; additions?: number; deletions?: number; files?: number } | null> {
     try {
       await client.session.summarize({ path: { id: sessionId } });
-      return true;
+      // Fetch session to get updated title + change stats
+      const result = await client.session.get({ path: { id: sessionId } });
+      if (result.error) return { title: "Session summarized" };
+      const s = result.data as any;
+      return {
+        title: s.title ?? "Untitled",
+        additions: s.summary?.additions,
+        deletions: s.summary?.deletions,
+        files: s.summary?.files,
+      };
     } catch {
-      return false;
+      return null;
     }
   }
 

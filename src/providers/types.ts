@@ -175,7 +175,7 @@ export interface Provider {
   unrevert(sessionId: string): Promise<boolean>;
   share(sessionId: string): Promise<string | null>;
   unshare(sessionId: string): Promise<boolean>;
-  summarize(sessionId: string): Promise<boolean>;
+  summarize(sessionId: string): Promise<{ title: string; additions?: number; deletions?: number; files?: number } | null>;
   getHistory(sessionId: string, limit?: number): Promise<unknown[] | null>;
 
   // File operations (return null if not supported)

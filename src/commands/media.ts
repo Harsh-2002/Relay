@@ -41,8 +41,9 @@ export function registerMediaHandlers(bot: Bot): void {
       }, 4000);
       await ctx.replyWithChatAction("typing");
 
-      try {
-        await withPromptQueue(async () => {
+      // Fire-and-forget so /abort can be processed while streaming
+      withPromptQueue(async () => {
+        try {
           const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
           mediaLogger.info({ fileName, localPath }, "Document downloaded");
           const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
@@ -124,10 +125,13 @@ export function registerMediaHandlers(bot: Bot): void {
             system,
             agent,
           });
-        });
-      } finally {
+        } finally {
+          clearInterval(typingInterval);
+        }
+      }).catch(async (err: any) => {
         clearInterval(typingInterval);
-      }
+        ctx.reply(formatCatchError(err, "handling file"), { parse_mode: "HTML" }).catch(() => {});
+      });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling file"), { parse_mode: "HTML" });
     }
@@ -158,8 +162,9 @@ export function registerMediaHandlers(bot: Bot): void {
       }, 4000);
       await ctx.replyWithChatAction("typing");
 
-      try {
-        await withPromptQueue(async () => {
+      // Fire-and-forget so /abort can be processed while streaming
+      withPromptQueue(async () => {
+        try {
           const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
 
           if (buffer.length > MAX_ATTACHMENT_BYTES) {
@@ -195,10 +200,13 @@ export function registerMediaHandlers(bot: Bot): void {
 
           mediaLogger.info({ sessionId, bufferLen: buffer.length }, "Sending photo to provider");
           await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-        });
-      } finally {
+        } finally {
+          clearInterval(typingInterval);
+        }
+      }).catch(async (err: any) => {
         clearInterval(typingInterval);
-      }
+        ctx.reply(formatCatchError(err, "handling photo"), { parse_mode: "HTML" }).catch(() => {});
+      });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling photo"), { parse_mode: "HTML" });
     }
@@ -220,8 +228,9 @@ export function registerMediaHandlers(bot: Bot): void {
     }, 4000);
     await ctx.replyWithChatAction("typing");
 
-    try {
-      await withPromptQueue(async () => {
+    // Fire-and-forget so /abort can be processed while streaming
+    withPromptQueue(async () => {
+      try {
         const file = await ctx.getFile();
         if (!file.file_path) {
           await ctx.reply("Voice file unavailable. Try sending a shorter message.", { parse_mode: "HTML" });
@@ -247,12 +256,13 @@ export function registerMediaHandlers(bot: Bot): void {
         const promptParts = [{ type: "text" as const, text: result.text }];
 
         await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
-      });
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" });
-    } finally {
+      } finally {
+        clearInterval(typingInterval);
+      }
+    }).catch(async (err: any) => {
       clearInterval(typingInterval);
-    }
+      ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" }).catch(() => {});
+    });
   });
 
   bot.on("message:audio", async (ctx) => {
@@ -262,8 +272,9 @@ export function registerMediaHandlers(bot: Bot): void {
     }, 4000);
     await ctx.replyWithChatAction("typing");
 
-    try {
-      await withPromptQueue(async () => {
+    // Fire-and-forget so /abort can be processed while streaming
+    withPromptQueue(async () => {
+      try {
         const audio = ctx.message.audio;
         const file = await ctx.getFile();
         if (!file.file_path) {
@@ -319,12 +330,13 @@ export function registerMediaHandlers(bot: Bot): void {
           system,
           agent,
         });
-      });
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" });
-    } finally {
+      } finally {
+        clearInterval(typingInterval);
+      }
+    }).catch(async (err: any) => {
       clearInterval(typingInterval);
-    }
+      ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" }).catch(() => {});
+    });
   });
 }
 

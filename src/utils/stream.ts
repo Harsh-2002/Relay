@@ -12,13 +12,6 @@ function getEditInterval(): number {
   return getConfig().streamEditIntervalMs;
 }
 
-// Monotonic counter for draft IDs (must be non-zero, wraps at 2 billion)
-let _draftCounter = 0;
-function nextDraftId(): number {
-  _draftCounter = (_draftCounter % 2_000_000_000) + 1;
-  return _draftCounter;
-}
-
 export interface StreamPromptOptions {
   ctx: Context;
   sessionId: string;
@@ -42,8 +35,6 @@ export async function streamPrompt({
   streamLogger.info({ sessionId, partsCount: parts.length }, "Starting stream prompt");
 
   const chatId = ctx.chat!.id;
-  const draftId = nextDraftId();
-  streamLogger.info({ chatId, draftId }, "Draft prepared");
 
   // Keep typing indicator active
   await ctx.replyWithChatAction("typing");
@@ -51,27 +42,27 @@ export async function streamPrompt({
     ctx.replyWithChatAction("typing").catch(() => {});
   }, 4000);
 
-  // Thinking animation via regular message + edits (not sendMessageDraft).
-  // sendMessageDraft causes a "pinned notification" banner in Telegram during
-  // the thinking phase. Regular messages don't have this problem.
-  let thinkingMsgId: number | null = null;
+  // Single message used throughout: thinking → streaming → final response.
+  // Using sendMessage + editMessageText avoids the "pinned notification" banner
+  // that sendMessageDraft causes in Telegram.
+  let streamMsgId: number | null = null;
   let thinkingTimer: ReturnType<typeof setInterval> | null = null;
   let dotPhase = 0;
   try {
     const msg = await ctx.api.sendMessage(chatId, "Thinking.");
-    thinkingMsgId = msg.message_id;
+    streamMsgId = msg.message_id;
     thinkingTimer = setInterval(() => {
-      if (!thinkingMsgId) return;
+      if (!streamMsgId) return;
       dotPhase = (dotPhase % 3) + 1;
-      ctx.api.editMessageText(chatId, thinkingMsgId, "Thinking" + ".".repeat(dotPhase))
+      ctx.api.editMessageText(chatId, streamMsgId, "Thinking" + ".".repeat(dotPhase))
         .catch(() => {}); // Ignore edit errors (rate limit, not modified, etc.)
     }, 500);
   } catch {
     // If sending the thinking message fails, continue without it
   }
 
-  // Track whether we've transitioned from thinking → streaming draft
-  let draftStarted = false;
+  // Track whether we've transitioned from thinking → content streaming
+  let contentStarted = false;
 
   let accumulated = "";
   let reasoning = "";
@@ -114,31 +105,27 @@ export async function streamPrompt({
         break;
       }
 
-      // Transition: thinking message → streaming draft on first real content
-      if (!draftStarted && (accumulated || toolStatus)) {
-        draftStarted = true;
-        // Stop dots animation and delete thinking message
+      // Transition: thinking → content streaming (edit the same message, no delete)
+      if (!contentStarted && (accumulated || toolStatus)) {
+        contentStarted = true;
         if (thinkingTimer) { clearInterval(thinkingTimer); thinkingTimer = null; }
-        if (thinkingMsgId) {
-          ctx.api.deleteMessage(chatId, thinkingMsgId).catch(() => {});
-          thinkingMsgId = null;
+        if (streamMsgId) {
+          const display = buildDisplayText(accumulated, toolStatus, reasoning);
+          await safeEditStream(ctx, chatId, streamMsgId, display);
+          lastEditedText = display;
+          lastEditTime = Date.now();
+          editCount++;
         }
-        // Send first draft with actual content immediately
-        const display = buildDisplayText(accumulated, toolStatus, reasoning);
-        await safeSendDraft(ctx, chatId, draftId, display);
-        lastEditedText = display;
-        lastEditTime = Date.now();
-        editCount++;
         continue;
       }
 
-      // Throttled draft updates (only after draft has started)
-      if (draftStarted) {
+      // Throttled edit updates (only after content streaming has started)
+      if (contentStarted && streamMsgId) {
         const now = Date.now();
         if (now - lastEditTime >= getEditInterval()) {
           const display = buildDisplayText(accumulated, toolStatus, reasoning);
           if (display !== lastEditedText) {
-            await safeSendDraft(ctx, chatId, draftId, display);
+            await safeEditStream(ctx, chatId, streamMsgId, display);
             lastEditedText = display;
             lastEditTime = now;
             editCount++;
@@ -152,11 +139,6 @@ export async function streamPrompt({
   } finally {
     if (thinkingTimer) clearInterval(thinkingTimer);
     clearInterval(typingInterval);
-    // Clean up thinking message if it's still visible (error/empty response path)
-    if (thinkingMsgId) {
-      ctx.api.deleteMessage(chatId, thinkingMsgId).catch(() => {});
-      thinkingMsgId = null;
-    }
   }
 
   streamLogger.info(
@@ -164,14 +146,25 @@ export async function streamPrompt({
     "Stream completed"
   );
 
-  // Final response — sendMessage finalizes (clears) the draft
+  // Final response — edit streamMsgId in-place (no pin banner).
+  // Falls back to sendMessage if streamMsgId is unavailable.
   if (errorMsg) {
-    await safeSendMessage(ctx, chatId, errorMsg, true);
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, errorMsg);
+      if (!ok) await safeSendMessage(ctx, chatId, errorMsg, true);
+    } else {
+      await safeSendMessage(ctx, chatId, errorMsg, true);
+    }
     return;
   }
 
   if (!accumulated.trim()) {
-    await safeSendMessage(ctx, chatId, EMPTY_RESPONSE_MSG, true);
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, EMPTY_RESPONSE_MSG);
+      if (!ok) await safeSendMessage(ctx, chatId, EMPTY_RESPONSE_MSG, true);
+    } else {
+      await safeSendMessage(ctx, chatId, EMPTY_RESPONSE_MSG, true);
+    }
     return;
   }
 
@@ -183,23 +176,47 @@ export async function streamPrompt({
     // Reasoning + answer fit in one message — use expandable blockquote
     const maxReasoningLen = 4000 - answerHtml.length - 80; // 80 chars overhead for tags
     const finalHtml = composeReasoningHtml(reasoning, answerHtml, maxReasoningLen);
-    await safeSendMessage(ctx, chatId, finalHtml, true);
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, finalHtml);
+      if (!ok) await safeSendMessage(ctx, chatId, finalHtml, true);
+    } else {
+      await safeSendMessage(ctx, chatId, finalHtml, true);
+    }
   } else if (reasoning) {
-    // Answer too long for one message — send reasoning as separate preceding message
+    // Answer too long for one message — edit streamMsgId with reasoning, send answer chunks after
     const reasoningHtml = formatReasoningBlockquote(reasoning, 3900);
-    try {
-      await ctx.api.sendMessage(chatId, reasoningHtml, { parse_mode: "HTML" });
-    } catch {
-      // If blockquote fails, skip reasoning
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, reasoningHtml);
+      if (!ok) {
+        try { await ctx.api.sendMessage(chatId, reasoningHtml, { parse_mode: "HTML" }); } catch {}
+      }
+    } else {
+      try { await ctx.api.sendMessage(chatId, reasoningHtml, { parse_mode: "HTML" }); } catch {}
     }
     await sendFinalChunks(ctx, chatId, answerHtmlChunks, chunkMessage(accumulated));
   } else if (fitsInOneMessage) {
-    // No reasoning, fits in one message
-    await safeSendMessage(ctx, chatId, answerHtml, true);
+    // No reasoning, fits in one message — edit in-place
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, answerHtml);
+      if (!ok) await safeSendMessage(ctx, chatId, answerHtml, true);
+    } else {
+      await safeSendMessage(ctx, chatId, answerHtml, true);
+    }
   } else {
-    // No reasoning, multi-chunk
+    // No reasoning, multi-chunk — edit first chunk in-place, send rest as new messages
     const plainChunks = chunkMessage(accumulated);
-    await sendFinalChunks(ctx, chatId, answerHtmlChunks, plainChunks);
+    if (streamMsgId) {
+      const ok = await safeEditFinal(ctx, chatId, streamMsgId, answerHtmlChunks[0]);
+      if (!ok) {
+        // Fallback: send all chunks as new messages
+        await sendFinalChunks(ctx, chatId, answerHtmlChunks, plainChunks);
+      } else {
+        // Send remaining chunks as new messages
+        await sendFinalChunks(ctx, chatId, answerHtmlChunks.slice(1), plainChunks.slice(1));
+      }
+    } else {
+      await sendFinalChunks(ctx, chatId, answerHtmlChunks, plainChunks);
+    }
   }
 
   // Send any collected file attachments
@@ -241,35 +258,64 @@ function closeUnterminatedCodeFences(text: string): string {
 }
 
 /**
- * Send a message draft (animated streaming). Fire-and-forget — no message ID returned.
- * Falls back to plain text on HTML parse error; skips silently on rate limit.
+ * Edit the streaming message with intermediate content.
+ * Falls back to plain text on HTML parse error; skips silently on rate limit or "not modified".
  */
-async function safeSendDraft(
+async function safeEditStream(
   ctx: Context,
   chatId: number,
-  draftId: number,
+  msgId: number,
   text: string,
 ): Promise<void> {
   const html = markdownToHtml(text);
   try {
-    await ctx.api.sendMessageDraft(chatId, draftId, html, { parse_mode: "HTML" });
+    await ctx.api.editMessageText(chatId, msgId, html, { parse_mode: "HTML" });
   } catch (err: any) {
     if (isParseError(err)) {
-      try {
-        await ctx.api.sendMessageDraft(chatId, draftId, text);
-      } catch {
-        // Give up on this draft update
-      }
+      try { await ctx.api.editMessageText(chatId, msgId, text); } catch {}
       return;
     }
-    if (isRateLimitError(err)) return; // Skip — next throttle tick will retry
-    streamLogger.info({ err: err?.message ?? err?.description }, "Draft send failed");
+    // Skip silently on rate limit or "not modified" — next tick retries
+    if (isRateLimitError(err) || isNotModifiedError(err)) return;
+    streamLogger.info({ err: err?.message ?? err?.description }, "Stream edit failed");
   }
 }
 
 /**
- * Send a final message (which also finalizes/clears the active draft).
- * Falls back to plain text on HTML parse error.
+ * Edit the streaming message with final formatted HTML.
+ * Returns true on success, false on failure (caller should fall back to sendMessage).
+ */
+async function safeEditFinal(
+  ctx: Context,
+  chatId: number,
+  msgId: number,
+  html: string,
+): Promise<boolean> {
+  try {
+    await ctx.api.editMessageText(chatId, msgId, html, { parse_mode: "HTML" });
+    return true;
+  } catch (err: any) {
+    if (isParseError(err)) {
+      try {
+        await ctx.api.editMessageText(chatId, msgId, html.replace(/<[^>]+>/g, ""));
+        return true;
+      } catch { return false; }
+    }
+    if (isRateLimitError(err)) {
+      const retry = err?.parameters?.retry_after ?? 3;
+      await new Promise(r => setTimeout(r, retry * 1000));
+      try {
+        await ctx.api.editMessageText(chatId, msgId, html, { parse_mode: "HTML" });
+        return true;
+      } catch { return false; }
+    }
+    return false;
+  }
+}
+
+/**
+ * Send a final message via sendMessage.
+ * Used as fallback when streamMsgId is unavailable or edit fails.
  */
 async function safeSendMessage(
   ctx: Context,
@@ -311,6 +357,11 @@ function isRateLimitError(err: any): boolean {
   return desc.includes("Too Many Requests") || desc.includes("retry_after");
 }
 
+function isNotModifiedError(err: any): boolean {
+  const desc = err?.description ?? err?.message ?? "";
+  return desc.includes("message is not modified");
+}
+
 async function retryOnRateLimit(err: any, fn: () => Promise<any>): Promise<void> {
   if (isRateLimitError(err)) {
     const retryAfter = err?.parameters?.retry_after ?? 3;
@@ -341,8 +392,7 @@ function composeReasoningHtml(reasoning: string, answerHtml: string, maxReasonin
 }
 
 /**
- * Send multi-chunk final response. First sendMessage finalizes the draft,
- * remaining chunks are regular messages.
+ * Send multi-chunk messages. Each chunk is sent as a new message.
  */
 async function sendFinalChunks(
   ctx: Context,
@@ -359,4 +409,3 @@ async function sendFinalChunks(
     }
   }
 }
-

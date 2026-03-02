@@ -65,6 +65,11 @@ export const EMPTY_RESPONSE_MSG =
   `• The request was too large for the free tier\n\n` +
   `Try again, or switch to a different model with /model.`;
 
+/** Telegram throws 400 "message is not modified" when edit content is identical — safe to ignore */
+export function isNotModified(err: any): boolean {
+  return err?.description?.includes("message is not modified");
+}
+
 // --- Helpers ---
 
 function extractMessage(error: unknown): string {

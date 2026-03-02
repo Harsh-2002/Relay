@@ -1,12 +1,52 @@
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import { getProvider } from "../providers/index.js";
+import type { SessionInfo } from "../providers/types.js";
 import {
   getActiveSessionId,
   setActiveSessionId,
   clearActiveSession,
 } from "../session.js";
-import { formatCatchError } from "../utils/errors.js";
+import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+
+function buildSessionList(
+  sessions: SessionInfo[],
+  statuses: Record<string, string>,
+  activeId: string | null,
+): { text: string; keyboard: InlineKeyboard } {
+  const sorted = sessions
+    .slice()
+    .sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
+
+  const lines = sorted.map((s, i) => {
+    const marker = s.id === activeId ? " ← active" : "";
+    const date = s.lastModified
+      ? new Date(s.lastModified).toLocaleDateString()
+      : "";
+    const status = statuses[s.id];
+    const statusBadge = status === "busy" ? " ⏳" : "";
+    return `${i + 1}. <b>${escapeHtml(s.title || "Untitled")}</b>${statusBadge}\n   ${date}${marker}`;
+  });
+
+  const text = `<b>Sessions</b>  (${sessions.length})\n\n` + lines.join("\n\n");
+
+  const kb = new InlineKeyboard();
+  for (let i = 0; i < sorted.length; i++) {
+    const s = sorted[i];
+    const title = s.title || "Untitled";
+    const shortTitle = title.length > 18 ? title.slice(0, 18) + "…" : title;
+    if (s.id === activeId) {
+      kb.row().text(`✓ ${i + 1}. ${shortTitle}`, "ses_noop");
+    } else {
+      kb.row()
+        .text(`${i + 1}. ${shortTitle}`, `ses_sw:${s.id}`)
+        .text(`🗑`, `ses_del:${s.id}`);
+    }
+  }
+
+  return { text, keyboard: kb };
+}
 
 export function registerSessionCommands(bot: Bot): void {
   bot.command("new", async (ctx) => {
@@ -39,27 +79,88 @@ export function registerSessionCommands(bot: Bot): void {
       }
 
       const activeId = getActiveSessionId();
-      const lines = sessions
-        .sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0))
-        .map((s, i) => {
-          const marker = s.id === activeId ? " \u2190 active" : "";
-          const date = s.lastModified
-            ? new Date(s.lastModified).toLocaleDateString()
-            : "";
-          const status = statuses[s.id];
-          const statusBadge = status === "busy" ? " \u23f3" : "";
-          return `${i + 1}. <b>${escapeHtml(s.title || "Untitled")}</b>${statusBadge}\n   ID: <code>${escapeHtml(s.id)}</code>${date ? ` | ${date}` : ""}${marker}`;
-        })
-        .join("\n\n");
-
-      const text = activeId
-        ? `Active: <code>${escapeHtml(activeId)}</code>\n\n${lines}`
-        : lines;
-
-      await ctx.reply(text, { parse_mode: "HTML" });
+      const { text, keyboard } = buildSessionList(sessions, statuses, activeId);
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "listing sessions"), { parse_mode: "HTML" });
     }
+  });
+
+  // --- Session picker callback handlers ---
+
+  bot.callbackQuery(/^ses_sw:(.+)$/, async (ctx) => {
+    try {
+      const id = ctx.match[1];
+      const provider = getProvider();
+      const session = await provider.getSession(id);
+
+      if (!session) {
+        await ctx.answerCallbackQuery({ text: "Session not found" });
+        return;
+      }
+
+      setActiveSessionId(id);
+
+      // Rebuild list in-place
+      const [sessions, statuses] = await Promise.all([
+        provider.listSessions(),
+        provider.getSessionStatuses(),
+      ]);
+      const { text, keyboard } = buildSessionList(sessions, statuses, getActiveSessionId());
+      try {
+        await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+      } catch (err: any) {
+        if (!isNotModified(err)) throw err;
+      }
+      await ctx.answerCallbackQuery({ text: `Switched to ${session.title ?? "Untitled"}` });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to switch session" });
+    }
+  });
+
+  bot.callbackQuery(/^ses_del:(.+)$/, async (ctx) => {
+    try {
+      const id = ctx.match[1];
+      const provider = getProvider();
+      const deleted = await provider.deleteSession(id);
+
+      if (!deleted) {
+        await ctx.answerCallbackQuery({ text: "Could not delete session" });
+        return;
+      }
+
+      if (getActiveSessionId() === id) {
+        clearActiveSession();
+      }
+
+      // Rebuild list in-place
+      const [sessions, statuses] = await Promise.all([
+        provider.listSessions(),
+        provider.getSessionStatuses(),
+      ]);
+
+      if (sessions.length === 0) {
+        try {
+          await ctx.editMessageText("No sessions found.", { parse_mode: "HTML" });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      } else {
+        const { text, keyboard } = buildSessionList(sessions, statuses, getActiveSessionId());
+        try {
+          await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      }
+      await ctx.answerCallbackQuery({ text: "Session deleted" });
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to delete session" });
+    }
+  });
+
+  bot.callbackQuery("ses_noop", async (ctx) => {
+    await ctx.answerCallbackQuery({ text: "This is the active session" });
   });
 
   bot.command("switch", async (ctx) => {
@@ -163,7 +264,7 @@ export function registerSessionCommands(bot: Bot): void {
       }
 
       const status = statuses[activeId] ?? "unknown";
-      const statusDisplay = status === "busy" ? "busy \u23f3" : status;
+      const statusDisplay = status === "busy" ? "busy ⏳" : status;
 
       await ctx.reply(
         `<b>${escapeHtml(session.title ?? "Untitled")}</b>\nID: <code>${escapeHtml(session.id)}</code>\nStatus: ${statusDisplay}`,

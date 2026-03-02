@@ -48,25 +48,26 @@ async function handleTextMessage(ctx: Context, rawText: string, isEdit: boolean)
     return;
   }
 
-  try {
-    await withPromptQueue(async () => {
-      const sessionId = await getOrCreateSession();
-      const model = getSelectedModel();
-      const agent = getSelectedAgent();
-      const system = getSystemPrompt();
-      chatLogger.info(
-        { sessionId, model, agent },
-        "Processing message"
-      );
+  // Fire-and-forget: don't block grammY's update processing so /abort
+  // and other commands can be handled while a stream is running.
+  // The prompt queue still serializes actual prompt execution.
+  withPromptQueue(async () => {
+    const sessionId = await getOrCreateSession();
+    const model = getSelectedModel();
+    const agent = getSelectedAgent();
+    const system = getSystemPrompt();
+    chatLogger.info(
+      { sessionId, model, agent },
+      "Processing message"
+    );
 
-      const promptText = isEdit ? `[Edited message] ${text}` : text;
-      const parts = [{ type: "text" as const, text: promptText }];
-      await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-    });
-  } catch (err: any) {
+    const promptText = isEdit ? `[Edited message] ${text}` : text;
+    const parts = [{ type: "text" as const, text: promptText }];
+    await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+  }).catch(async (err: any) => {
     chatLogger.info({ err: err?.message }, "Chat error");
-    await ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" });
-  }
+    ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" }).catch(() => {});
+  });
 }
 
 export function registerChat(bot: Bot): void {

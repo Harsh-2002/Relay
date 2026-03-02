@@ -25,6 +25,9 @@ export interface RelayConfig {
   sarvamApiKey: string;
   sarvamSttModel: string;
 
+  // Browser (Playwright MCP)
+  browserEnabled: boolean;
+
   // Behavior
   streamEditIntervalMs: number;
   promptTimeoutMs: number;
@@ -57,6 +60,8 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   openaiSttModel: "gpt-4o-mini-transcribe",
   sarvamApiKey: "",
   sarvamSttModel: "saaras:v3",
+
+  browserEnabled: false,
 
   streamEditIntervalMs: 2000,
   promptTimeoutMs: 300_000,

@@ -5,6 +5,7 @@ import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
+import { ensurePlaywrightMcp } from "./utils/opencode-config.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
 
@@ -23,6 +24,16 @@ async function main() {
 
   if (!initAuth(config.allowedUserId)) {
     die("Allowed user ID is required (must be a valid Telegram user ID). Run 'relay onboard' to configure.");
+  }
+
+  // Write Playwright MCP to OpenCode's config file before starting the server
+  if (config.browserEnabled) {
+    try {
+      ensurePlaywrightMcp();
+      logger.info("Playwright MCP configured in OpenCode config");
+    } catch (err: any) {
+      logger.info({ err: err?.message }, "Failed to write Playwright MCP config");
+    }
   }
 
   const providerName = getProviderName();

@@ -2,6 +2,8 @@
 
 Relay uses a JSON config file at `~/.relay/config.json` (global). Run `relay onboard` for the interactive wizard, or pass settings via CLI flags. Use `--dev` to use `./.relay/` in the current directory for local development.
 
+Re-running `relay onboard` enters **update mode** — shows current values and lets you press Enter to keep them, or type a new value to replace.
+
 ## Setup
 
 ```bash
@@ -86,9 +88,17 @@ Files stored:
 - `SKILL.md` — Custom system prompt (optional, create manually)
 The directory is excluded from git via `.gitignore`.
 
+## Browser
+
+| Config field | CLI flag | Default | Description |
+|-------------|----------|---------|-------------|
+| `browserEnabled` | -- | `false` | Enable headless browser via Playwright MCP |
+
+When enabled, Relay auto-injects the Playwright MCP server into OpenCode's config on startup. The AI can navigate URLs, take screenshots, fill forms, and interact with pages. See [Features](features.md#headless-browser-playwright-mcp) for details.
+
 ## Streaming
 
-All responses stream via Telegram's `sendMessageDraft` API. The update interval controls how frequently the draft is refreshed during streaming.
+All responses stream by editing a single message in-place via `editMessageText`. The update interval controls how frequently the message is edited during streaming.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|

@@ -6,14 +6,14 @@ Detailed guide to Relay's key features.
 
 ## Streaming Responses
 
-Relay live-streams AI responses using Telegram's `sendMessageDraft` API (Bot API 9.5). Text appears with smooth animation as the AI generates it — no flickering from repeated message edits.
+Relay live-streams AI responses by editing a single message in-place via `editMessageText`. A "Thinking." message is sent first, then edited as tokens arrive — no flickering, no pinned notification banner.
 
 ### How it works
 
 1. You send a message
-2. The bot sends a draft with a "Thinking..." indicator
-3. As tokens arrive from the OpenCode SSE stream, the draft is updated with accumulated text (animated by Telegram)
-4. When the response is complete, a final `sendMessage` replaces the draft with the fully-formatted message
+2. The bot sends a "Thinking." message via `sendMessage`
+3. As tokens arrive from the OpenCode SSE stream, the message is edited in-place with accumulated text
+4. When the response is complete, a final `editMessageText` applies the fully-formatted HTML
 
 ### Streaming behavior
 
@@ -27,7 +27,7 @@ Relay live-streams AI responses using Telegram's `sendMessageDraft` API (Bot API
 
 ### Configuration
 
-Streaming is always enabled. The draft update interval can be adjusted in `~/.relay/config.json`:
+Streaming is always enabled. The edit interval can be adjusted in `~/.relay/config.json`:
 
 ```json
 {
@@ -51,9 +51,41 @@ When the AI generates files, takes screenshots, or creates artifacts, they are a
 OpenCode returns structured file parts in its responses. Relay extracts these automatically and sends them after the text response. No action is needed from the user.
 
 Common scenarios where you receive file attachments:
-- The AI takes a browser screenshot (via MCP browser tool)
+- The AI takes a browser screenshot (via Playwright MCP)
 - The AI generates an image or diagram
 - The AI creates a downloadable file
+
+Markdown image syntax (`![alt](url)`) in the AI's text is automatically stripped since Telegram cannot render inline images. The actual files are delivered separately.
+
+---
+
+## Headless Browser (Playwright MCP)
+
+The AI can browse the web, take screenshots, fill forms, and interact with pages via a built-in headless Chromium browser.
+
+### Setup
+
+Enable during `relay onboard` (Step 5), or set in `~/.relay/config.json`:
+
+```json
+{
+  "browserEnabled": true
+}
+```
+
+Relay auto-injects the Playwright MCP server into OpenCode's config on startup.
+
+### What the AI can do
+
+- Navigate to URLs and read page content
+- Take screenshots (delivered as Telegram photos automatically)
+- Click elements, fill forms, type text
+- Wait for dynamic content to load
+- Run JavaScript on pages
+
+### Screenshots
+
+When the AI takes a screenshot, the image is delivered as a separate Telegram photo message alongside the text response. The AI describes what it observes in the text — you see both the description and the actual image.
 
 ---
 

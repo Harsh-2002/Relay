@@ -136,7 +136,7 @@ Run `/mcp` to check the error message. Common causes:
 
 ### Messages appear laggy
 
-Draft updates are throttled by `streamEditIntervalMs` (default 2000ms). Lower the value in `~/.relay/config.json` for faster updates, but very low values may hit Telegram rate limits.
+Message edit updates are throttled by `streamEditIntervalMs` (default 2000ms). Lower the value in `~/.relay/config.json` for faster updates, but very low values may hit Telegram rate limits.
 
 ### Very long responses get cut off
 

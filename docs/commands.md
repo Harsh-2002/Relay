@@ -57,6 +57,14 @@ Delete a session. If you delete the active session, it is cleared.
 
 Show the currently active session's ID and title.
 
+### `/rename <title>`
+
+Rename the current session.
+
+```
+/rename Auth refactoring
+```
+
 ### `/fork [messageId]`
 
 Fork the current session, creating a copy. Optionally specify a message ID to fork from a specific point.
@@ -92,6 +100,15 @@ Download the full diff as a text file, including before/after content for each c
 ---
 
 ## File Operations
+
+### `/ls [path]`
+
+List files and directories. Defaults to the project root.
+
+```
+/ls
+/ls src/utils
+```
 
 ### `/read <path>`
 
@@ -168,6 +185,10 @@ Cancel the currently running operation. Stops streaming or processing.
 ### `/share`
 
 Get a shareable URL for the current session.
+
+### `/unshare`
+
+Revoke the shared URL for the current session.
 
 ---
 
@@ -283,6 +304,14 @@ Add a remote MCP server by URL.
 /mcp add api remote https://mcp.example.com/sse
 ```
 
+### `/mcp connect <name>`
+
+Reconnect a disconnected MCP server.
+
+```
+/mcp connect browser
+```
+
 ### `/mcp remove <name>`
 
 Remove and disconnect an MCP server.
@@ -292,6 +321,27 @@ Remove and disconnect an MCP server.
 ```
 
 Servers persist in the OpenCode configuration across restarts.
+
+---
+
+## Voice
+
+### `/stt`
+
+View and switch the active speech-to-text provider via an interactive keyboard. Shows the currently selected provider and all configured providers with their status.
+
+---
+
+## Agent
+
+### `/agent [name]`
+
+View or change the current agent mode.
+
+```
+/agent          # View current agent
+/agent build    # Switch to build agent
+```
 
 ---
 

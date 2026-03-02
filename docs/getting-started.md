@@ -34,9 +34,11 @@ relay onboard
 The wizard will ask for:
 1. Your Telegram bot token
 2. Your Telegram user ID
-3. OpenCode mode (start or connect)
-4. OpenCode-specific settings
-5. Optional voice transcription (STT) keys
+3. OpenCode connection mode (start or connect)
+4. Optional voice transcription (STT) provider and API key
+5. Optional headless browser (Playwright MCP)
+
+Re-run `relay onboard` anytime to update settings — existing values are shown and can be kept by pressing Enter.
 
 Config is saved to `~/.relay/config.json`.
 

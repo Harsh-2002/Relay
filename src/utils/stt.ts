@@ -1,6 +1,9 @@
 import { Readable } from "stream";
+import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from "fs";
+import { join } from "path";
 import { getConfig } from "../config/index.js";
 import { getSelectedSttProvider as getSessionSttProvider } from "../session.js";
+import { getUploadDir } from "./media.js";
 import { sttLogger } from "./logger.js";
 
 export interface TranscriptionResult {
@@ -66,7 +69,8 @@ export function listSttProviders(): SttProviderInfo[] {
 
 export async function transcribeAudio(
   buffer: Buffer,
-  filename: string
+  filename: string,
+  duration?: number,
 ): Promise<TranscriptionResult> {
   const provider = getSttProvider();
   if (!provider) {
@@ -85,8 +89,14 @@ export async function transcribeAudio(
     case "assemblyai":
       return transcribeWithAssemblyAI(buffer);
     case "sarvam":
+      if (duration && duration > 30) {
+        return transcribeWithSarvamBatch(buffer, filename);
+      }
       return transcribeWithSarvam(buffer, filename);
     case "sarvam-translate":
+      if (duration && duration > 30) {
+        return translateWithSarvamBatch(buffer, filename);
+      }
       return translateWithSarvam(buffer, filename);
     default:
       throw new Error(`Unknown STT provider: ${provider}`);
@@ -285,5 +295,131 @@ async function translateWithSarvam(
     const status = err.statusCode ?? err.status ?? "";
     const message = err.message ?? "unknown error";
     throw new Error(`Voice translation failed (Sarvam${status ? `, HTTP ${status}` : ""}: ${message})`);
+  }
+}
+
+function saveTempAudioFile(buffer: Buffer, filename: string): string {
+  const dir = getUploadDir();
+  const filePath = join(dir, `batch_${Date.now()}_${filename}`);
+  writeFileSync(filePath, buffer);
+  return filePath;
+}
+
+async function transcribeWithSarvamBatch(
+  buffer: Buffer,
+  filename: string,
+): Promise<TranscriptionResult> {
+  const config = getConfig();
+  const apiKey = config.sarvamApiKey;
+  const model = config.sarvamSttModel as any;
+
+  const tempFile = saveTempAudioFile(buffer, filename);
+  const outputDir = join(getUploadDir(), `batch_out_${Date.now()}`);
+  mkdirSync(outputDir, { recursive: true });
+
+  try {
+    const { SarvamAIClient } = await import("sarvamai");
+    const client = new SarvamAIClient({ apiSubscriptionKey: apiKey });
+
+    sttLogger.info({ filename, model }, "Creating Sarvam batch STT job");
+    const job = await client.speechToTextJob.createJob({ model, languageCode: "unknown" as any });
+
+    sttLogger.info({ jobId: (job as any).jobId }, "Uploading file to batch job");
+    await job.uploadFiles([tempFile]);
+
+    sttLogger.info("Starting batch job");
+    await job.start();
+
+    sttLogger.info("Polling batch job for completion (max 5 min)");
+    await job.waitUntilComplete(5, 300);
+
+    sttLogger.info({ outputDir }, "Downloading batch job outputs");
+    await job.downloadOutputs(outputDir);
+
+    const outputFile = join(outputDir, `${filename}.json`);
+    if (!existsSync(outputFile)) {
+      // Try finding any JSON file in the output dir
+      const { readdirSync } = await import("fs");
+      const files = readdirSync(outputDir).filter(f => f.endsWith(".json"));
+      if (files.length === 0) {
+        throw new Error("Batch job produced no output files");
+      }
+      const fallbackPath = join(outputDir, files[0]);
+      const data = JSON.parse(readFileSync(fallbackPath, "utf-8"));
+      const text = data.transcript ?? "";
+      sttLogger.info({ provider: "sarvam", chars: text.length, batch: true }, "Batch transcription complete");
+      return { text, provider: "sarvam" };
+    }
+
+    const data = JSON.parse(readFileSync(outputFile, "utf-8"));
+    const text = data.transcript ?? "";
+    sttLogger.info({ provider: "sarvam", chars: text.length, batch: true }, "Batch transcription complete");
+    return { text, provider: "sarvam" };
+  } catch (err: any) {
+    const status = err.statusCode ?? err.status ?? "";
+    const message = err.message ?? "unknown error";
+    throw new Error(`Voice transcription failed (Sarvam batch${status ? `, HTTP ${status}` : ""}: ${message})`);
+  } finally {
+    try { rmSync(tempFile, { force: true }); } catch {}
+    try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+async function translateWithSarvamBatch(
+  buffer: Buffer,
+  filename: string,
+): Promise<TranscriptionResult> {
+  const config = getConfig();
+  const apiKey = config.sarvamApiKey;
+  const model = config.sarvamSttModel as any;
+
+  const tempFile = saveTempAudioFile(buffer, filename);
+  const outputDir = join(getUploadDir(), `batch_out_${Date.now()}`);
+  mkdirSync(outputDir, { recursive: true });
+
+  try {
+    const { SarvamAIClient } = await import("sarvamai");
+    const client = new SarvamAIClient({ apiSubscriptionKey: apiKey });
+
+    sttLogger.info({ filename, model }, "Creating Sarvam batch translate job");
+    const job = await client.speechToTextTranslateJob.createJob({ model });
+
+    sttLogger.info({ jobId: (job as any).jobId }, "Uploading file to batch translate job");
+    await job.uploadFiles([tempFile]);
+
+    sttLogger.info("Starting batch translate job");
+    await job.start();
+
+    sttLogger.info("Polling batch translate job for completion (max 5 min)");
+    await job.waitUntilComplete(5, 300);
+
+    sttLogger.info({ outputDir }, "Downloading batch translate job outputs");
+    await job.downloadOutputs(outputDir);
+
+    const outputFile = join(outputDir, `${filename}.json`);
+    if (!existsSync(outputFile)) {
+      const { readdirSync } = await import("fs");
+      const files = readdirSync(outputDir).filter(f => f.endsWith(".json"));
+      if (files.length === 0) {
+        throw new Error("Batch translate job produced no output files");
+      }
+      const fallbackPath = join(outputDir, files[0]);
+      const data = JSON.parse(readFileSync(fallbackPath, "utf-8"));
+      const text = data.transcript ?? "";
+      sttLogger.info({ provider: "sarvam-translate", chars: text.length, batch: true }, "Batch translation complete");
+      return { text, provider: "sarvam-translate" };
+    }
+
+    const data = JSON.parse(readFileSync(outputFile, "utf-8"));
+    const text = data.transcript ?? "";
+    sttLogger.info({ provider: "sarvam-translate", chars: text.length, batch: true }, "Batch translation complete");
+    return { text, provider: "sarvam-translate" };
+  } catch (err: any) {
+    const status = err.statusCode ?? err.status ?? "";
+    const message = err.message ?? "unknown error";
+    throw new Error(`Voice translation failed (Sarvam batch${status ? `, HTTP ${status}` : ""}: ${message})`);
+  } finally {
+    try { rmSync(tempFile, { force: true }); } catch {}
+    try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
   }
 }

@@ -13,10 +13,6 @@ function getEditInterval(): number {
   return getConfig().streamEditIntervalMs;
 }
 
-export function isStreamingEnabled(): boolean {
-  return getConfig().streamingEnabled;
-}
-
 export interface StreamPromptOptions {
   ctx: Context;
   sessionId: string;

@@ -5,7 +5,7 @@ import { getProvider } from "../providers/index.js";
 import { setSelectedModel, getSelectedModel, getSelectedAgent, setSelectedAgent, clearSelectedAgent, getSelectedSttProvider, setSelectedSttProvider, clearSelectedSttProvider } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { isSttAvailable, getSttProvider, listSttProviders } from "../utils/stt.js";
-import { isStreamingEnabled } from "../utils/stream.js";
+
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
@@ -268,7 +268,6 @@ export function registerAdminCommands(bot: Bot): void {
       const provider = getProvider();
       const health = await provider.getHealth();
 
-      const streaming = isStreamingEnabled() ? "Enabled" : "Disabled";
       const sttProvider = getSttProvider();
       const stt = sttProvider ? `${sttProvider}` : "Not configured";
       const prompt = getSystemPrompt();
@@ -297,7 +296,6 @@ export function registerAdminCommands(bot: Bot): void {
         `<b>Provider:</b>  <code>${health.provider}</code>\n` +
         `<b>Status:</b>  ${health.status}\n` +
         `<b>Model:</b>  <code>${modelStr}</code>${reasoningBadge}\n` +
-        `<b>Streaming:</b>  ${streaming}\n` +
         `<b>Voice STT:</b>  ${stt}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
 

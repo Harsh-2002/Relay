@@ -26,7 +26,6 @@ export interface RelayConfig {
   sarvamSttModel: string;
 
   // Behavior
-  streamingEnabled: boolean;
   streamEditIntervalMs: number;
   promptTimeoutMs: number;
 
@@ -59,7 +58,6 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   sarvamApiKey: "",
   sarvamSttModel: "saaras:v3",
 
-  streamingEnabled: false,
   streamEditIntervalMs: 2000,
   promptTimeoutMs: 300_000,
 

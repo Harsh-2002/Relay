@@ -35,7 +35,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
         "openai-stt-api-key": { type: "string" },
         "assemblyai-api-key": { type: "string" },
         "sarvam-api-key": { type: "string" },
-        "streaming-enabled": { type: "string" },
         "stream-edit-interval-ms": { type: "string" },
         "prompt-timeout-ms": { type: "string" },
         "data-dir": { type: "string" },
@@ -60,7 +59,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
     if (values["openai-stt-api-key"]) flags.openaiSttApiKey = values["openai-stt-api-key"] as string;
     if (values["assemblyai-api-key"]) flags.assemblyaiApiKey = values["assemblyai-api-key"] as string;
     if (values["sarvam-api-key"]) flags.sarvamApiKey = values["sarvam-api-key"] as string;
-    if (values["streaming-enabled"]) flags.streamingEnabled = values["streaming-enabled"] === "true";
     if (values["stream-edit-interval-ms"]) flags.streamEditIntervalMs = Number(values["stream-edit-interval-ms"]);
     if (values["prompt-timeout-ms"]) flags.promptTimeoutMs = Number(values["prompt-timeout-ms"]);
     if (values["data-dir"]) flags.dataDir = values["data-dir"] as string;
@@ -76,13 +74,23 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
   }
 }
 
-/** Read config.json from the data directory. */
+/** Keys that are valid in RelayConfig — used to strip deprecated fields from old configs. */
+const VALID_KEYS = new Set<string>(Object.keys(CONFIG_DEFAULTS));
+
+/** Read config.json from the data directory, stripping any unknown/deprecated keys. */
 function readConfigFile(dataDir: string): Partial<RelayConfig> {
   const filePath = join(dataDir, CONFIG_FILENAME);
   if (!existsSync(filePath)) return {};
   try {
     const raw = readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as Partial<RelayConfig>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const clean: Partial<RelayConfig> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (VALID_KEYS.has(key)) {
+        (clean as any)[key] = value;
+      }
+    }
+    return clean;
   } catch {
     console.warn(`\n  Warning: Failed to parse ${filePath}, using defaults.\n`);
     return {};

@@ -245,16 +245,6 @@ export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
     }
   }
 
-  // Step 5: Streaming
-  console.log("\n  Step 5: Streaming\n");
-  console.log("  When enabled, AI responses stream in real-time as they generate.");
-  console.log("  When disabled, the full response is sent once it's complete.\n");
-
-  config.streamingEnabled = await confirm({
-    message: "Enable streaming responses?",
-    default: false,
-  });
-
   // Write config
   saveConfig(config, dataDir);
 

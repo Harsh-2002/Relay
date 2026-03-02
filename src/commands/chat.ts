@@ -1,12 +1,8 @@
 import type { Bot, Context } from "grammy";
-import { getProvider } from "../providers/index.js";
 import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
-import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
+import { streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
-import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
-import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
-import { extractFileParts, sendResponseFiles } from "../utils/files.js";
-import { sendReply } from "../utils/reply.js";
+import { formatCatchError } from "../utils/errors.js";
 import { chatLogger } from "../utils/logger.js";
 
 const MAX_INPUT_LENGTH = 32_000;
@@ -58,63 +54,14 @@ async function handleTextMessage(ctx: Context, rawText: string, isEdit: boolean)
       const model = getSelectedModel();
       const agent = getSelectedAgent();
       const system = getSystemPrompt();
-      const provider = getProvider();
-      const streaming = isStreamingEnabled() && !!provider.promptStream;
-
       chatLogger.info(
-        { sessionId, model, agent, streaming },
+        { sessionId, model, agent },
         "Processing message"
       );
 
-      if (streaming) {
-        chatLogger.info({ sessionId }, "Routing to streaming prompt");
-        const promptText = isEdit ? `[Edited message] ${text}` : text;
-        const parts = [{ type: "text" as const, text: promptText }];
-        await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-        return;
-      }
-
-      chatLogger.info({ sessionId }, "Routing to non-streaming prompt");
-
-      const typingInterval = setInterval(() => {
-        ctx.replyWithChatAction("typing").catch(() => {});
-      }, 4000);
-      await ctx.replyWithChatAction("typing");
-
-      try {
-        const startMs = Date.now();
-        const promptText = isEdit ? `[Edited message] ${text}` : text;
-        const result = await withTimeout(
-          provider.prompt(sessionId, promptText, {
-            parts: [{ type: "text" as const, text: promptText }],
-            ...(model && { model }),
-            ...(agent && { agent }),
-            system,
-          }),
-          getPromptTimeout(),
-          "Prompt"
-        );
-
-        if (!result.text.trim() || result.text === "(empty response)") {
-          chatLogger.info({ sessionId }, "Empty response from provider");
-          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-          return;
-        }
-
-        chatLogger.info(
-          { sessionId, durationMs: Date.now() - startMs, responseLen: result.text.length, reasoningLen: result.reasoning?.length ?? 0 },
-          "Prompt completed"
-        );
-        await sendReply(ctx, result.text, result.reasoning);
-
-        const files = extractFileParts(result.parts ?? []);
-        if (files.length > 0) {
-          chatLogger.info({ sessionId, filesCount: files.length }, "Sending file attachments");
-          await sendResponseFiles(ctx, files);
-        }
-      } finally {
-        clearInterval(typingInterval);
-      }
+      const promptText = isEdit ? `[Edited message] ${text}` : text;
+      const parts = [{ type: "text" as const, text: promptText }];
+      await streamPrompt({ ctx, sessionId, parts, model, system, agent });
     });
   } catch (err: any) {
     chatLogger.info({ err: err?.message }, "Chat error");

@@ -1,14 +1,10 @@
 import type { Bot } from "grammy";
-import { getProvider } from "../providers/index.js";
 import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
-import { sendReply } from "../utils/reply.js";
 import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media.js";
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
-import { isStreamingEnabled, streamPrompt } from "../utils/stream.js";
+import { streamPrompt } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
-import { formatCatchError, EMPTY_RESPONSE_MSG } from "../utils/errors.js";
-import { withTimeout, getPromptTimeout } from "../utils/timeout.js";
-import { extractFileParts, sendResponseFiles } from "../utils/files.js";
+import { formatCatchError } from "../utils/errors.js";
 import { readFileSync } from "fs";
 import { getConfig } from "../config/index.js";
 
@@ -72,34 +68,13 @@ export function registerMediaHandlers(bot: Bot): void {
             }
 
             const sessionId = await getOrCreateSession();
-            const provider = getProvider();
             const model = getSelectedModel();
             const agent = getSelectedAgent();
             const system = getSystemPrompt();
             const parts: any[] = [{ type: "text" as const, text: promptText }];
 
             mediaLogger.info({ fileName, sessionId }, "Sending text file to provider");
-            if (isStreamingEnabled() && provider.promptStream) {
-              await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-            } else {
-              const result = await withTimeout(
-                provider.prompt(sessionId, promptText, {
-                  parts,
-                  ...(model && { model }),
-                  ...(agent && { agent }),
-                  system,
-                }),
-                getPromptTimeout(),
-                "Prompt"
-              );
-
-              if (!result.text.trim() || result.text === "(empty response)") {
-                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-                return;
-              }
-              await sendReply(ctx, result.text, result.reasoning);
-              await sendFiles(ctx, result.parts);
-            }
+            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
             return;
           } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
             const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
@@ -125,61 +100,30 @@ export function registerMediaHandlers(bot: Bot): void {
             ];
 
             const sessionId = await getOrCreateSession();
-            const provider = getProvider();
             const model = getSelectedModel();
             const agent = getSelectedAgent();
             const system = getSystemPrompt();
 
             mediaLogger.info({ fileName, mime, sessionId }, "Sending image/PDF to provider");
-            if (isStreamingEnabled() && provider.promptStream) {
-              await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-            } else {
-              const result = await withTimeout(
-                provider.prompt(sessionId, promptText, {
-                  parts,
-                  ...(model && { model }),
-                  ...(agent && { agent }),
-                  system,
-                }),
-                getPromptTimeout(),
-                "Prompt"
-              );
-
-              if (!result.text.trim() || result.text === "(empty response)") {
-                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-                return;
-              }
-              await sendReply(ctx, result.text, result.reasoning);
-              await sendFiles(ctx, result.parts);
-            }
+            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
             return;
           } else {
             promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
           }
 
           const sessionId = await getOrCreateSession();
-          const provider = getProvider();
           const model = getSelectedModel();
           const agent = getSelectedAgent();
           const system = getSystemPrompt();
 
-          const result = await withTimeout(
-            provider.prompt(sessionId, promptText, {
-              parts: [{ type: "text", text: promptText }],
-              ...(model && { model }),
-              ...(agent && { agent }),
-              system,
-            }),
-            getPromptTimeout(),
-            "Prompt"
-          );
-
-          if (!result.text.trim() || result.text === "(empty response)") {
-            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-            return;
-          }
-          await sendReply(ctx, result.text, result.reasoning);
-          await sendFiles(ctx, result.parts);
+          await streamPrompt({
+            ctx,
+            sessionId,
+            parts: [{ type: "text", text: promptText }],
+            model,
+            system,
+            agent,
+          });
         });
       } finally {
         clearInterval(typingInterval);
@@ -248,30 +192,9 @@ export function registerMediaHandlers(bot: Bot): void {
           const model = getSelectedModel();
           const agent = getSelectedAgent();
           const system = getSystemPrompt();
-          const provider = getProvider();
 
           mediaLogger.info({ sessionId, bufferLen: buffer.length }, "Sending photo to provider");
-          if (isStreamingEnabled() && provider.promptStream) {
-            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
-          } else {
-            const result = await withTimeout(
-              provider.prompt(sessionId, caption, {
-                parts,
-                ...(model && { model }),
-                ...(agent && { agent }),
-                system,
-              }),
-              getPromptTimeout(),
-              "Prompt"
-            );
-
-            if (!result.text.trim() || result.text === "(empty response)") {
-              await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-              return;
-            }
-            await sendReply(ctx, result.text, result.reasoning);
-            await sendFiles(ctx, result.parts);
-          }
+          await streamPrompt({ ctx, sessionId, parts, model, system, agent });
         });
       } finally {
         clearInterval(typingInterval);
@@ -307,8 +230,9 @@ export function registerMediaHandlers(bot: Bot): void {
         const fileName = `voice_${Date.now()}.ogg`;
 
         const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path);
-        mediaLogger.info({ fileName, bufferLen: buffer.length }, "Voice downloaded, transcribing");
-        const result = await transcribeAudio(buffer, fileName);
+        const duration = ctx.message.voice.duration;
+        mediaLogger.info({ fileName, bufferLen: buffer.length, duration }, "Voice downloaded, transcribing");
+        const result = await transcribeAudio(buffer, fileName, duration);
 
         mediaLogger.info({ provider: result.provider, textLen: result.text?.length ?? 0 }, "Voice transcription result");
         if (!result.text || result.text.trim().length === 0) {
@@ -320,30 +244,9 @@ export function registerMediaHandlers(bot: Bot): void {
         const model = getSelectedModel();
         const agent = getSelectedAgent();
         const system = getSystemPrompt();
-        const provider = getProvider();
         const promptParts = [{ type: "text" as const, text: result.text }];
 
-        if (isStreamingEnabled() && provider.promptStream) {
-          await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
-        } else {
-          const promptResult = await withTimeout(
-            provider.prompt(sessionId, result.text, {
-              parts: promptParts,
-              ...(model && { model }),
-              ...(agent && { agent }),
-              system,
-            }),
-            getPromptTimeout(),
-            "Prompt"
-          );
-
-          if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-            await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-            return;
-          }
-          await sendReply(ctx, promptResult.text, promptResult.reasoning);
-          await sendFiles(ctx, promptResult.parts);
-        }
+        await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
       });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling voice message"), { parse_mode: "HTML" });
@@ -380,40 +283,20 @@ export function registerMediaHandlers(bot: Bot): void {
 
         if (sttAvailable) {
           const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path);
-          const result = await transcribeAudio(buffer, fileName);
+          const duration = ctx.message.audio.duration;
+          const result = await transcribeAudio(buffer, fileName, duration);
 
           if (result.text && result.text.trim().length > 0) {
             const sessionId = await getOrCreateSession();
-            const provider = getProvider();
             const model = getSelectedModel();
             const agent = getSelectedAgent();
             const system = getSystemPrompt();
 
-            if (isStreamingEnabled() && provider.promptStream) {
-              await streamPrompt({
-                ctx, sessionId,
-                parts: [{ type: "text", text: result.text }],
-                model, system, agent,
-              });
-            } else {
-              const promptResult = await withTimeout(
-                provider.prompt(sessionId, result.text, {
-                  parts: [{ type: "text", text: result.text }],
-                  ...(model && { model }),
-                  ...(agent && { agent }),
-                  system,
-                }),
-                getPromptTimeout(),
-                "Prompt"
-              );
-
-              if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-                await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-                return;
-              }
-              await sendReply(ctx, promptResult.text, promptResult.reasoning);
-              await sendFiles(ctx, promptResult.parts);
-            }
+            await streamPrompt({
+              ctx, sessionId,
+              parts: [{ type: "text", text: result.text }],
+              model, system, agent,
+            });
             return;
           }
         }
@@ -423,33 +306,19 @@ export function registerMediaHandlers(bot: Bot): void {
         const caption = ctx.message.caption ?? `Audio file: ${fileName}`;
 
         const sessionId = await getOrCreateSession();
-        const provider = getProvider();
         const model = getSelectedModel();
         const agent = getSelectedAgent();
         const system = getSystemPrompt();
 
-        const promptResult = await withTimeout(
-          provider.prompt(sessionId, `${caption}\n\n(Audio file: ${fileName})`, {
-            parts: [
-              {
-                type: "text",
-                text: `${caption}\n\n(Audio file: ${fileName})`,
-              },
-            ],
-            ...(model && { model }),
-            ...(agent && { agent }),
-            system,
-          }),
-          getPromptTimeout(),
-          "Prompt"
-        );
-
-        if (!promptResult.text.trim() || promptResult.text === "(empty response)") {
-          await ctx.reply(EMPTY_RESPONSE_MSG, { parse_mode: "HTML" });
-          return;
-        }
-        await sendReply(ctx, promptResult.text, promptResult.reasoning);
-        await sendFiles(ctx, promptResult.parts);
+        const promptText = `${caption}\n\n(Audio file: ${fileName})`;
+        await streamPrompt({
+          ctx,
+          sessionId,
+          parts: [{ type: "text", text: promptText }],
+          model,
+          system,
+          agent,
+        });
       });
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "handling audio"), { parse_mode: "HTML" });
@@ -482,13 +351,6 @@ function isPdfMime(mime?: string): boolean {
 }
 
 
-async function sendFiles(ctx: any, parts?: unknown[]): Promise<void> {
-  if (!parts) return;
-  const files = extractFileParts(parts);
-  if (files.length > 0) {
-    await sendResponseFiles(ctx, files);
-  }
-}
 
 function isTextExtension(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";

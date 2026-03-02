@@ -168,7 +168,7 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   const config: RelayConfig = existing ? { ...existing } : { ...CONFIG_DEFAULTS, dataDir };
 
   console.log(RELAY_BANNER);
-  p.intro("Telegram bot for AI coding agents");
+  p.intro("Your AI coding agent, always on — always in Telegram.");
 
   if (isUpdate) {
     p.log.info("Update mode — press Enter to keep existing values.");

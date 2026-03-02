@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@4via6/relay)](https://www.npmjs.com/package/@4via6/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https://github.com/opencode-ai/opencode). Supports 75+ AI providers including Anthropic, OpenAI, Google, and local models.
+Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](https://github.com/opencode-ai/opencode) with 75+ AI providers including Anthropic, OpenAI, Google, and local models.
 
 ## Features
 

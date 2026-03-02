@@ -48,9 +48,23 @@ export function registerShellCommands(bot: Bot): void {
 
     try {
       await ctx.replyWithChatAction("typing");
-      const sessionId = await getOrCreateSession();
       const provider = getProvider();
 
+      // Validate command exists before sending (invalid commands crash OpenCode server)
+      const available = await provider.getCommands();
+      if (available && available.length > 0) {
+        const exists = available.some((c) => c.name === command);
+        if (!exists) {
+          const names = available.map((c) => `<code>${escapeHtml(c.name)}</code>`).join(", ");
+          await ctx.reply(
+            `Unknown command: <code>${escapeHtml(command)}</code>\n\n<b>Available:</b>  ${names}`,
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+      }
+
+      const sessionId = await getOrCreateSession();
       const result = await provider.runCommand(sessionId, command, args);
 
       if (result === null) {

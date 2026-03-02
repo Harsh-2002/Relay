@@ -604,7 +604,7 @@ export class OpenCodeProvider implements Provider {
   ): Promise<PromptResult | null> {
     const result = await client.session.command({
       path: { id: sessionId },
-      body: { command, arguments: args ?? "" },
+      body: { command, arguments: args ?? "", agent: "build" },
     });
     if (result.error) throw sdkError(result.error);
     return {

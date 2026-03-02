@@ -86,15 +86,26 @@ Files stored:
 - `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `SKILL.md` — Custom system prompt (optional, create manually)
+- `memory.jsonl` — Memory MCP knowledge graph (auto-created when Memory is enabled)
+
 The directory is excluded from git via `.gitignore`.
 
-## Browser
+## MCP Tools
+
+Built-in MCP tools are configured during `relay onboard` (Step 4). Each runs as a local process managed by OpenCode.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `browserEnabled` | -- | `false` | Enable headless browser via Playwright MCP |
+| `browserEnabled` | -- | `false` | Headless browser via Playwright MCP |
+| `fetchEnabled` | -- | `false` | Fetch web pages as markdown (requires [uvx](https://docs.astral.sh/uv/)) |
+| `memoryEnabled` | -- | `false` | Persistent knowledge graph across sessions |
+| `filesystemEnabled` | -- | `false` | Read/write files outside the project directory |
+| `filesystemPaths` | -- | `[]` | Allowed directories for Filesystem MCP (comma-separated in wizard) |
 
-When enabled, the AI can navigate URLs, take screenshots, fill forms, and interact with web pages. See [Features](features.md#headless-browser-playwright-mcp) for details.
+- **Browser** -- navigate URLs, take screenshots, fill forms. See [Features](features.md#headless-browser-playwright-mcp).
+- **Fetch** -- read web pages as clean markdown. Requires `uvx` (Python package runner); the wizard offers to install it.
+- **Memory** -- persistent knowledge graph stored in `~/.relay/memory.jsonl`. The AI stores user preferences, project facts, and decisions across sessions.
+- **Filesystem** -- read/write files outside the project. Restricted to paths listed in `filesystemPaths`.
 
 ## Streaming
 

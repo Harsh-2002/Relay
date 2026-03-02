@@ -1,8 +1,32 @@
 import { existsSync, mkdirSync, writeFileSync, renameSync } from "fs";
+import { execSync } from "child_process";
 import { join } from "path";
+import * as p from "@clack/prompts";
 import type { RelayConfig } from "./schema.js";
 import { CONFIG_DEFAULTS } from "./schema.js";
-import { ensurePlaywrightMcp } from "../utils/opencode-config.js";
+import { homedir } from "os";
+import {
+  ensurePlaywrightMcp, removePlaywrightMcp,
+  ensureFetchMcp, removeFetchMcp,
+  ensureMemoryMcp, removeMemoryMcp,
+  ensureFilesystemMcp, removeFilesystemMcp,
+} from "../utils/opencode-config.js";
+
+function handleCancel(value: unknown): void {
+  if (p.isCancel(value)) {
+    p.cancel("Setup cancelled.");
+    process.exit(0);
+  }
+}
+
+/** Run a shell command and return trimmed stdout, or null on failure */
+function checkCommand(cmd: string): string | null {
+  try {
+    return execSync(cmd, { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
+  } catch {
+    return null;
+  }
+}
 
 async function validateSttApiKey(
   provider: "groq" | "openai" | "assemblyai" | "sarvam",
@@ -128,6 +152,8 @@ const STT_PROVIDER_LABELS: Record<string, string> = {
   auto: "Auto",
 };
 
+const isWindows = process.platform === "win32";
+
 const RELAY_BANNER = `
     ____       __
    / __ \\___  / /___ ___  __
@@ -137,273 +163,413 @@ const RELAY_BANNER = `
                    /____/
 `;
 
-const TOTAL_STEPS = 5;
-const DIVIDER = "─".repeat(40);
-
-function stepHeader(num: number, title: string): void {
-  console.log(`\n  ${DIVIDER}`);
-  console.log(`  [${num}/${TOTAL_STEPS}] ${title}`);
-  console.log();
-}
-
-function hint(text: string): void {
-  console.log(`  \x1b[2m${text}\x1b[0m`);
-}
-
-function ok(text: string): void {
-  console.log(`  \x1b[32m✓\x1b[0m ${text}`);
-}
-
-function fail(text: string): void {
-  console.log(`  \x1b[31m✗\x1b[0m ${text}`);
-}
-
-function warn(text: string): void {
-  console.log(`  \x1b[33m⚠\x1b[0m ${text}`);
-}
-
 export async function runSetupWizard(dataDir: string, existing?: RelayConfig): Promise<RelayConfig> {
-  const { input, select, confirm } = await import("@inquirer/prompts");
-
   const isUpdate = !!(existing?.botToken);
   const config: RelayConfig = existing ? { ...existing } : { ...CONFIG_DEFAULTS, dataDir };
 
   console.log(RELAY_BANNER);
-  console.log("  Telegram bot for AI coding agents");
-  console.log(`  ${DIVIDER}`);
+  p.intro("Telegram bot for AI coding agents");
+
   if (isUpdate) {
-    hint("Update mode — press Enter to keep existing values.");
+    p.log.info("Update mode — press Enter to keep existing values.");
   }
 
-  // ── Step 1: Bot Token ──
-  stepHeader(1, "Bot Token");
-  if (!isUpdate) {
-    hint("Create a bot via @BotFather → https://t.me/BotFather");
-    hint("Send /newbot, follow the prompts, copy the token.");
-    console.log();
+  const s = p.spinner();
+
+  // ── Step 1: OpenCode ──
+  p.log.step("Step 1/5 — OpenCode");
+
+  const opencodeVersion = checkCommand("opencode --version");
+
+  if (opencodeVersion) {
+    p.log.success(`OpenCode found — v${opencodeVersion}`);
   } else {
-    hint(`Current: ${maskSecret(config.botToken)}`);
-    console.log();
+    p.log.warn("OpenCode not found in PATH.");
+    p.note(
+      "Relay requires OpenCode as its AI backend.\n" +
+      "Install it with:\n\n" +
+      "  npm i -g opencode-ai@latest",
+      "Install OpenCode"
+    );
+
+    const installChoice = await p.select({
+      message: "How would you like to proceed?",
+      options: [
+        { value: "npm" as const, label: "Install now (npm)", hint: "npm i -g opencode-ai@latest" },
+        { value: "skip" as const, label: "Skip — I'll install it manually" },
+      ],
+    });
+    handleCancel(installChoice);
+
+    if (installChoice === "npm") {
+      s.start("Installing OpenCode via npm...");
+      try {
+        execSync("npm i -g opencode-ai@latest", { timeout: 120_000, stdio: ["pipe", "pipe", "pipe"] });
+        const ver = checkCommand("opencode --version");
+        s.stop(ver ? `OpenCode installed — v${ver}` : "OpenCode installed.");
+      } catch (err: any) {
+        s.stop("Installation failed.");
+        const msg = err?.message ?? "";
+        if (msg.includes("EACCES") || msg.includes("EPERM")) {
+          p.log.error(isWindows
+            ? "Permission denied — try running the terminal as Administrator"
+            : "Permission denied — try: sudo npm i -g opencode-ai@latest");
+        } else {
+          p.log.error(`Error: ${msg || "Unknown error"}`);
+        }
+        p.log.info("You can install it manually after setup and run 'relay' to start.");
+      }
+    } else {
+      p.log.info("Install OpenCode before running Relay.");
+    }
+  }
+
+  if (!isUpdate) {
+    p.log.info("\"Start\" spawns a local server. \"Connect\" uses an existing one.");
+  } else {
+    p.log.info(`Current: ${config.opencodeMode === "start" ? "Start (local)" : "Connect (remote)"}`);
+  }
+
+  const opencodeMode = await p.select({
+    message: "OpenCode mode:",
+    initialValue: config.opencodeMode,
+    options: [
+      { value: "start" as const, label: "Start (spawn local server)" },
+      { value: "connect" as const, label: "Connect (remote server)" },
+    ],
+  });
+  handleCancel(opencodeMode);
+  config.opencodeMode = opencodeMode as "start" | "connect";
+
+  if (opencodeMode === "connect") {
+    const urlEntered = await p.text({
+      message: "OpenCode server URL:",
+      initialValue: config.opencodeUrl || "http://localhost:4096",
+    });
+    handleCancel(urlEntered);
+    config.opencodeUrl = (urlEntered as string).trim();
+  }
+
+  // ── Step 2: Bot Token ──
+  p.log.step("Step 2/5 — Bot Token");
+
+  if (!isUpdate) {
+    p.note(
+      "1. Open @BotFather → https://t.me/BotFather\n" +
+      "2. Send /newbot, follow the prompts\n" +
+      "3. Copy the token",
+      "Setup"
+    );
+  } else {
+    p.log.info(`Current: ${maskSecret(config.botToken)}`);
   }
 
   let botToken = config.botToken;
   let tokenValidated = false;
   while (!tokenValidated) {
-    const entered = (await input({
+    const entered = await p.text({
       message: "Bot token:",
-      validate: (v) => {
-        if (isUpdate && v.trim() === "") return true;
-        return v.trim().length > 0 ? true : "Bot token is required";
+      placeholder: isUpdate ? "Press Enter to keep existing" : "123456:ABC-DEF...",
+      validate: (v = "") => {
+        if (isUpdate && v.trim() === "") return undefined;
+        return v.trim().length > 0 ? undefined : "Bot token is required";
       },
-    })).trim();
+    });
+    handleCancel(entered);
 
-    if (isUpdate && entered === "") {
-      ok("Kept existing bot token.");
+    const value = (entered as string).trim();
+    if (isUpdate && value === "") {
+      p.log.success("Kept existing bot token.");
       tokenValidated = true;
     } else {
-      hint("Validating...");
-      const tokenResult = await validateBotToken(entered);
+      s.start("Validating bot token...");
+      const tokenResult = await validateBotToken(value);
       if (tokenResult.valid) {
-        botToken = entered;
-        ok(`Bot verified — ${tokenResult.botName}`);
+        s.stop(`Bot verified — ${tokenResult.botName}`);
+        botToken = value;
         tokenValidated = true;
       } else {
-        fail(tokenResult.error!);
-        console.log();
+        s.stop(tokenResult.error!);
+        p.log.error(tokenResult.error!);
       }
     }
   }
   config.botToken = botToken;
 
-  // ── Step 2: User ID ──
-  stepHeader(2, "Telegram User ID");
+  // ── Step 3: User ID ──
+  p.log.step("Step 3/5 — Telegram User ID");
+
   if (!isUpdate) {
-    hint("Get your ID via @userinfobot → https://t.me/userinfobot");
-    hint("Send any message — it replies with your numeric ID.");
-    console.log();
+    p.note(
+      "1. Open @userinfobot → https://t.me/userinfobot\n" +
+      "2. Send any message\n" +
+      "3. Copy your numeric ID",
+      "Setup"
+    );
   } else {
-    hint(`Current: ${config.allowedUserId}`);
-    console.log();
+    p.log.info(`Current: ${config.allowedUserId}`);
   }
 
-  const allowedUserIdStr = (await input({
+  const allowedUserIdStr = await p.text({
     message: "User ID:",
-    validate: (v) => {
-      if (isUpdate && v.trim() === "") return true;
+    placeholder: isUpdate ? "Press Enter to keep existing" : "Your numeric Telegram user ID",
+    validate: (v = "") => {
+      if (isUpdate && v.trim() === "") return undefined;
       const n = Number(v.trim());
       if (isNaN(n) || !Number.isInteger(n) || n <= 0) return "Must be a positive integer";
       if (n >= 10_000_000_000) return "User ID seems too large — check the value";
-      return true;
+      return undefined;
     },
-  })).trim();
+  });
+  handleCancel(allowedUserIdStr);
 
-  const allowedUserId = allowedUserIdStr === "" ? config.allowedUserId : Number(allowedUserIdStr);
+  const parsedUserId = (allowedUserIdStr as string).trim();
+  const allowedUserId = parsedUserId === "" ? config.allowedUserId : Number(parsedUserId);
   const userIdChanged = allowedUserId !== config.allowedUserId;
   config.allowedUserId = allowedUserId;
 
   if (userIdChanged || !isUpdate) {
-    hint("Verifying...");
+    s.start("Verifying user ID...");
     const userResult = await validateUserId(config.botToken, allowedUserId);
     if (userResult.valid) {
-      ok(`User verified — ${userResult.name}`);
+      s.stop(`User verified — ${userResult.name}`);
     } else {
-      warn(`${userResult.error}. Saved anyway.`);
+      s.stop(`${userResult.error}. Saved anyway.`);
+      p.log.warn(`${userResult.error}. Saved anyway.`);
     }
   } else {
-    ok("Kept existing user ID.");
+    p.log.success("Kept existing user ID.");
   }
 
-  // ── Step 3: OpenCode ──
-  stepHeader(3, "OpenCode Connection");
+  // ── Step 4: MCP Tools ──
+  p.log.step("Step 4/5 — MCP Tools");
+
   if (!isUpdate) {
-    hint("\"Start\" spawns a local server. \"Connect\" uses an existing one.");
-    console.log();
+    p.note(
+      "MCP tools extend the AI with extra capabilities.\n" +
+      "Each runs as a local process managed by OpenCode.",
+      "Info"
+    );
   } else {
-    hint(`Current: ${config.opencodeMode === "start" ? "Start (local)" : "Connect (remote)"}`);
-    console.log();
+    const mcpStatus = [
+      `Browser ${config.browserEnabled ? "✓" : "✗"}`,
+      `Fetch ${config.fetchEnabled ? "✓" : "✗"}`,
+      `Memory ${config.memoryEnabled ? "✓" : "✗"}`,
+      `Filesystem ${config.filesystemEnabled ? "✓" : "✗"}`,
+    ].join(", ");
+    p.log.info(`Current: ${mcpStatus}`);
   }
 
-  const opencodeMode = await select({
-    message: "OpenCode mode:",
-    default: config.opencodeMode,
-    choices: [
-      { value: "start" as const, name: "Start (spawn local server)" },
-      { value: "connect" as const, name: "Connect (remote server)" },
+  const currentMcps: string[] = [];
+  if (config.browserEnabled) currentMcps.push("browser");
+  if (config.fetchEnabled) currentMcps.push("fetch");
+  if (config.memoryEnabled) currentMcps.push("memory");
+  if (config.filesystemEnabled) currentMcps.push("filesystem");
+
+  const selectedMcps = await p.multiselect({
+    message: "Enable MCP tools (Space to toggle, Enter to confirm):",
+    options: [
+      { value: "browser", label: "Browser (Playwright)", hint: "Navigate URLs, scrape pages, take screenshots" },
+      { value: "fetch", label: "Fetch", hint: "Read web pages as markdown" },
+      { value: "memory", label: "Memory", hint: "Persistent knowledge graph across sessions" },
+      { value: "filesystem", label: "Filesystem", hint: "Read/write files outside the project" },
     ],
+    initialValues: currentMcps,
+    required: false,
   });
-  config.opencodeMode = opencodeMode;
+  handleCancel(selectedMcps);
 
-  if (opencodeMode === "connect") {
-    const urlEntered = (await input({
-      message: "OpenCode server URL:",
-      default: config.opencodeUrl || "http://localhost:4096",
-    })).trim();
-    config.opencodeUrl = urlEntered;
+  const mcps = selectedMcps as string[];
+  config.browserEnabled = mcps.includes("browser");
+  config.fetchEnabled = mcps.includes("fetch");
+  config.memoryEnabled = mcps.includes("memory");
+  config.filesystemEnabled = mcps.includes("filesystem");
+
+  // Fetch requires uvx (Python) — check and offer install
+  if (config.fetchEnabled) {
+    const hasUvx = checkCommand("uvx --version");
+    if (!hasUvx) {
+      const uvInstallCmd = isWindows
+        ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+        : "curl -LsSf https://astral.sh/uv/install.sh | sh";
+      const uvManualHint = isWindows
+        ? "irm https://astral.sh/uv/install.ps1 | iex"
+        : "curl -LsSf https://astral.sh/uv/install.sh | sh";
+
+      p.log.warn("Fetch MCP requires uvx (Python package runner).");
+      const uvxChoice = await p.select({
+        message: "Install uv/uvx now?",
+        options: [
+          { value: "install" as const, label: "Install now", hint: uvManualHint },
+          { value: "skip" as const, label: "Skip — I'll install it manually" },
+        ],
+      });
+      handleCancel(uvxChoice);
+
+      if (uvxChoice === "install") {
+        s.start("Installing uv/uvx...");
+        try {
+          execSync(uvInstallCmd, { timeout: 60_000, stdio: ["pipe", "pipe", "pipe"] });
+          s.stop("uv/uvx installed.");
+        } catch {
+          s.stop("Installation failed.");
+          p.log.error(`Install manually: ${uvManualHint}`);
+        }
+      } else {
+        p.note(
+          "Install uv before starting Relay:\n\n" +
+          `  ${uvManualHint}`,
+          "Fetch MCP dependency"
+        );
+      }
+    }
   }
 
-  // ── Step 4: Voice Transcription ──
-  stepHeader(4, "Voice Transcription");
+  // Filesystem needs allowed paths
+  if (config.filesystemEnabled) {
+    const existingPaths = config.filesystemPaths?.length
+      ? config.filesystemPaths.join(", ")
+      : "";
+
+    const pathsInput = await p.text({
+      message: "Allowed directories (comma-separated):",
+      placeholder: isWindows ? "~/Documents, ~/Downloads" : "~/Documents, ~/Downloads, /tmp",
+      initialValue: existingPaths,
+      validate: (v = "") => {
+        if (v.trim().length === 0) return "At least one directory path is required";
+        return undefined;
+      },
+    });
+    handleCancel(pathsInput);
+
+    config.filesystemPaths = (pathsInput as string)
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => p.startsWith("~") ? p.replace("~", homedir()) : p);
+  }
+
+  // Ensure/remove each MCP in OpenCode config
+  const mcpActions: Array<{ name: string; enabled: boolean; ensure: () => void; remove: () => void }> = [
+    { name: "Playwright", enabled: config.browserEnabled, ensure: ensurePlaywrightMcp, remove: removePlaywrightMcp },
+    { name: "Fetch", enabled: config.fetchEnabled, ensure: ensureFetchMcp, remove: removeFetchMcp },
+    { name: "Memory", enabled: config.memoryEnabled, ensure: () => ensureMemoryMcp(dataDir), remove: removeMemoryMcp },
+    {
+      name: "Filesystem",
+      enabled: config.filesystemEnabled && config.filesystemPaths.length > 0,
+      ensure: () => ensureFilesystemMcp(config.filesystemPaths),
+      remove: removeFilesystemMcp,
+    },
+  ];
+
+  for (const mcp of mcpActions) {
+    try {
+      if (mcp.enabled) {
+        mcp.ensure();
+      } else {
+        mcp.remove();
+      }
+    } catch {
+      // Will be configured on startup
+    }
+  }
+
+  const enabledNames = mcpActions.filter((m) => m.enabled).map((m) => m.name);
+  if (enabledNames.length > 0) {
+    p.log.success(`MCP tools configured: ${enabledNames.join(", ")}`);
+  } else {
+    p.log.info("No MCP tools enabled.");
+  }
+
+  // ── Step 5: Voice Transcription ──
+  p.log.step("Step 5/5 — Voice Transcription");
 
   const hasStt = isUpdate && config.sttProvider && config.sttProvider !== "auto";
   if (hasStt) {
     const activeKey = getSttKeyForProvider(config, config.sttProvider);
     const keyDisplay = activeKey ? ` — key: ${maskSecret(activeKey)}` : "";
-    hint(`Current: ${STT_PROVIDER_LABELS[config.sttProvider] || config.sttProvider}${keyDisplay}`);
-    console.log();
+    p.log.info(`Current: ${STT_PROVIDER_LABELS[config.sttProvider] || config.sttProvider}${keyDisplay}`);
 
-    const sttAction = await select({
+    const sttAction = await p.select({
       message: "Voice transcription:",
-      choices: [
-        { value: "keep" as const, name: "Keep current configuration" },
-        { value: "replace" as const, name: "Add or replace provider" },
-        { value: "disable" as const, name: "Disable STT" },
+      options: [
+        { value: "keep" as const, label: "Keep current configuration" },
+        { value: "replace" as const, label: "Add or replace provider" },
+        { value: "disable" as const, label: "Disable STT" },
       ],
     });
+    handleCancel(sttAction);
 
     if (sttAction === "replace") {
-      await promptSttProvider(input, select, config);
+      await promptSttProvider(config);
     } else if (sttAction === "disable") {
       config.sttProvider = "auto";
-      ok("STT disabled.");
+      p.log.success("STT disabled.");
     } else {
-      ok("Kept current STT configuration.");
+      p.log.success("Kept current STT configuration.");
     }
   } else {
     if (!isUpdate) {
-      hint("Send voice messages to the AI. Requires an API key.");
-      console.log();
+      p.log.info("Send voice messages to the AI. Requires an API key.");
     }
 
-    const configureStt = await confirm({
+    const configureStt = await p.confirm({
       message: "Configure voice transcription (STT)?",
-      default: false,
+      initialValue: false,
     });
+    handleCancel(configureStt);
 
     if (configureStt) {
-      await promptSttProvider(input, select, config);
+      await promptSttProvider(config);
     }
-  }
-
-  // ── Step 5: Browser ──
-  stepHeader(5, "Headless Browser");
-  if (!isUpdate) {
-    hint("Playwright MCP lets the AI navigate URLs, scrape pages,");
-    hint("fill forms, and take screenshots via headless Chromium.");
-    console.log();
-  } else {
-    hint(`Current: ${config.browserEnabled ? "Enabled" : "Disabled"}`);
-    console.log();
-  }
-
-  const configureBrowser = await confirm({
-    message: "Enable headless browser (Playwright MCP)?",
-    default: config.browserEnabled,
-  });
-
-  if (configureBrowser) {
-    config.browserEnabled = true;
-    if (!isUpdate || !existing?.browserEnabled) {
-      try {
-        ensurePlaywrightMcp();
-        ok("Playwright MCP written to OpenCode config.");
-      } catch {
-        ok("Playwright MCP will be configured on startup.");
-      }
-    }
-  } else {
-    config.browserEnabled = false;
   }
 
   // ── Done ──
   saveConfig(config, dataDir);
-
-  console.log(`\n  ${DIVIDER}`);
-  ok(`Config saved to ${join(dataDir, "config.json")}`);
-  hint("Run 'relay' to start the bot.");
-  console.log();
+  p.outro(`Config saved to ${join(dataDir, "config.json")} — run 'relay' to start.`);
 
   return config;
 }
 
-async function promptSttProvider(
-  input: typeof import("@inquirer/prompts")["input"],
-  select: typeof import("@inquirer/prompts")["select"],
-  config: RelayConfig,
-): Promise<void> {
-  const sttProvider = await select({
+async function promptSttProvider(config: RelayConfig): Promise<void> {
+  const sttProvider = await p.select({
     message: "Which STT provider?",
-    choices: [
-      { value: "groq" as const, name: "Groq (fastest, free tier available)" },
-      { value: "openai" as const, name: "OpenAI (reliable, paid)" },
-      { value: "assemblyai" as const, name: "AssemblyAI (accurate, free tier)" },
-      { value: "sarvam" as const, name: "Sarvam AI (transcription, multilingual)" },
-      { value: "sarvam-translate" as const, name: "Sarvam AI (translate to English)" },
+    options: [
+      { value: "groq" as const, label: "Groq (fastest, free tier available)" },
+      { value: "openai" as const, label: "OpenAI (reliable, paid)" },
+      { value: "assemblyai" as const, label: "AssemblyAI (accurate, free tier)" },
+      { value: "sarvam" as const, label: "Sarvam AI (transcription, multilingual)" },
+      { value: "sarvam-translate" as const, label: "Sarvam AI (translate to English)" },
     ],
   });
+  handleCancel(sttProvider);
 
-  const validationProvider = sttProvider === "sarvam-translate" ? "sarvam" as const : sttProvider;
+  const validationProvider = sttProvider === "sarvam-translate" ? "sarvam" as const : sttProvider as "groq" | "openai" | "assemblyai" | "sarvam";
 
+  const s = p.spinner();
   let validated = false;
   while (!validated) {
-    const apiKey = (await input({
-      message: `${STT_PROVIDER_LABELS[sttProvider]} API key:`,
-      validate: (v) => (v.trim().length > 0 ? true : "API key is required"),
-    })).trim();
+    const apiKey = await p.text({
+      message: `${STT_PROVIDER_LABELS[sttProvider as string]} API key:`,
+      validate: (v = "") => (v.trim().length > 0 ? undefined : "API key is required"),
+    });
+    handleCancel(apiKey);
 
-    hint("Validating...");
-    const result = await validateSttApiKey(validationProvider, apiKey);
+    const key = (apiKey as string).trim();
+    s.start("Validating API key...");
+    const result = await validateSttApiKey(validationProvider, key);
 
     if (result.valid) {
-      config.sttProvider = sttProvider;
-      if (sttProvider === "groq") config.groqApiKey = apiKey;
-      else if (sttProvider === "openai") config.openaiSttApiKey = apiKey;
-      else if (sttProvider === "sarvam" || sttProvider === "sarvam-translate") config.sarvamApiKey = apiKey;
-      else config.assemblyaiApiKey = apiKey;
-      ok("API key validated.");
+      s.stop("API key validated.");
+      config.sttProvider = sttProvider as RelayConfig["sttProvider"];
+      if (sttProvider === "groq") config.groqApiKey = key;
+      else if (sttProvider === "openai") config.openaiSttApiKey = key;
+      else if (sttProvider === "sarvam" || sttProvider === "sarvam-translate") config.sarvamApiKey = key;
+      else config.assemblyaiApiKey = key;
       validated = true;
     } else {
-      fail(result.error!);
-      console.log();
+      s.stop(result.error!);
+      p.log.error(result.error!);
     }
   }
 }

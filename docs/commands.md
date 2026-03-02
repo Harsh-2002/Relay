@@ -274,16 +274,16 @@ MCP servers extend the AI's capabilities with additional tools like browsers, da
 
 ### `/mcp`
 
-Show the status of all configured MCP servers.
+Show the status of all configured MCP servers. Servers are numbered, with action buttons (Connect/Reconnect and Remove) for each.
 
 Example output:
 
 ```
 MCP Servers (2)
 
-memory  ok
-browser  failed
-  Connection refused
+1. memory  ok
+2. browser  failed
+   Connection refused
 ```
 
 ### `/mcp add <name> local <command...>`

@@ -129,6 +129,34 @@ Run `/mcp` to check the error message. Common causes:
 
 3. **Permission denied**: The command doesn't have execute permissions
 
+### Fetch MCP fails to start
+
+The Fetch MCP uses `uvx` (Python package runner), not `npx`. Make sure `uv` is installed:
+
+```bash
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+After installing, restart your terminal so `uvx` is in your PATH.
+
+### OpenCode not found
+
+Relay requires [OpenCode](https://github.com/opencode-ai/opencode) as its AI backend. Install it via npm:
+
+```bash
+npm i -g opencode-ai@latest
+```
+
+If you get a permission error, try `sudo npm i -g opencode-ai@latest` (Linux/macOS) or run the terminal as Administrator (Windows).
+
+### Memory MCP data location
+
+Memory MCP stores its knowledge graph in `~/.relay/memory.jsonl` (or `./.relay/memory.jsonl` in dev mode). The file is created automatically when the Memory MCP is first used. Data persists across conversations and bot restarts.
+
 
 ---
 

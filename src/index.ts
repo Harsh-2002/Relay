@@ -1,3 +1,5 @@
+import { join } from "path";
+import { homedir } from "os";
 import { getConfig } from "./config/index.js";
 import { initProvider, shutdownProvider, getProviderName } from "./providers/index.js";
 import { createBot } from "./bot.js";
@@ -5,7 +7,7 @@ import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
-import { ensurePlaywrightMcp } from "./utils/opencode-config.js";
+import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp } from "./utils/opencode-config.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
 
@@ -26,13 +28,26 @@ async function main() {
     die("Allowed user ID is required (must be a valid Telegram user ID). Run 'relay onboard' to configure.");
   }
 
-  // Write Playwright MCP to OpenCode's config file before starting the server
-  if (config.browserEnabled) {
-    try {
-      ensurePlaywrightMcp();
-      logger.info("Playwright MCP configured in OpenCode config");
-    } catch (err: any) {
-      logger.info({ err: err?.message }, "Failed to write Playwright MCP config");
+  // Configure MCP tools in OpenCode before starting the server
+  const mcpSetup: Array<{ name: string; enabled: boolean; setup: () => void }> = [
+    { name: "Playwright", enabled: config.browserEnabled, setup: ensurePlaywrightMcp },
+    { name: "Fetch", enabled: config.fetchEnabled, setup: ensureFetchMcp },
+    { name: "Memory", enabled: config.memoryEnabled, setup: () => ensureMemoryMcp(config.dataDir || join(homedir(), ".relay")) },
+    {
+      name: "Filesystem",
+      enabled: config.filesystemEnabled && config.filesystemPaths.length > 0,
+      setup: () => ensureFilesystemMcp(config.filesystemPaths),
+    },
+  ];
+
+  for (const mcp of mcpSetup) {
+    if (mcp.enabled) {
+      try {
+        mcp.setup();
+        logger.info(`${mcp.name} MCP configured in OpenCode config`);
+      } catch (err: any) {
+        logger.info({ err: err?.message }, `Failed to write ${mcp.name} MCP config`);
+      }
     }
   }
 

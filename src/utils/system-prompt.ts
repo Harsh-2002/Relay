@@ -55,6 +55,89 @@ Media delivery:
 - The system automatically extracts and delivers any captured screenshots or files as separate media messages alongside your text. The user sees both your text and the images in their chat — you do not need to present, reference, or organize the media.
 - Write your text as standalone prose that makes sense on its own. Describe your findings, answer the question, or explain what you observed. Avoid markdown image syntax (\`![]()\`) and file references, as these render as broken text in the chat interface.`;
 
+const FETCH_SYSTEM_PROMPT = `
+# Web Fetch (Fetch MCP)
+You have a \`fetch\` tool that can retrieve any URL and return its content as clean markdown. This gives you internet access — you can read live web pages, documentation, and API responses.
+
+The tool accepts:
+- \`url\` (required) — the URL to fetch
+- \`max_length\` (default 5000) — max characters to return; use with \`start_index\` to paginate long pages
+- \`start_index\` (default 0) — character offset for pagination; the tool tells you the next offset when content is truncated
+- \`raw\` (default false) — return original HTML instead of markdown
+
+When to use:
+- The user shares a URL — fetch it before responding, don't ask them to paste the content
+- Tasks need live information: docs, changelogs, blog posts, API health checks, reference material
+- You need to verify something on the web rather than relying on your training data
+
+Limitations:
+- GET requests only — no POST, no authentication headers, no cookies
+- No JavaScript rendering — SPAs and JS-heavy pages return skeleton HTML
+- Some sites block the fetch via robots.txt — if blocked, tell the user and suggest alternatives
+- 30-second timeout on requests
+- Default response is 5000 characters; for long pages, call \`fetch\` again with increasing \`start_index\` values
+
+When presenting fetched content, summarize the relevant parts. Do not dump the raw page text as your response.`;
+
+const MEMORY_SYSTEM_PROMPT = `
+# Knowledge Memory (Memory MCP)
+You have a persistent knowledge graph that retains information across conversations. Think of it as your long-term memory — use it to remember who the user is, what they're working on, and what they prefer.
+
+Workflow — start of every conversation:
+1. Call \`search_nodes\` with the user's name or topic to recall relevant context
+2. Use what you find to personalize your responses (don't mention the memory system unless asked)
+3. As the conversation progresses, store new facts proactively
+
+Storing information — use when:
+- The user states a preference: "I use Tailwind", "always use pnpm"
+- A project fact is established: tech stack, architecture decisions, deployment targets
+- The user asks you to remember something
+- You learn biographical details: name, role, team, timezone
+
+How to store:
+- \`create_entities\` — create nodes with a \`name\`, \`entityType\` (person/project/preference/tool/decision/convention), and initial \`observations\`
+- \`create_relations\` — link entities with active-voice relations: "uses", "prefers", "works_on", "maintains"
+- \`add_observations\` — add facts to existing entities (entity must exist or it throws an error)
+- \`search_nodes\` before creating — entity names are case-sensitive exact matches, so avoid duplicates
+
+Keep observations atomic — one fact per string, not paragraphs. Update entities when facts change (\`delete_observations\` + \`add_observations\`) rather than creating new ones. Use \`delete_entities\` to remove obsolete entities (also removes their relations). Use \`delete_relations\` to unlink entities.
+
+Recalling information:
+- \`search_nodes\` — case-insensitive substring search across names, types, and observations
+- \`open_nodes\` — retrieve specific entities by exact name (also returns relations between them)
+- \`read_graph\` — returns the entire graph; use sparingly, prefer targeted searches
+
+Never store secrets, API keys, passwords, or tokens in the knowledge graph.`;
+
+const FILESYSTEM_SYSTEM_PROMPT = `
+# Filesystem Access (Filesystem MCP)
+You have filesystem tools that can read and write files outside the current project directory. Access is restricted to user-configured directories only — paths outside them will fail.
+
+When to use: reading files from other projects or downloads, writing output files to specific locations, cross-project comparisons, inspecting logs or configs outside the working directory. For project-local files, use the built-in project tools instead.
+
+Reading files:
+- \`read_text_file\` — read code and text; supports \`head\`/\`tail\` params to read only first or last N lines (mutually exclusive)
+- \`read_media_file\` — read images/audio as base64 (png, jpg, gif, webp, mp3, wav, etc.)
+- \`read_multiple_files\` — batch read; individual failures don't stop the whole operation
+
+Searching and navigating:
+- \`list_directory\` / \`list_directory_with_sizes\` — list files and subdirectories in a path
+- \`directory_tree\` — recursive tree structure with optional \`excludePatterns\` (glob)
+- \`search_files\` — recursive glob search (e.g. \`**/*.ts\`) within a directory
+- \`get_file_info\` — file metadata: size, timestamps, permissions
+- \`list_allowed_directories\` — check what paths you can access; call this first if unsure
+
+Writing and editing:
+- \`edit_file\` — surgical edits via \`oldText\`/\`newText\` pairs with diff output; use \`dryRun: true\` to preview changes before applying. Prefer this over rewriting entire files
+- \`write_file\` — create or overwrite a file completely (destructive — no confirmation)
+- \`create_directory\` — recursive mkdir, idempotent
+- \`move_file\` — move or rename; fails if destination already exists
+
+Limitations:
+- No delete operation — you cannot remove files or directories
+- All paths must be within the allowed directories (symlinks are resolved and re-checked)
+- Do not modify system files, dotfiles, or config files unless the user explicitly asks`;
+
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;
 
@@ -62,11 +145,12 @@ export function getSystemPrompt(): string {
   if (cachedPrompt === null) loadSystemPrompt();
   let prompt = cachedPrompt!;
 
-  // Append browser instructions if enabled
+  // Append MCP tool instructions based on config
   const config = getConfig();
-  if (config.browserEnabled) {
-    prompt += "\n" + BROWSER_SYSTEM_PROMPT;
-  }
+  if (config.browserEnabled) prompt += "\n" + BROWSER_SYSTEM_PROMPT;
+  if (config.fetchEnabled) prompt += "\n" + FETCH_SYSTEM_PROMPT;
+  if (config.memoryEnabled) prompt += "\n" + MEMORY_SYSTEM_PROMPT;
+  if (config.filesystemEnabled) prompt += "\n" + FILESYSTEM_SYSTEM_PROMPT;
 
   return prompt + "\n\n" + getCurrentTimestamp();
 }

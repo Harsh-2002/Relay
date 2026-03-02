@@ -16,10 +16,10 @@ Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https
 - **Edited messages** -- edit a sent message to re-prompt the AI with the correction
 - **Reasoning display** -- AI thinking is shown in collapsible blockquotes, separate from the answer
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
-- **Streaming responses** -- live-streamed via Telegram's `sendMessageDraft` with smooth animation
+- **Streaming responses** -- live-streamed via `editMessageText` with smooth animation
 - **Session management** -- create, switch, fork, delete, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
-- **MCP servers** -- add, remove, and monitor MCP servers at runtime
+- **MCP tools** -- Browser, Fetch, Memory, and Filesystem via MCP; add custom servers at runtime
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
@@ -47,7 +47,7 @@ npm install -g @4via6/relay
 relay onboard
 ```
 
-The setup wizard will ask for your bot token, user ID, and provider config, then save everything to `~/.relay/config.json`.
+The setup wizard walks through OpenCode installation, bot token, user ID, MCP tools, and voice transcription, then saves everything to `~/.relay/config.json`.
 
 ### With npx (no install)
 
@@ -58,6 +58,7 @@ npx @4via6/relay onboard
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 18 (or [Bun](https://bun.sh/))
+- [OpenCode](https://github.com/opencode-ai/opencode) (`npm i -g opencode-ai@latest`) -- the AI backend
 - A Telegram bot token (from [@BotFather](https://t.me/BotFather))
 - Provider credentials (see below)
 
@@ -93,7 +94,7 @@ Updates to the latest version. If the daemon is running, it's automatically rest
 
 ## Configuration
 
-Config is stored in `~/.relay/config.json` (global). Use the setup wizard or CLI flags:
+Config is stored in `~/.relay/config.json` (global). Memory MCP data is stored in `~/.relay/memory.jsonl`. Use the setup wizard or CLI flags:
 
 ```bash
 relay onboard                    # Interactive wizard
@@ -116,7 +117,7 @@ relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 
 ## Backend
 
-Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed.
+Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed. Install OpenCode with `npm i -g opencode-ai@latest`.
 
 Supports both `start` mode (spawns local server) and `connect` mode (remote URL). See [Providers](docs/providers.md) for detailed setup.
 
@@ -179,12 +180,12 @@ Models show capability badges: `[reasoning]` for thinking/reasoning support, `[v
 ### MCP
 | Command | Description |
 |---------|-------------|
-| `/mcp` | Show MCP server status |
+| `/mcp` | Show MCP server status (numbered list with action buttons) |
 | `/mcp add <name> local <command...>` | Add a local MCP server |
 | `/mcp add <name> remote <url>` | Add a remote MCP server |
 | `/mcp remove <name>` | Remove an MCP server |
 
-MCP servers extend the AI's capabilities with additional tools (browsers, databases, APIs). Servers persist in the OpenCode configuration.
+Four built-in MCP tools are available via `relay onboard`: **Browser** (Playwright), **Fetch** (web pages as markdown), **Memory** (persistent knowledge graph), and **Filesystem** (external file access). Additional servers can be added at runtime. Servers persist in the OpenCode configuration.
 
 ### Settings
 | Command | Description |
@@ -234,7 +235,7 @@ src/
   utils/
     logger.ts      -- Pino-based structured logging
     store.ts       -- JSON file-backed persistence (~/.relay/)
-    stream.ts      -- Streaming response handler (drafts, reasoning, chunking)
+    stream.ts      -- Streaming response handler (reasoning, chunking)
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- HTML-aware Telegram message chunking
     markdown.ts    -- Markdown to Telegram HTML conversion
@@ -242,7 +243,8 @@ src/
     html.ts        -- HTML escaping for Telegram
     media.ts       -- File upload/download
     stt.ts         -- Speech-to-text
-    system-prompt.ts -- System prompt loading with IST timestamp
+    system-prompt.ts -- System prompt loading with MCP tool instructions
+    opencode-config.ts -- MCP injection into OpenCode config
 ```
 
 The provider implements the `Provider` interface with sessions, prompts, streaming, file operations, and MCP management. Messages are processed through a serial prompt queue to prevent interleaved responses.
@@ -252,7 +254,7 @@ The provider implements the `Provider` interface with sessions, prompts, streami
 - **HTML-aware chunker** -- splits messages at the 4096-char limit without breaking HTML tags
 - **Prompt queue** -- serializes concurrent messages to prevent SSE stream interleaving
 - **Reasoning display** -- AI thinking shown in expandable `<blockquote>`, collapsed by default
-- **Streaming** -- live-streamed via `sendMessageDraft` with automatic code fence closure and tail-end display for long responses
+- **Streaming** -- live-streamed via `editMessageText` with automatic code fence closure and tail-end display for long responses
 
 ## License
 

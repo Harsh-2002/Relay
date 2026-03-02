@@ -5,6 +5,7 @@ This guide walks you through setting up Relay from scratch.
 ## Prerequisites
 
 - **[Node.js](https://nodejs.org/)** >= 18 (or **[Bun](https://bun.sh/)**)
+- **[OpenCode](https://github.com/opencode-ai/opencode)** -- the AI backend (`npm i -g opencode-ai@latest`)
 - A **Telegram bot token** from [@BotFather](https://t.me/BotFather)
 - Your **Telegram user ID** (get it from [@userinfobot](https://t.me/userinfobot))
 - An AI provider configured in OpenCode (see [Providers](providers.md))
@@ -31,12 +32,12 @@ Run the interactive setup wizard:
 relay onboard
 ```
 
-The wizard will ask for:
-1. Your Telegram bot token
-2. Your Telegram user ID
-3. OpenCode connection mode (start or connect)
-4. Optional voice transcription (STT) provider and API key
-5. Optional headless browser (Playwright MCP)
+The wizard walks through 5 steps:
+1. **OpenCode** -- detects installation, offers to install via npm, selects connection mode (start or connect)
+2. **Bot Token** -- Telegram bot token from @BotFather (validated on entry)
+3. **User ID** -- your Telegram user ID (validated on entry)
+4. **MCP Tools** -- enable Browser (Playwright), Fetch (web pages), Memory (knowledge graph), Filesystem (external file access)
+5. **Voice Transcription** -- optional STT provider (Groq, OpenAI, AssemblyAI, Sarvam)
 
 Re-run `relay onboard` anytime to update settings — existing values are shown and can be kept by pressing Enter.
 
@@ -99,6 +100,7 @@ Relay stores its data in `~/.relay/`:
   config.json         -- Your configuration
   session.json        -- Active session and model
   SKILL.md            -- Custom system prompt (optional, create manually)
+  memory.jsonl        -- Memory MCP data (created when Memory is enabled)
 ```
 
 This directory is created automatically on first run.

@@ -34,7 +34,7 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 - **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`
 - **`loader.ts`** — Config resolution: CLI args > config file > defaults
-- **`setup.ts`** — Interactive setup wizard using `@inquirer/prompts`. Supports new config creation and update mode (re-running shows current values, Enter to keep)
+- **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 5-step flow: OpenCode → Bot Token → User ID → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows)
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
 
 ### Provider Abstraction (`src/providers/`)
@@ -69,10 +69,10 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 - **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
 - **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses and tool attachments, sends images via `sendPhoto` (no caption) and other files via `sendDocument`. Resolves both base64 data URLs and HTTP URLs
 - **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > Sarvam > AssemblyAI > OpenAI. Sarvam supports batch jobs for audio >30s and a translate-to-English mode
-- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Appends Playwright MCP browser instructions when `browserEnabled` is set. Appends fresh IST timestamp to every prompt
+- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Conditionally appends MCP tool instructions (Browser, Fetch, Memory, Filesystem) based on config flags. Appends fresh IST timestamp to every prompt
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
-- **`opencode-config.ts`** — Auto-injects Playwright MCP into OpenCode's config (`~/.config/opencode/opencode.json`) when `browserEnabled` is set. Idempotent — skips if already configured
+- **`opencode-config.ts`** — Auto-injects MCP server configs into OpenCode's config (`~/.config/opencode/opencode.json`). Supports all 4 built-in MCPs: Playwright, Fetch (uvx), Memory (with `MEMORY_FILE_PATH` env var pointing to `dataDir/memory.jsonl`), Filesystem (with user-specified paths). Provides `ensure*Mcp()` and `remove*Mcp()` for each. Idempotent — skips if already configured
 
 ### Daemon Management (`src/daemon.ts`)
 
@@ -88,7 +88,7 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 - **`src/auth.ts`** — Single-user auth via `initAuth(userId)` + rate limiting (30 req/min) with countdown timer.
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
 - **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run. Passes existing config to setup wizard for update mode.
-- **`src/index.ts`** — Bot startup: loads config, inits provider, auto-configures Playwright MCP if enabled, starts bot in polling or webhook mode.
+- **`src/index.ts`** — Bot startup: loads config, inits provider, auto-configures enabled MCP tools (Playwright, Fetch, Memory, Filesystem) in OpenCode config, starts bot in polling or webhook mode.
 
 ### Persistence (`~/.relay/` directory)
 
@@ -96,6 +96,7 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - `config.json` — User configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `SKILL.md` — Custom system prompt (optional)
+- `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ### Bot Modes
 

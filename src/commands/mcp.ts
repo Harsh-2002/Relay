@@ -8,22 +8,24 @@ import { escapeHtml } from "../utils/html.js";
 function buildMcpStatus(servers: McpServerStatus[]): { text: string; keyboard: InlineKeyboard } {
   let text = `<b>MCP Servers</b>  (${servers.length})\n\n`;
 
-  for (const srv of servers) {
+  servers.forEach((srv, i) => {
+    const num = i + 1;
     const statusIcon = srv.status === "connected" ? "ok" : srv.status;
-    text += `<code>${escapeHtml(srv.name)}</code>  ${statusIcon}`;
+    text += `${num}. <code>${escapeHtml(srv.name)}</code>  ${statusIcon}`;
     if (srv.error) {
-      text += `\n  <i>${escapeHtml(srv.error)}</i>`;
+      text += `\n   <i>${escapeHtml(srv.error)}</i>`;
     }
     text += "\n";
-  }
+  });
 
   const kb = new InlineKeyboard();
-  for (const srv of servers) {
-    const connectLabel = srv.status === "disabled" ? "Connect" : "Reconnect";
+  servers.forEach((srv, i) => {
+    const num = i + 1;
+    const action = srv.status === "disabled" ? "Connect" : "Reconnect";
     kb.row()
-      .text(connectLabel, `mcp_conn:${srv.name}`)
-      .text("🗑", `mcp_rm:${srv.name}`);
-  }
+      .text(`${num}. ${action}`, `mcp_conn:${srv.name}`)
+      .text(`${num}. 🗑`, `mcp_rm:${srv.name}`);
+  });
 
   return { text, keyboard: kb };
 }

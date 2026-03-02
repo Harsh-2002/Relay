@@ -25,8 +25,12 @@ export interface RelayConfig {
   sarvamApiKey: string;
   sarvamSttModel: string;
 
-  // Browser (Playwright MCP)
+  // MCP Tools
   browserEnabled: boolean;
+  fetchEnabled: boolean;
+  memoryEnabled: boolean;
+  filesystemEnabled: boolean;
+  filesystemPaths: string[];
 
   // Behavior
   streamEditIntervalMs: number;
@@ -62,6 +66,10 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   sarvamSttModel: "saaras:v3",
 
   browserEnabled: false,
+  fetchEnabled: false,
+  memoryEnabled: false,
+  filesystemEnabled: false,
+  filesystemPaths: [],
 
   streamEditIntervalMs: 2000,
   promptTimeoutMs: 300_000,

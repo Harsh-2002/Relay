@@ -61,7 +61,7 @@ The AI can browse the web, take screenshots, fill forms, and interact with pages
 
 ### Setup
 
-Enable during `relay onboard` (Step 5), or set in `~/.relay/config.json`:
+Enable during `relay onboard` (Step 4), or set in `~/.relay/config.json`:
 
 ```json
 {
@@ -80,6 +80,104 @@ Enable during `relay onboard` (Step 5), or set in `~/.relay/config.json`:
 ### Screenshots
 
 When the AI takes a screenshot, the image is delivered as a separate Telegram photo message alongside the text response. The AI describes what it observes in the text — you see both the description and the actual image.
+
+---
+
+## Web Fetch (Fetch MCP)
+
+The AI can fetch any URL and read its content as clean markdown — giving it live internet access for documentation, articles, and API responses.
+
+### Setup
+
+Enable during `relay onboard` (Step 4), or set in `~/.relay/config.json`:
+
+```json
+{
+  "fetchEnabled": true
+}
+```
+
+**Requires [uvx](https://docs.astral.sh/uv/)** (Python package runner). The setup wizard checks for it and offers to install it.
+
+### What the AI can do
+
+- Fetch documentation, blog posts, and articles from URLs
+- Check API responses and endpoint health
+- Look up library changelogs and release notes
+- Read any public web page as markdown
+
+### Limitations
+
+- GET requests only — no POST, no authentication, no cookies
+- No JavaScript rendering — SPAs return skeleton HTML
+- Some sites block via robots.txt
+- 30-second timeout, 5000-character default response (paginated for longer pages)
+
+---
+
+## Memory (Memory MCP)
+
+The AI has a persistent knowledge graph that retains information across conversations — preferences, project facts, decisions, and conventions.
+
+### Setup
+
+Enable during `relay onboard` (Step 4), or set in `~/.relay/config.json`:
+
+```json
+{
+  "memoryEnabled": true
+}
+```
+
+Data is stored in `~/.relay/memory.jsonl` (or `./.relay/memory.jsonl` in dev mode).
+
+### How it works
+
+- At the start of each conversation, the AI searches its memory for relevant context
+- As you chat, it proactively stores preferences, decisions, and project facts
+- Information persists across conversations and bot restarts
+
+### What gets remembered
+
+- **Preferences**: "I use Tailwind", "always use pnpm"
+- **Project facts**: tech stack, architecture decisions, deployment targets
+- **Decisions**: "we chose PostgreSQL for the database"
+- **Conventions**: coding patterns, naming conventions
+
+The AI never stores secrets, API keys, or passwords in the knowledge graph.
+
+---
+
+## Filesystem (Filesystem MCP)
+
+The AI can read and write files outside the current project directory — useful for cross-project operations, reading logs, or writing output files.
+
+### Setup
+
+Enable during `relay onboard` (Step 4), or set in `~/.relay/config.json`:
+
+```json
+{
+  "filesystemEnabled": true,
+  "filesystemPaths": ["/home/user/Documents", "/home/user/Downloads"]
+}
+```
+
+The wizard prompts for allowed directories (comma-separated, `~` is expanded).
+
+### What the AI can do
+
+- Read files from other projects, downloads, or system locations
+- Write output files to specific directories
+- Compare files across repositories
+- Inspect logs or config files outside the working directory
+- Search and navigate directory trees
+
+### Limitations
+
+- All operations are restricted to the directories listed in `filesystemPaths`
+- No delete operation — files and directories cannot be removed
+- Symlinks are resolved and re-checked against allowed paths
 
 ---
 
@@ -162,16 +260,16 @@ Text messages have a 32,000-character limit. For larger content, send it as a fi
 
 ## MCP Servers
 
-MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools like browsers, databases, and external APIs.
+MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools.
+
+Four built-in MCP tools are configurable during `relay onboard`: **Browser**, **Fetch**, **Memory**, and **Filesystem** (see sections above). You can also add custom MCP servers at runtime.
 
 ### Adding a local MCP server
 
 Local servers run as subprocesses on the same machine:
 
 ```
-/mcp add memory local npx -y @modelcontextprotocol/server-memory
-/mcp add browser local npx -y @anthropic-ai/mcp-server-puppeteer
-/mcp add filesystem local npx -y @modelcontextprotocol/server-filesystem /home/user/projects
+/mcp add myserver local npx -y @modelcontextprotocol/server-example
 ```
 
 ### Adding a remote MCP server
@@ -184,14 +282,14 @@ Remote servers connect via URL:
 
 ### Checking status
 
-Use `/mcp` to see all configured servers and their connection status:
+Use `/mcp` to see all configured servers and their connection status. Servers are numbered with action buttons (Connect/Reconnect and Remove):
 
 ```
 MCP Servers (2)
 
-memory  ok
-browser  failed
-  Connection refused
+1. memory  ok
+2. browser  failed
+   Connection refused
 ```
 
 ### Removing a server

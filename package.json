@@ -1,6 +1,6 @@
 {
   "name": "@4via6/relay",
-  "version": "2.1.14",
+  "version": "2.2.0",
   "description": "Telegram bot for AI coding agents — powered by OpenCode",
   "type": "module",
   "main": "dist/index.js",
@@ -37,7 +37,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.3.0",
+    "@clack/prompts": "^1.0.1",
     "@opencode-ai/sdk": "^1.2.15",
     "grammy": "^1.40.1",
     "pino": "^10.3.1",

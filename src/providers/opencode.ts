@@ -312,11 +312,16 @@ export class OpenCodeProvider implements Provider {
           } else if (part?.type === "tool") {
             toolEvents++;
             const toolName = part.tool;
-            if (part.state?.status === "running") {
+            const status = part.state?.status;
+            providerLogger.info(
+              { sessionId, tool: toolName, status, title: part.state?.title, input: part.state?.input ?? undefined },
+              "Tool event"
+            );
+            if (status === "running") {
               yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
-            } else if (part.state?.status === "completed") {
+            } else if (status === "completed") {
               yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
-            } else if (part.state?.status === "error") {
+            } else if (status === "error") {
               yield { type: "tool_use", content: `[${toolName} error]` };
             }
           }
@@ -359,6 +364,8 @@ export class OpenCodeProvider implements Provider {
           const rawError = props.error ?? "Unknown session error";
           providerLogger.warn({ sessionId, error: rawError }, "session.error");
           throw new Error(rawError);
+        } else {
+          providerLogger.info({ sessionId, evtType, props }, "SSE event");
         }
       }
     } finally {

@@ -12,6 +12,11 @@ import { escapeHtml } from "../utils/html.js";
 
 const PROVIDER_MODELS_PER_PAGE = 8;
 
+/** Telegram throws 400 "message is not modified" when edit content is identical — safe to ignore */
+function isNotModified(err: any): boolean {
+  return err?.description?.includes("message is not modified");
+}
+
 const SENSITIVE_KEYS = new Set([
   "botToken",
   "groqApiKey",
@@ -616,6 +621,7 @@ export function registerAdminCommands(bot: Bot): void {
       await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
       await ctx.answerCallbackQuery();
     } catch (err: any) {
+      if (isNotModified(err)) { await ctx.answerCallbackQuery(); return; }
       await ctx.answerCallbackQuery({ text: "Failed to load models" });
     }
   });
@@ -631,6 +637,7 @@ export function registerAdminCommands(bot: Bot): void {
       await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
       await ctx.answerCallbackQuery();
     } catch (err: any) {
+      if (isNotModified(err)) { await ctx.answerCallbackQuery(); return; }
       await ctx.answerCallbackQuery({ text: "Failed to go back" });
     }
   });
@@ -648,6 +655,7 @@ export function registerAdminCommands(bot: Bot): void {
       await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
       await ctx.answerCallbackQuery();
     } catch (err: any) {
+      if (isNotModified(err)) { await ctx.answerCallbackQuery(); return; }
       await ctx.answerCallbackQuery({ text: "Failed to load page" });
     }
   });
@@ -804,7 +812,11 @@ export function registerAdminCommands(bot: Bot): void {
     }
     text += `\n<b>Configured:</b>  ${configured.length > 0 ? configured.map((p) => p.name).join(", ") : "None"}`;
 
-    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+    try {
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+    } catch (err: any) {
+      if (!isNotModified(err)) throw err;
+    }
     await ctx.answerCallbackQuery({ text: `STT set to ${choice}` });
   });
 

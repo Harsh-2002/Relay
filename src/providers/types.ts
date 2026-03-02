@@ -35,9 +35,10 @@ export interface PromptResult {
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_use" | "status" | "done" | "file" | "reasoning";
+  type: "text" | "tool_use" | "status" | "done" | "file" | "reasoning" | "reasoning_reclassify";
   content: string;
   file?: { mime: string; filename: string; url: string };
+  deltaText?: string;
 }
 
 export interface FileNode {

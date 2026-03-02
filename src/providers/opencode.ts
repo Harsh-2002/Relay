@@ -168,17 +168,23 @@ export class OpenCodeProvider implements Provider {
       "Starting prompt (via async)"
     );
 
-    const textParts: string[] = [];
-    const reasoningParts: string[] = [];
+    let collectedText = "";
+    let collectedReasoning = "";
     const fileParts: any[] = [];
     let chunkCount = 0;
 
     for await (const chunk of this.promptStream(sessionId, text, options)) {
       chunkCount++;
       if (chunk.type === "text") {
-        textParts.push(chunk.content);
+        collectedText += chunk.content;
       } else if (chunk.type === "reasoning") {
-        reasoningParts.push(chunk.content);
+        collectedReasoning += chunk.content;
+      } else if (chunk.type === "reasoning_reclassify") {
+        if (chunk.deltaText) {
+          const idx = collectedText.indexOf(chunk.deltaText);
+          if (idx >= 0) collectedText = collectedText.slice(0, idx) + collectedText.slice(idx + chunk.deltaText.length);
+        }
+        collectedReasoning += chunk.content;
       } else if (chunk.type === "file" && chunk.file) {
         fileParts.push({
           type: "file" as const,
@@ -191,8 +197,7 @@ export class OpenCodeProvider implements Provider {
       }
     }
 
-    const collectedText = textParts.join("") || "(empty response)";
-    const collectedReasoning = reasoningParts.join("") || undefined;
+    collectedText = collectedText || "(empty response)";
     const parts: any[] = [{ type: "text", text: collectedText }, ...fileParts];
 
     providerLogger.info(
@@ -200,7 +205,7 @@ export class OpenCodeProvider implements Provider {
       "Prompt completed"
     );
 
-    return { text: collectedText, reasoning: collectedReasoning, parts, raw: null };
+    return { text: collectedText, reasoning: collectedReasoning || undefined, parts, raw: null };
   }
 
   async abort(sessionId: string): Promise<void> {
@@ -268,6 +273,7 @@ export class OpenCodeProvider implements Provider {
     const reasoningDeltaPartIds = new Set<string>();        // partIDs that yielded reasoning via deltas
     const snapshotYieldedPartIds = new Set<string>();       // partIDs whose full snapshot was already yielded
     const fieldCounts = new Map<string, number>();          // delta field names seen (diagnostics)
+    const partDeltaText = new Map<string, string>();        // partID → concatenated delta text yielded as "text"
 
     try {
       for await (const event of sseResult.stream) {
@@ -296,6 +302,7 @@ export class OpenCodeProvider implements Provider {
               reasoningDeltaPartIds.add(props.partID);
               yield { type: "reasoning", content: props.delta };
             } else if (field === "text") {
+              partDeltaText.set(props.partID, (partDeltaText.get(props.partID) ?? "") + props.delta);
               yield { type: "text", content: props.delta };
             } else {
               providerLogger.info({ sessionId, field, partID: props.partID }, "Unknown delta field");
@@ -331,11 +338,24 @@ export class OpenCodeProvider implements Provider {
             };
           } else if (part?.type === "reasoning" && delta) {
             yield { type: "reasoning", content: delta };
-          } else if (part?.type === "reasoning" && !delta && part.text) {
-            // Reasoning snapshot without delta — yield full text if not already covered by deltas
-            if (!reasoningDeltaPartIds.has(part.id)) {
-              snapshotYieldedPartIds.add(part.id);
-              yield { type: "reasoning", content: part.text };
+          } else if (part?.type === "reasoning" && !delta) {
+            if (reasoningDeltaPartIds.has(part.id)) {
+              // Deltas already yielded as reasoning — skip
+            } else {
+              const misclassifiedText = partDeltaText.get(part.id);
+              if (misclassifiedText) {
+                // Deltas were yielded as text — reclassify
+                snapshotYieldedPartIds.add(part.id);
+                yield {
+                  type: "reasoning_reclassify" as const,
+                  content: part.text ?? misclassifiedText,
+                  deltaText: misclassifiedText,
+                };
+              } else if (part.text) {
+                // No deltas for this part — yield snapshot as new reasoning
+                snapshotYieldedPartIds.add(part.id);
+                yield { type: "reasoning", content: part.text };
+              }
             }
           } else if (part?.type === "tool") {
             toolEvents++;

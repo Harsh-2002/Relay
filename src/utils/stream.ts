@@ -97,6 +97,15 @@ export async function streamPrompt({
         accumulated += chunk.content;
       } else if (chunk.type === "reasoning") {
         reasoning += chunk.content;
+      } else if (chunk.type === "reasoning_reclassify") {
+        if (chunk.deltaText) {
+          const idx = accumulated.indexOf(chunk.deltaText);
+          if (idx >= 0) {
+            accumulated = accumulated.slice(0, idx) + accumulated.slice(idx + chunk.deltaText.length);
+          }
+        }
+        reasoning += chunk.content;
+        streamLogger.info({ sessionId, deltaTextLen: chunk.deltaText?.length }, "Reasoning reclassified");
       } else if (chunk.type === "tool_use") {
         toolStatus = chunk.content;
       } else if (chunk.type === "file" && chunk.file) {
@@ -148,13 +157,6 @@ export async function streamPrompt({
       ctx.api.deleteMessage(chatId, thinkingMsgId).catch(() => {});
       thinkingMsgId = null;
     }
-  }
-
-  // Deduplication: when provider sends reasoning as both text deltas (field: "text")
-  // AND as a typed snapshot (part.type: "reasoning"), the reasoning ends up in both
-  // `accumulated` and `reasoning`. Strip the duplicate from accumulated.
-  if (reasoning && accumulated.startsWith(reasoning)) {
-    accumulated = accumulated.slice(reasoning.length).trimStart();
   }
 
   streamLogger.info(

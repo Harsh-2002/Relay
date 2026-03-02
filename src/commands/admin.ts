@@ -937,7 +937,7 @@ export function registerAdminCommands(bot: Bot): void {
 
       `<b>Shell</b>\n` +
       `/shell <code>cmd</code>  —  Run command\n` +
-      `/cmd <code>command</code>  —  OpenCode command\n` +
+      `/cmd  —  OpenCode commands (picker)\n` +
       `/commands  —  List available commands\n\n` +
 
       `<b>MCP</b>\n` +

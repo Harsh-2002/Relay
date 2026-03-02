@@ -15,6 +15,8 @@ No test suite, linter, or formatter is configured.
 
 Run `relay onboard` for the interactive setup wizard. Config is stored in `~/.relay/config.json` (global). Use `--dev` flag to use `./.relay/` in the current directory instead.
 
+Re-running `relay onboard` on an existing config enters **update mode** — shows current values and lets you press Enter to keep them, or type a new value to replace.
+
 At minimum, you need:
 - `botToken` — Telegram bot token (required)
 - `allowedUserId` — Telegram user ID (required)
@@ -32,7 +34,7 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 - **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`
 - **`loader.ts`** — Config resolution: CLI args > config file > defaults
-- **`setup.ts`** — Interactive setup wizard using `@inquirer/prompts`
+- **`setup.ts`** — Interactive setup wizard using `@inquirer/prompts`. Supports new config creation and update mode (re-running shows current values, Enter to keep)
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
 
 ### Provider Abstraction (`src/providers/`)
@@ -41,35 +43,36 @@ OpenCode is the sole backend, implementing the `Provider` interface (`src/provid
 
 - **`types.ts`** — Defines `Provider` interface, `ProviderCapabilities` flags, `PromptResult`, `StreamChunk`, `SessionInfo`, and all shared types
 - **`index.ts`** — Provider factory and singleton accessor
-- **`opencode.ts`** — Uses `@opencode-ai/sdk` (full feature set)
+- **`opencode.ts`** — Uses `@opencode-ai/sdk` (full feature set). Session matching for `message.part.updated` events uses `part.sessionID` (v2 API puts sessionID on the part object, not at top-level props). Extracts tool attachments (e.g. Playwright screenshots) from `state.attachments` and yields them as file chunks.
 
 ### Command System (`src/commands/`)
 
 Commands are registered in `src/commands/index.ts` in a specific order. Each module registers Grammy handlers:
 
 - **`chat.ts`** — Main text message handler; routes to streaming prompt pipeline. Supports reply-to-message context and edited message re-prompting
-- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/help`, etc.
-- **`session.ts`** — `/new`, `/sessions`, `/switch`, `/delete`, `/current`
+- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/stt`, `/agent`, `/agents`, `/system`, `/help`, `/project`, `/git`, `/tools`, `/providers`, `/start`
+- **`session.ts`** — `/new`, `/sessions`, `/switch`, `/delete`, `/current`, `/rename`
 - **`monitor.ts`** — `/todo`, `/diff`, `/fork`
-- **`files.ts`** — `/read`, `/find`, `/search`, `/symbols`, `/status`
-- **`history.ts`** — `/history`, `/revert`, `/unrevert`, `/abort`, `/share`, `/summarize`
+- **`files.ts`** — `/ls`, `/read`, `/find`, `/search`, `/symbols`, `/status`
+- **`history.ts`** — `/history`, `/revert`, `/unrevert`, `/abort`, `/share`, `/unshare`, `/summarize`
 - **`shell.ts`** — `/shell`, `/cmd`, `/commands`
 - **`media.ts`** — Handles photos, voice notes, audio, and file uploads
-- **`mcp.ts`** — `/mcp add`, `/mcp remove`
+- **`mcp.ts`** — `/mcp add`, `/mcp remove`, `/mcp connect`
 
 ### Key Utilities (`src/utils/`)
 
 - **`logger.ts`** — Pino-based structured logging with child loggers per component
 - **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `~/.relay/` directory)
-- **`stream.ts`** — Streaming response handler: uses Telegram's `sendMessageDraft` API for smooth animated streaming. Sends draft updates as chunks arrive from the OpenCode SSE stream, then finalizes with `sendMessage`. Handles reasoning blockquotes, markdown→HTML, chunking. Auto-closes unclosed code fences during intermediate drafts; shows tail-end for long responses (>4000 chars); 120-second stall detection in opencode.ts
-- **`markdown.ts`** — Markdown to Telegram HTML converter: handles bold, italic, strikethrough, code, links, blockquotes. Guards against false-positive italic on math expressions
+- **`stream.ts`** — Streaming response handler: sends a "Thinking." message via `sendMessage`, then edits it in-place via `editMessageText` as chunks arrive. Handles reasoning blockquotes, markdown→HTML, chunking. Strips markdown image syntax (`![]()`; code-block aware) since Telegram can't render inline images. Auto-closes unclosed code fences during intermediate edits; shows tail-end for long responses (>4000 chars); 120-second stall detection in opencode.ts
+- **`markdown.ts`** — Markdown to Telegram HTML converter: handles bold, italic, strikethrough, code, links, blockquotes, tables. Guards against false-positive italic on math expressions
 - **`chunker.ts`** — HTML-aware message chunker: splits at Telegram's 4096-char limit while tracking open HTML tags across chunk boundaries (closes at end, re-opens at start of next chunk)
 - **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
-- **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses
-- **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > AssemblyAI > OpenAI
-- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Appends fresh IST timestamp to every prompt
+- **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses and tool attachments, sends images via `sendPhoto` (no caption) and other files via `sendDocument`. Resolves both base64 data URLs and HTTP URLs
+- **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > Sarvam > AssemblyAI > OpenAI. Sarvam supports batch jobs for audio >30s and a translate-to-English mode
+- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Appends Playwright MCP browser instructions when `browserEnabled` is set. Appends fresh IST timestamp to every prompt
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
+- **`opencode-config.ts`** — Auto-injects Playwright MCP into OpenCode's config (`~/.config/opencode/opencode.json`) when `browserEnabled` is set. Idempotent — skips if already configured
 
 ### Daemon Management (`src/daemon.ts`)
 
@@ -84,8 +87,8 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 - **`src/session.ts`** — Tracks active session ID and selected model, persisted to `~/.relay/session.json`. Uses a mutex to prevent race conditions on concurrent messages. Exports `withPromptQueue()` for serial prompt execution (prevents SSE stream interleaving).
 - **`src/auth.ts`** — Single-user auth via `initAuth(userId)` + rate limiting (30 req/min) with countdown timer.
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
-- **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run.
-- **`src/index.ts`** — Bot startup: loads config, inits provider, starts bot in polling or webhook mode.
+- **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run. Passes existing config to setup wizard for update mode.
+- **`src/index.ts`** — Bot startup: loads config, inits provider, auto-configures Playwright MCP if enabled, starts bot in polling or webhook mode.
 
 ### Persistence (`~/.relay/` directory)
 
@@ -104,10 +107,12 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
 - **Bundled SDK**: The OpenCode SDK (`@opencode-ai/sdk`) is bundled as a dependency.
-- **Streaming**: All responses stream via `src/utils/stream.ts` using Telegram's `sendMessageDraft` API. Draft updates are sent as chunks arrive from the OpenCode SSE stream, throttled by `streamEditIntervalMs`. A final `sendMessage` replaces the draft with the fully-formatted response. Auto-closes unclosed code fences during intermediate drafts.
+- **Streaming**: All responses stream via `src/utils/stream.ts`. A single message is sent via `sendMessage("Thinking.")`, then edited in-place via `editMessageText` as chunks arrive (throttled by `streamEditIntervalMs`). Final response is also an edit. This avoids the pinned notification banner that `sendMessageDraft` causes. Auto-closes unclosed code fences during intermediate edits.
 - **Prompt queue**: All prompt execution (chat and media) is wrapped in `withPromptQueue()` from `src/session.ts` to serialize concurrent messages and prevent SSE stream interleaving.
 - **Reasoning display**: AI thinking/reasoning is shown in Telegram expandable blockquotes (`<blockquote expandable>`) above the answer. For large responses, reasoning is sent as a separate message.
 - **Reply context**: When users reply to a bot message, the quoted text is prepended to the prompt as `[Replying to: "..."]`.
 - **Edited messages**: Edited user messages are handled via grammY's `edited_message:text` event, prefixed with `[Edited message]`.
 - **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts` which is HTML-aware — tracks open tags across chunks). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
+- **Tool attachments**: Tool results (e.g. Playwright screenshots) carry file attachments in `state.attachments`. These are yielded as `file` chunks by `opencode.ts`, collected by `stream.ts`, and sent to Telegram via `files.ts` as separate photo/document messages.
+- **Media in text**: Markdown image syntax (`![alt](url)`) is stripped from text responses in `stream.ts` (code-block aware) since Telegram cannot render inline images. The system prompt also instructs the AI not to reference screenshots in text.
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

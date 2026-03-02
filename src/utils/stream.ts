@@ -168,7 +168,8 @@ export async function streamPrompt({
     return;
   }
 
-  const answerHtml = markdownToHtml(accumulated);
+  const cleanedText = stripMarkdownImages(accumulated);
+  const answerHtml = markdownToHtml(cleanedText);
   const answerHtmlChunks = chunkMessage(answerHtml);
   const fitsInOneMessage = answerHtmlChunks.length === 1;
 
@@ -240,9 +241,27 @@ function buildDisplayText(text: string, toolStatus: string, reasoning = ""): str
   if (display.length > 4000) {
     display = "...\n\n" + display.slice(display.length - 3950);
   }
+  // Strip markdown images (Telegram can't render inline images)
+  display = stripMarkdownImages(display);
   // Close any unclosed code fences so markdown→HTML conversion works
   display = closeUnterminatedCodeFences(display);
   return display;
+}
+
+/**
+ * Strip markdown image syntax (![alt](url)) from text.
+ * Telegram can't render inline images — actual files are sent as separate photo messages.
+ * Protects code blocks so ![...] inside ``` fences is preserved.
+ */
+function stripMarkdownImages(text: string): string {
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (m) => {
+    codeBlocks.push(m);
+    return `\x00CBLK${codeBlocks.length - 1}\x00`;
+  });
+  result = result.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+  result = result.replace(/\x00CBLK(\d+)\x00/g, (_, i) => codeBlocks[+i]);
+  return result.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /**

@@ -269,7 +269,6 @@ export class OpenCodeProvider implements Provider {
     // Track partIDs from delta events so we can match message.part.updated
     // events (v2 API: updated events lack sessionID at top level)
     const sessionPartIds = new Set<string>();
-    const sessionMessageIds = new Set<string>();            // message IDs confirmed for our session
     const partTypeMap = new Map<string, string>();          // partID → definitive part type from updated events
     const reasoningDeltaPartIds = new Set<string>();        // partIDs that yielded reasoning via deltas
     const snapshotYieldedPartIds = new Set<string>();       // partIDs whose full snapshot was already yielded
@@ -313,18 +312,12 @@ export class OpenCodeProvider implements Provider {
         // --- message.part.updated (files, tool state, full part snapshots) ---
         } else if (evtType === "message.part.updated") {
           const part = props.part;
-          // v2: no sessionID on updated events — match by tracked partID, messageID, or sessionID (v1 compat)
+          // v2: sessionID lives on the part object itself (part.sessionID), not at top-level props
           const partId = part?.id ?? props.partID;
-          const msgId = props.messageID ?? props.message_id;
           const isOurSession = matchesSession(evt, sessionId)
-            || (partId && sessionPartIds.has(partId))
-            || (msgId && sessionMessageIds.has(msgId));
-          if (!isOurSession) {
-            if (part?.type === "tool" || part?.type === "file") {
-              providerLogger.info({ sessionId, partType: part.type, partId, msgId, tool: part.tool }, "Filtered out part.updated (session mismatch)");
-            }
-            continue;
-          }
+            || part?.sessionID === sessionId
+            || (partId && sessionPartIds.has(partId));
+          if (!isOurSession) continue;
           resetStallTimer();
 
           // Always track part type for cross-referencing with delta events
@@ -379,12 +372,15 @@ export class OpenCodeProvider implements Provider {
               yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
               // Yield tool attachments (e.g. Playwright screenshots) as file chunks
               if (part.state?.attachments?.length) {
-                for (const att of part.state.attachments) {
+                for (let ai = 0; ai < part.state.attachments.length; ai++) {
+                  const att = part.state.attachments[ai];
                   if (att?.type === "file" && att.url) {
+                    const mime = att.mime ?? "application/octet-stream";
+                    const filename = att.filename || filenameFromMime(mime, ai);
                     yield {
                       type: "file" as const,
-                      content: att.filename ?? "file",
-                      file: { mime: att.mime ?? "application/octet-stream", filename: att.filename ?? "file", url: att.url },
+                      content: filename,
+                      file: { mime, filename, url: att.url },
                     };
                   }
                 }
@@ -412,14 +408,6 @@ export class OpenCodeProvider implements Provider {
           }).catch((err: any) => {
             providerLogger.warn({ sessionId, permId, err: err?.message }, "Permission auto-approve failed");
           });
-
-        // --- message.updated: track message IDs for our session ---
-        } else if (evtType === "message.updated") {
-          const info = props.info ?? props;
-          const msgSessionId = info.sessionID ?? info.session_id;
-          if (msgSessionId === sessionId && info.id) {
-            sessionMessageIds.add(info.id);
-          }
 
         // --- session lifecycle ---
         } else if (evtType === "session.idle") {
@@ -924,6 +912,16 @@ function sdkError(error: any): Error {
   if (typeof error === "string") return new Error(error);
   if (error?.message) return new Error(error.message);
   return new Error(JSON.stringify(error));
+}
+
+const MIME_EXTENSIONS: Record<string, string> = {
+  "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
+  "application/pdf": "pdf", "text/plain": "txt", "text/html": "html",
+};
+
+function filenameFromMime(mime: string, index: number): string {
+  const ext = MIME_EXTENSIONS[mime] ?? mime.split("/")[1] ?? "bin";
+  return `attachment${index > 0 ? `-${index + 1}` : ""}.${ext}`;
 }
 
 function matchesSession(evt: OcEvent, sessionId: string): boolean {

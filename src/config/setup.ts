@@ -106,77 +106,166 @@ async function validateUserId(
   }
 }
 
-export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
+function maskSecret(value: string): string {
+  if (value.length <= 6) return "****";
+  return "****" + value.slice(-6);
+}
+
+function getSttKeyForProvider(config: RelayConfig, provider: string): string {
+  if (provider === "groq") return config.groqApiKey;
+  if (provider === "openai") return config.openaiSttApiKey;
+  if (provider === "sarvam" || provider === "sarvam-translate") return config.sarvamApiKey;
+  if (provider === "assemblyai") return config.assemblyaiApiKey;
+  return "";
+}
+
+const STT_PROVIDER_LABELS: Record<string, string> = {
+  groq: "Groq",
+  openai: "OpenAI",
+  assemblyai: "AssemblyAI",
+  sarvam: "Sarvam AI",
+  "sarvam-translate": "Sarvam AI (translate)",
+  auto: "Auto",
+};
+
+const RELAY_BANNER = `
+    ____       __
+   / __ \\___  / /___ ___  __
+  / /_/ / _ \\/ / __ \`/ / / /
+ / _, _/  __/ / /_/ / /_/ /
+/_/ |_|\\___/_/\\__,_/\\__, /
+                   /____/
+`;
+
+const TOTAL_STEPS = 5;
+const DIVIDER = "─".repeat(40);
+
+function stepHeader(num: number, title: string): void {
+  console.log(`\n  ${DIVIDER}`);
+  console.log(`  [${num}/${TOTAL_STEPS}] ${title}`);
+  console.log();
+}
+
+function hint(text: string): void {
+  console.log(`  \x1b[2m${text}\x1b[0m`);
+}
+
+function ok(text: string): void {
+  console.log(`  \x1b[32m✓\x1b[0m ${text}`);
+}
+
+function fail(text: string): void {
+  console.log(`  \x1b[31m✗\x1b[0m ${text}`);
+}
+
+function warn(text: string): void {
+  console.log(`  \x1b[33m⚠\x1b[0m ${text}`);
+}
+
+export async function runSetupWizard(dataDir: string, existing?: RelayConfig): Promise<RelayConfig> {
   const { input, select, confirm } = await import("@inquirer/prompts");
 
-  console.log("\n  Relay Setup\n");
-  console.log("  Configure your Telegram bot for AI coding agents.\n");
+  const isUpdate = !!(existing?.botToken);
+  const config: RelayConfig = existing ? { ...existing } : { ...CONFIG_DEFAULTS, dataDir };
 
-  // Step 1: Bot token
-  console.log("  Step 1: Bot Token\n");
-  console.log("  Create a bot on Telegram:");
-  console.log("  1. Open @BotFather → https://t.me/BotFather");
-  console.log("  2. Send /newbot and follow the prompts");
-  console.log("  3. Copy the token it gives you\n");
-
-  let botToken = "";
-  let tokenValidated = false;
-  while (!tokenValidated) {
-    botToken = (await input({
-      message: "Telegram bot token:",
-      validate: (v) => (v.trim().length > 0 ? true : "Bot token is required"),
-    })).trim();
-
-    console.log("  Validating bot token...");
-    const tokenResult = await validateBotToken(botToken);
-
-    if (tokenResult.valid) {
-      console.log(`  ✓ Bot verified — ${tokenResult.botName}\n`);
-      tokenValidated = true;
-    } else {
-      console.log(`  ✗ ${tokenResult.error}\n`);
-    }
+  console.log(RELAY_BANNER);
+  console.log("  Telegram bot for AI coding agents");
+  console.log(`  ${DIVIDER}`);
+  if (isUpdate) {
+    hint("Update mode — press Enter to keep existing values.");
   }
 
-  // Step 2: User ID
-  console.log("  Step 2: Your Telegram User ID\n");
-  console.log("  Find your numeric user ID:");
-  console.log("  1. Open @userinfobot → https://t.me/userinfobot");
-  console.log("  2. Send any message — it replies with your ID\n");
+  // ── Step 1: Bot Token ──
+  stepHeader(1, "Bot Token");
+  if (!isUpdate) {
+    hint("Create a bot via @BotFather → https://t.me/BotFather");
+    hint("Send /newbot, follow the prompts, copy the token.");
+    console.log();
+  } else {
+    hint(`Current: ${maskSecret(config.botToken)}`);
+    console.log();
+  }
+
+  let botToken = config.botToken;
+  let tokenValidated = false;
+  while (!tokenValidated) {
+    const entered = (await input({
+      message: "Bot token:",
+      validate: (v) => {
+        if (isUpdate && v.trim() === "") return true;
+        return v.trim().length > 0 ? true : "Bot token is required";
+      },
+    })).trim();
+
+    if (isUpdate && entered === "") {
+      ok("Kept existing bot token.");
+      tokenValidated = true;
+    } else {
+      hint("Validating...");
+      const tokenResult = await validateBotToken(entered);
+      if (tokenResult.valid) {
+        botToken = entered;
+        ok(`Bot verified — ${tokenResult.botName}`);
+        tokenValidated = true;
+      } else {
+        fail(tokenResult.error!);
+        console.log();
+      }
+    }
+  }
+  config.botToken = botToken;
+
+  // ── Step 2: User ID ──
+  stepHeader(2, "Telegram User ID");
+  if (!isUpdate) {
+    hint("Get your ID via @userinfobot → https://t.me/userinfobot");
+    hint("Send any message — it replies with your numeric ID.");
+    console.log();
+  } else {
+    hint(`Current: ${config.allowedUserId}`);
+    console.log();
+  }
 
   const allowedUserIdStr = (await input({
-    message: "Your Telegram user ID:",
+    message: "User ID:",
     validate: (v) => {
+      if (isUpdate && v.trim() === "") return true;
       const n = Number(v.trim());
       if (isNaN(n) || !Number.isInteger(n) || n <= 0) return "Must be a positive integer";
       if (n >= 10_000_000_000) return "User ID seems too large — check the value";
       return true;
     },
   })).trim();
-  const allowedUserId = Number(allowedUserIdStr);
 
-  console.log("  Verifying user ID...");
-  const userResult = await validateUserId(botToken, allowedUserId);
-  if (userResult.valid) {
-    console.log(`  ✓ User verified — ${userResult.name}\n`);
+  const allowedUserId = allowedUserIdStr === "" ? config.allowedUserId : Number(allowedUserIdStr);
+  const userIdChanged = allowedUserId !== config.allowedUserId;
+  config.allowedUserId = allowedUserId;
+
+  if (userIdChanged || !isUpdate) {
+    hint("Verifying...");
+    const userResult = await validateUserId(config.botToken, allowedUserId);
+    if (userResult.valid) {
+      ok(`User verified — ${userResult.name}`);
+    } else {
+      warn(`${userResult.error}. Saved anyway.`);
+    }
   } else {
-    console.log(`  ⚠ ${userResult.error}. Saved anyway.\n`);
+    ok("Kept existing user ID.");
   }
 
-  // Step 3: OpenCode
-  console.log("  Step 3: OpenCode Connection\n");
-  console.log("  Choose how Relay connects to OpenCode (the AI backend).");
-  console.log("  \"Start\" spawns a local server. \"Connect\" uses an existing one.\n");
-
-  const config: RelayConfig = {
-    ...CONFIG_DEFAULTS,
-    botToken,
-    allowedUserId,
-    dataDir,
-  };
+  // ── Step 3: OpenCode ──
+  stepHeader(3, "OpenCode Connection");
+  if (!isUpdate) {
+    hint("\"Start\" spawns a local server. \"Connect\" uses an existing one.");
+    console.log();
+  } else {
+    hint(`Current: ${config.opencodeMode === "start" ? "Start (local)" : "Connect (remote)"}`);
+    console.log();
+  }
 
   const opencodeMode = await select({
     message: "OpenCode mode:",
+    default: config.opencodeMode,
     choices: [
       { value: "start" as const, name: "Start (spawn local server)" },
       { value: "connect" as const, name: "Connect (remote server)" },
@@ -185,94 +274,138 @@ export async function runSetupWizard(dataDir: string): Promise<RelayConfig> {
   config.opencodeMode = opencodeMode;
 
   if (opencodeMode === "connect") {
-    config.opencodeUrl = (await input({
+    const urlEntered = (await input({
       message: "OpenCode server URL:",
-      default: "http://localhost:4096",
+      default: config.opencodeUrl || "http://localhost:4096",
     })).trim();
+    config.opencodeUrl = urlEntered;
   }
 
-  // Step 4: STT (optional)
-  console.log("\n  Step 4: Voice Transcription (Optional)\n");
-  console.log("  Enable speech-to-text to send voice messages to the AI agent.");
-  console.log("  Requires an API key from one of the supported providers.\n");
+  // ── Step 4: Voice Transcription ──
+  stepHeader(4, "Voice Transcription");
 
-  const configureStt = await confirm({
-    message: "Configure voice transcription (STT)?",
-    default: false,
-  });
+  const hasStt = isUpdate && config.sttProvider && config.sttProvider !== "auto";
+  if (hasStt) {
+    const activeKey = getSttKeyForProvider(config, config.sttProvider);
+    const keyDisplay = activeKey ? ` — key: ${maskSecret(activeKey)}` : "";
+    hint(`Current: ${STT_PROVIDER_LABELS[config.sttProvider] || config.sttProvider}${keyDisplay}`);
+    console.log();
 
-  if (configureStt) {
-    const sttProvider = await select({
-      message: "Which STT provider?",
+    const sttAction = await select({
+      message: "Voice transcription:",
       choices: [
-        { value: "groq" as const, name: "Groq (fastest, free tier available)" },
-        { value: "openai" as const, name: "OpenAI (reliable, paid)" },
-        { value: "assemblyai" as const, name: "AssemblyAI (accurate, free tier)" },
-        { value: "sarvam" as const, name: "Sarvam AI (transcription, multilingual)" },
-        { value: "sarvam-translate" as const, name: "Sarvam AI (translate to English)" },
+        { value: "keep" as const, name: "Keep current configuration" },
+        { value: "replace" as const, name: "Add or replace provider" },
+        { value: "disable" as const, name: "Disable STT" },
       ],
     });
 
-    const providerLabels: Record<string, string> = {
-      groq: "Groq",
-      openai: "OpenAI",
-      assemblyai: "AssemblyAI",
-      sarvam: "Sarvam AI",
-      "sarvam-translate": "Sarvam AI",
-    };
-    const validationProvider = sttProvider === "sarvam-translate" ? "sarvam" as const : sttProvider;
+    if (sttAction === "replace") {
+      await promptSttProvider(input, select, config);
+    } else if (sttAction === "disable") {
+      config.sttProvider = "auto";
+      ok("STT disabled.");
+    } else {
+      ok("Kept current STT configuration.");
+    }
+  } else {
+    if (!isUpdate) {
+      hint("Send voice messages to the AI. Requires an API key.");
+      console.log();
+    }
 
-    let validated = false;
-    while (!validated) {
-      const apiKey = (await input({
-        message: `${providerLabels[sttProvider]} API key:`,
-        validate: (v) => (v.trim().length > 0 ? true : "API key is required"),
-      })).trim();
+    const configureStt = await confirm({
+      message: "Configure voice transcription (STT)?",
+      default: false,
+    });
 
-      console.log("  Validating API key...");
-      const result = await validateSttApiKey(validationProvider, apiKey);
-
-      if (result.valid) {
-        config.sttProvider = sttProvider;
-        if (sttProvider === "groq") config.groqApiKey = apiKey;
-        else if (sttProvider === "openai") config.openaiSttApiKey = apiKey;
-        else if (sttProvider === "sarvam" || sttProvider === "sarvam-translate") config.sarvamApiKey = apiKey;
-        else config.assemblyaiApiKey = apiKey;
-        console.log("  ✓ API key validated successfully.\n");
-        validated = true;
-      } else {
-        console.log(`  ✗ ${result.error}\n`);
-      }
+    if (configureStt) {
+      await promptSttProvider(input, select, config);
     }
   }
 
-  // Step 5: Browser (optional)
-  console.log("\n  Step 5: Headless Browser (Optional)\n");
-  console.log("  Enable a headless Chromium browser via Playwright MCP.");
-  console.log("  This lets the AI navigate URLs, scrape pages, fill forms, and take screenshots.\n");
+  // ── Step 5: Browser ──
+  stepHeader(5, "Headless Browser");
+  if (!isUpdate) {
+    hint("Playwright MCP lets the AI navigate URLs, scrape pages,");
+    hint("fill forms, and take screenshots via headless Chromium.");
+    console.log();
+  } else {
+    hint(`Current: ${config.browserEnabled ? "Enabled" : "Disabled"}`);
+    console.log();
+  }
 
   const configureBrowser = await confirm({
     message: "Enable headless browser (Playwright MCP)?",
-    default: false,
+    default: config.browserEnabled,
   });
 
   if (configureBrowser) {
     config.browserEnabled = true;
-    try {
-      ensurePlaywrightMcp();
-      console.log("  ✓ Browser enabled — Playwright MCP written to OpenCode config.\n");
-    } catch {
-      console.log("  ✓ Browser enabled — Playwright MCP will be configured on startup.\n");
+    if (!isUpdate || !existing?.browserEnabled) {
+      try {
+        ensurePlaywrightMcp();
+        ok("Playwright MCP written to OpenCode config.");
+      } catch {
+        ok("Playwright MCP will be configured on startup.");
+      }
     }
+  } else {
+    config.browserEnabled = false;
   }
 
-  // Write config
+  // ── Done ──
   saveConfig(config, dataDir);
 
-  console.log(`\n  Config saved to ${join(dataDir, "config.json")}`);
-  console.log("  Run 'relay' to start the bot.\n");
+  console.log(`\n  ${DIVIDER}`);
+  ok(`Config saved to ${join(dataDir, "config.json")}`);
+  hint("Run 'relay' to start the bot.");
+  console.log();
 
   return config;
+}
+
+async function promptSttProvider(
+  input: typeof import("@inquirer/prompts")["input"],
+  select: typeof import("@inquirer/prompts")["select"],
+  config: RelayConfig,
+): Promise<void> {
+  const sttProvider = await select({
+    message: "Which STT provider?",
+    choices: [
+      { value: "groq" as const, name: "Groq (fastest, free tier available)" },
+      { value: "openai" as const, name: "OpenAI (reliable, paid)" },
+      { value: "assemblyai" as const, name: "AssemblyAI (accurate, free tier)" },
+      { value: "sarvam" as const, name: "Sarvam AI (transcription, multilingual)" },
+      { value: "sarvam-translate" as const, name: "Sarvam AI (translate to English)" },
+    ],
+  });
+
+  const validationProvider = sttProvider === "sarvam-translate" ? "sarvam" as const : sttProvider;
+
+  let validated = false;
+  while (!validated) {
+    const apiKey = (await input({
+      message: `${STT_PROVIDER_LABELS[sttProvider]} API key:`,
+      validate: (v) => (v.trim().length > 0 ? true : "API key is required"),
+    })).trim();
+
+    hint("Validating...");
+    const result = await validateSttApiKey(validationProvider, apiKey);
+
+    if (result.valid) {
+      config.sttProvider = sttProvider;
+      if (sttProvider === "groq") config.groqApiKey = apiKey;
+      else if (sttProvider === "openai") config.openaiSttApiKey = apiKey;
+      else if (sttProvider === "sarvam" || sttProvider === "sarvam-translate") config.sarvamApiKey = apiKey;
+      else config.assemblyaiApiKey = apiKey;
+      ok("API key validated.");
+      validated = true;
+    } else {
+      fail(result.error!);
+      console.log();
+    }
+  }
 }
 
 export function saveConfig(config: RelayConfig, dataDir: string): void {

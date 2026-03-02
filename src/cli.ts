@@ -100,7 +100,8 @@ async function main() {
     if (result.needsSetup && !isOnboard) {
       console.log("\n  No config found. Starting setup wizard...\n");
     }
-    const config = await runSetupWizard(result.config.dataDir);
+    const existing = result.needsSetup ? undefined : result.config;
+    const config = await runSetupWizard(result.config.dataDir, existing);
     setConfig(config);
 
     // If this was an explicit 'onboard' command, exit after saving

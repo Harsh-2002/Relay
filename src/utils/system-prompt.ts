@@ -49,7 +49,11 @@ Guidelines:
 - Use \`browser_wait_for\` instead of reloading pages for dynamic content
 - Close tabs with \`browser_close\` when done to free memory
 - Do not open multiple tabs unless explicitly needed
-- Minimize repeated full-page snapshots to reduce token usage — only snapshot when state changes`;
+- Minimize repeated full-page snapshots to reduce token usage — only snapshot when state changes
+
+Media delivery:
+- The system automatically extracts and delivers any captured screenshots or files as separate media messages alongside your text. The user sees both your text and the images in their chat — you do not need to present, reference, or organize the media.
+- Write your text as standalone prose that makes sense on its own. Describe your findings, answer the question, or explain what you observed. Avoid markdown image syntax (\`![]()\`) and file references, as these render as broken text in the chat interface.`;
 
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;

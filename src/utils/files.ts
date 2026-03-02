@@ -61,9 +61,7 @@ export async function sendResponseFiles(
       const input = new InputFile(buffer, file.filename);
 
       if (file.mime.startsWith("image/")) {
-        await ctx.api.sendPhoto(chatId, input, {
-          caption: file.filename,
-        });
+        await ctx.api.sendPhoto(chatId, input);
       } else {
         await ctx.api.sendDocument(chatId, input, {
           caption: file.filename,

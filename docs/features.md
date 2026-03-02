@@ -27,21 +27,13 @@ Relay streams AI responses in real time. As the AI generates text, the Telegram 
 
 ### Configuration
 
-Streaming is configured during `relay onboard`, or via CLI flag:
-
-```bash
-relay --streaming-enabled=true
-```
-
-Or set it in `.relay/config.json`:
+Streaming is always enabled. The edit interval (how often the message updates during streaming) can be adjusted in `~/.relay/config.json`:
 
 ```json
 {
-  "streamingEnabled": true
+  "streamEditIntervalMs": 2000
 }
 ```
-
-When disabled (default), the bot waits for the complete response before sending a single message.
 
 ---
 
@@ -71,7 +63,7 @@ Send voice notes to the bot and they'll be transcribed and processed as text inp
 
 ### Setup
 
-Configure at least one speech-to-text provider during `relay onboard`, or set keys in `.relay/config.json`:
+Configure at least one speech-to-text provider during `relay onboard`, or set keys in `~/.relay/config.json`:
 
 ```json
 {
@@ -235,13 +227,13 @@ Customize the AI's behavior with a system prompt file.
 
 The bot looks for a system prompt in this order:
 1. Explicit path from `systemPromptFile` in config
-2. `.relay/SKILL.md` if it exists
+2. `~/.relay/SKILL.md` if it exists
 3. `./SKILL.md` in the current directory (backward compatibility)
 4. Built-in default prompt
 
 ### Custom prompt file
 
-Set a custom path in `.relay/config.json`:
+Set a custom path in `~/.relay/config.json`:
 
 ```json
 {
@@ -380,18 +372,18 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 
 | Data | File | Description |
 |------|------|-------------|
-| Active session | `.relay/session.json` | Current session ID and selected model |
+| Active session | `~/.relay/session.json` | Current session ID and selected model |
 
 ### How it works
 
 - State is written atomically (via temp file + rename) to prevent corruption
 - Files are loaded on startup and written immediately on change
 - If a state file is missing or corrupt, the bot starts fresh with defaults
-- The `.relay/` directory is created automatically and excluded from git
+- The `~/.relay/` directory is created automatically
 
 ### Configuration
 
-Override the data directory in `.relay/config.json`:
+Override the data directory in `~/.relay/config.json`:
 
 ```json
 {
@@ -405,7 +397,7 @@ Or via CLI flag:
 relay --data-dir=/path/to/custom/data
 ```
 
-Default: `.relay/` in the project root.
+Default: `~/.relay/` in the user's home directory. Use `--dev` to use `./.relay/` in the current directory.
 
 ---
 
@@ -456,7 +448,7 @@ For production deployments, you can run Relay in webhook mode instead of long-po
 
 ### Setup
 
-Configure webhook mode during `relay onboard`, or set it in `.relay/config.json`:
+Configure webhook mode during `relay onboard`, or set it in `~/.relay/config.json`:
 
 ```json
 {

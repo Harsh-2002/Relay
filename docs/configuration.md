@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Relay uses a JSON config file at `.relay/config.json`. Run `relay onboard` for the interactive wizard, or pass settings via CLI flags.
+Relay uses a JSON config file at `~/.relay/config.json` (global). Run `relay onboard` for the interactive wizard, or pass settings via CLI flags. Use `--dev` to use `./.relay/` in the current directory for local development.
 
 ## Setup
 
@@ -35,10 +35,10 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--webhook-url` | Webhook URL (when `--bot-mode=webhook`) |
 | `--webhook-port` | Webhook port (default: 3000) |
 | `--webhook-secret` | Webhook secret token |
-| `--streaming-enabled` | `true` or `false` |
+| `--dev` | Use `./.relay/` in current directory instead of `~/.relay/` |
 | `--stream-edit-interval-ms` | Stream edit interval in ms |
 | `--prompt-timeout-ms` | Prompt timeout in ms |
-| `--data-dir` | Data directory (default: `.relay/`) |
+| `--data-dir` | Data directory (default: `~/.relay/`) |
 | `--system-prompt-file` | Custom system prompt file path |
 
 ## Core Settings
@@ -76,9 +76,9 @@ See [Providers](providers.md) for detailed setup.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `dataDir` | `--data-dir` | `.relay/` | Directory for persisted bot state |
+| `dataDir` | `--data-dir` | `~/.relay/` | Directory for persisted bot state |
 
-Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `.relay/` directory is created automatically.
+Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `~/.relay/` directory is created automatically. Use `--dev` to use `./.relay/` in the current directory instead.
 
 Files stored:
 - `config.json` — Your configuration (0600 permissions)
@@ -88,9 +88,10 @@ The directory is excluded from git via `.gitignore`.
 
 ## Streaming
 
+All responses stream by default. The edit interval controls how frequently the message is updated during streaming.
+
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `streamingEnabled` | `--streaming-enabled` | `false` | Enable progressive message editing |
 | `streamEditIntervalMs` | `--stream-edit-interval-ms` | `2000` | Update interval (ms) while streaming |
 
 ## Timeout
@@ -111,7 +112,7 @@ Relay uses structured JSON logging via pino at `info` level. All provider intera
 
 The bot looks for a system prompt in this order:
 1. Explicit path from `systemPromptFile` config
-2. `.relay/SKILL.md` if it exists
+2. `~/.relay/SKILL.md` if it exists
 3. `./SKILL.md` in the current directory (backward compatibility)
 4. Built-in default prompt
 
@@ -146,7 +147,6 @@ Use `sarvam-translate` to transcribe and translate non-English voice messages to
   "botToken": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
   "allowedUserId": 987654321,
   "provider": "opencode",
-  "streamingEnabled": true,
   "groqApiKey": "gsk_..."
 }
 ```

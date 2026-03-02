@@ -37,9 +37,8 @@ The wizard will ask for:
 3. OpenCode mode (start or connect)
 4. OpenCode-specific settings
 5. Optional voice transcription (STT) keys
-6. Streaming and logging preferences
 
-Config is saved to `.relay/config.json`.
+Config is saved to `~/.relay/config.json`.
 
 You can also pass settings as CLI flags:
 
@@ -92,8 +91,8 @@ Updates to the latest version. Restarts the daemon automatically if it's running
 ## Project Structure
 
 ```
-relay/
-  .relay/               -- Config and persisted state (auto-created)
+~/.relay/               -- Config and persisted state (auto-created, global)
+relay/                  -- Project directory (if developing from source)
     config.json         -- Your configuration
     session.json        -- Active session state
     SKILL.md            -- Custom system prompt (optional)

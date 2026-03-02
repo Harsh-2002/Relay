@@ -14,11 +14,11 @@ No configuration file exists. Run the interactive setup wizard:
 relay onboard
 ```
 
-This creates `.relay/config.json` with your bot token, user ID, and provider settings.
+This creates `~/.relay/config.json` with your bot token, user ID, and provider settings.
 
 ### "Unknown provider: xyz"
 
-The `provider` value in your config must be `"opencode"`. Run `relay onboard` to reconfigure, or check `.relay/config.json`:
+The `provider` value in your config must be `"opencode"`. Run `relay onboard` to reconfigure, or check `~/.relay/config.json`:
 
 ```json
 {
@@ -32,7 +32,7 @@ The `provider` value in your config must be `"opencode"`. Run `relay onboard` to
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Check `allowedUserId` in `.relay/config.json`:
+Relay only responds to authorized users. Check `allowedUserId` in `~/.relay/config.json`:
 
 ```json
 {
@@ -51,7 +51,7 @@ To find your Telegram user ID, send a message to [@userinfobot](https://t.me/use
 The OpenCode server isn't running or isn't reachable at the configured URL:
 
 1. Check that the OpenCode server is running
-2. Verify the URL in `.relay/config.json`:
+2. Verify the URL in `~/.relay/config.json`:
    ```json
    {
      "opencodeMode": "connect",
@@ -69,7 +69,7 @@ Relay couldn't spawn the OpenCode server. Check:
    ```bash
    lsof -i :4096
    ```
-3. Check the configured host and port in `.relay/config.json`:
+3. Check the configured host and port in `~/.relay/config.json`:
    ```json
    {
      "opencodeHostname": "127.0.0.1",
@@ -93,7 +93,7 @@ If you see a warning about connecting over HTTP, it means your `opencodeUrl` use
 
 ### "No STT provider available"
 
-No speech-to-text provider is configured. Run `relay onboard` and enable voice transcription, or add API keys to `.relay/config.json`:
+No speech-to-text provider is configured. Run `relay onboard` and enable voice transcription, or add API keys to `~/.relay/config.json`:
 
 ```json
 {
@@ -173,7 +173,7 @@ Check that your OpenCode config has providers and models configured. Models are 
 The file watcher should detect changes automatically. If it doesn't:
 
 1. Use `/system reload` to force a reload
-2. Check that the file path is correct in `.relay/config.json`:
+2. Check that the file path is correct in `~/.relay/config.json`:
    ```json
    {
      "systemPromptFile": "path/to/SKILL.md"
@@ -183,7 +183,7 @@ The file watcher should detect changes automatically. If it doesn't:
 
 ### "/system" shows "default prompt"
 
-No custom prompt file was found. Create `.relay/SKILL.md` or set `systemPromptFile` in your config to point to your prompt file.
+No custom prompt file was found. Create `~/.relay/SKILL.md` or set `systemPromptFile` in your config to point to your prompt file.
 
 ---
 

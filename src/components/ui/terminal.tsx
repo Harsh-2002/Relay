@@ -57,7 +57,7 @@ export function Terminal({
   return (
     <div
       className={clsx(
-        "rounded-xl border border-white/10 bg-zinc-900 overflow-hidden shadow-2xl",
+        "rounded-xl border border-white/10 bg-zinc-900/80 backdrop-blur-xl overflow-hidden shadow-2xl",
         className
       )}
     >

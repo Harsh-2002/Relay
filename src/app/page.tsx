@@ -12,9 +12,9 @@ export default function Home() {
       <Hero />
       <Features />
       <Providers />
-      <Voice />
       <Commands />
       <Architecture />
+      <Voice />
       <GettingStarted />
     </>
   );

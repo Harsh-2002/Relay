@@ -19,54 +19,72 @@ const features = [
     title: "75+ AI Providers",
     description:
       "Anthropic, OpenAI, Google, DeepSeek, local models, and more via OpenCode.",
+    accent: "text-amber-400",
+    glow: "bg-amber-400/10 ring-amber-400/20",
   },
   {
     icon: Radio,
     title: "Streaming",
     description:
       "Watch AI responses appear in real-time with progressive message editing.",
+    accent: "text-accent",
+    glow: "bg-accent/10 ring-accent/20",
   },
   {
     icon: Mic,
     title: "Voice Input",
     description:
       "Send voice notes \u2014 auto transcription via Groq, Sarvam AI, OpenAI, or AssemblyAI.",
+    accent: "text-cyan-400",
+    glow: "bg-cyan-400/10 ring-cyan-400/20",
   },
   {
     icon: GitBranch,
     title: "Sessions",
     description:
       "Create, switch, fork, and delete coding sessions on the fly.",
+    accent: "text-violet-400",
+    glow: "bg-violet-400/10 ring-violet-400/20",
   },
   {
     icon: FileSearch,
     title: "File Operations",
     description:
       "Read, find, search, and browse files directly from Telegram.",
+    accent: "text-accent",
+    glow: "bg-accent/10 ring-accent/20",
   },
   {
     icon: GitCompareArrows,
     title: "Code Diffs",
     description:
       "View structured diffs and monitor changes across sessions.",
+    accent: "text-rose-400",
+    glow: "bg-rose-400/10 ring-rose-400/20",
   },
   {
     icon: Puzzle,
     title: "Built-in MCP Tools",
     description:
       "Browser, Fetch, Memory, and Filesystem tools built in. Add custom MCP servers too.",
+    accent: "text-purple-400",
+    glow: "bg-purple-400/10 ring-purple-400/20",
   },
   {
     icon: Terminal,
     title: "Shell Access",
     description:
       "Run shell commands on the coding agent machine.",
+    accent: "text-accent",
+    glow: "bg-accent/10 ring-accent/20",
   },
   {
     icon: Settings,
     title: "Custom Prompts",
     description:
       "System prompts from files with automatic hot-reload.",
+    accent: "text-text-secondary",
+    glow: "bg-white/5 ring-white/10",
   },
 ];
 
@@ -74,6 +92,7 @@ export function Features() {
   return (
     <Section id="features" background="secondary">
       <SectionHeader
+        overline="Features"
         title="Everything you need"
         subtitle="A complete Telegram interface for your AI coding workflow"
       />
@@ -81,7 +100,9 @@ export function Features() {
         {features.map((feature, i) => (
           <AnimateIn key={feature.title} delay={i * 0.05}>
             <Card className="h-full">
-              <feature.icon size={24} className="text-accent mb-4" />
+              <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${feature.glow} ring-1 mb-4`}>
+                <feature.icon size={20} className={feature.accent} />
+              </div>
               <h3 className="text-lg font-semibold text-text-primary">
                 {feature.title}
               </h3>

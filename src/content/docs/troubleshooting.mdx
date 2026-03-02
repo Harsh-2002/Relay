@@ -36,13 +36,7 @@ Verify it's installed: `opencode --version`. The setup wizard (`relay onboard`) 
 
 ### Bot doesn't respond to messages
 
-Relay only responds to authorized users. Verify `allowedUserId` in `~/.relay/config.json`. Get your ID from [@userinfobot](https://t.me/userinfobot).
-
-For multiple users, separate IDs with commas:
-
-```json
-"allowedUserId": "123456789,987654321"
-```
+Relay only responds to a single authorized user. Verify `allowedUserId` in `~/.relay/config.json` matches your Telegram user ID. Get your ID from [@userinfobot](https://t.me/userinfobot).
 
 ---
 

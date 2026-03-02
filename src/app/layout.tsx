@@ -9,11 +9,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: "Relay — Telegram bot for AI coding agents",
+    default: "Relay — Your AI coding agent, always in Telegram",
     template: "%s | Relay",
   },
   description:
-    "Control AI coding agents from Telegram via OpenCode. 75+ AI providers, streaming responses, voice input, session management, and 30+ commands.",
+    "Your AI coding agent, always on — always in Telegram. Powered by OpenCode with 75+ AI providers, streaming responses, voice input, and 30+ commands.",
   keywords: [
     "Telegram bot",
     "AI coding agent",
@@ -29,19 +29,21 @@ export const metadata: Metadata = {
   authors: [{ name: "Harsh-2002", url: siteConfig.github }],
   creator: "Harsh-2002",
   openGraph: {
-    title: "Relay — Telegram bot for AI coding agents",
+    title: "Relay — Your AI coding agent, always in Telegram",
     description:
-      "Control AI coding agents from Telegram via OpenCode. 75+ AI providers, streaming responses, voice input, session management, and 30+ commands.",
+      "Your AI coding agent, always on — always in Telegram. Powered by OpenCode with 75+ AI providers, streaming responses, voice input, and 30+ commands.",
     url: siteConfig.url,
     siteName: "Relay",
     type: "website",
     locale: "en_US",
+    images: [{ url: "/Relay/relay.png", width: 1200, height: 630, alt: "Relay — Your AI coding agent, always in Telegram" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Relay — Telegram bot for AI coding agents",
+    title: "Relay — Your AI coding agent, always in Telegram",
     description:
-      "Control AI coding agents from Telegram via OpenCode. 75+ AI providers.",
+      "Your AI coding agent, always on — always in Telegram. Powered by OpenCode with 75+ providers.",
+    images: ["/Relay/relay.png"],
   },
   icons: {
     icon: [

@@ -9,13 +9,15 @@ order: 5
 Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced.
 
 1. You send a message
-2. The bot sends a "thinking" indicator
-3. As text arrives, the message is edited in place
-4. When complete, the final message is sent
+2. The bot sends a "Thinking..." indicator
+3. As text arrives, the message is edited in place with each new chunk
+4. When complete, the final formatted response replaces the streaming preview
 
-Messages are updated every 2 seconds by default to stay within Telegram rate limits. Long responses are automatically split into multiple messages (4096-character limit). Tool use indicators like "Reading file..." or "Running command..." appear during processing.
+A single Telegram message is reused throughout — no new messages are sent until the response is finalized. This avoids notification noise.
 
-You can adjust the update interval with `streamEditIntervalMs` (default: `2000` ms) in `~/.relay/config.json`.
+- **Update interval**: Every 2 seconds by default (`streamEditIntervalMs` in `~/.relay/config.json`)
+- **Long responses**: Automatically split into multiple messages (4096-character Telegram limit)
+- **Tool indicators**: "Reading file...", "Running command...", etc. appear during processing
 
 ---
 
@@ -31,13 +33,15 @@ Supported types:
 
 ## Voice Messages
 
-Send voice notes to the bot and they'll be transcribed and processed as text input. Configure at least one speech-to-text API key in `~/.relay/config.json`:
+Send voice notes to the bot and they'll be transcribed and processed as text input. Add at least one speech-to-text API key to `~/.relay/config.json`:
 
 ```json
-"groqApiKey": "gsk_...",
-"sarvamApiKey": "...",
-"assemblyaiApiKey": "...",
-"openaiSttApiKey": "sk-..."
+{
+  "groqApiKey": "gsk_...",
+  "sarvamApiKey": "...",
+  "assemblyaiApiKey": "...",
+  "openaiSttApiKey": "sk-..."
+}
 ```
 
 Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest available provider is selected: Groq > Sarvam > AssemblyAI > OpenAI.
@@ -121,7 +125,7 @@ Use `/mcp` to see all server statuses and `/mcp connect <name>` to reconnect a s
 
 ## Model Selection
 
-Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[free]`, `[active]`. Tap a button to select a model directly.
+Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[free]`. The active model is shown with a `✓` prefix. Tap a button to select a model directly.
 
 For text-based selection, use `/model sonnet`, `/model deepseek`, or a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
@@ -176,7 +180,9 @@ Create sessions with `/new` or `/new Refactoring auth module`. Fork a session wi
 
 Relay persists critical state to disk so it survives restarts:
 
+- `~/.relay/config.json` — User configuration
 - `~/.relay/session.json` — Current session ID and selected model
+- `~/.relay/SKILL.md` — Custom system prompt (optional)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data
 
 State is written atomically (temp file + rename) to prevent corruption.

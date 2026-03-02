@@ -115,17 +115,23 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
   },
 ];
 
-function CommandContent({ commands }: { commands: Command[] }) {
+function CommandContent({ commands, isInputTypes }: { commands: Command[]; isInputTypes?: boolean }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {commands.map((cmd) => (
         <div
           key={cmd.name}
-          className="flex items-start gap-3 rounded-lg border border-border-primary bg-bg-card px-4 py-3 transition-colors duration-200 hover:border-border-hover hover:bg-bg-card-hover"
+          className="flex items-start gap-3 rounded-lg border border-border-primary bg-bg-card/80 backdrop-blur-xl px-4 py-3 transition-colors duration-200 hover:border-border-hover hover:bg-bg-card-hover/80"
         >
-          <code className="text-sm font-mono text-accent whitespace-nowrap shrink-0">
-            {cmd.name}
-          </code>
+          {isInputTypes ? (
+            <span className="text-sm font-medium text-text-primary whitespace-nowrap shrink-0">
+              {cmd.name}
+            </span>
+          ) : (
+            <code className="text-sm font-mono text-accent whitespace-nowrap shrink-0">
+              {cmd.name}
+            </code>
+          )}
           <span className="text-sm text-text-secondary">{cmd.description}</span>
         </div>
       ))}
@@ -137,12 +143,13 @@ export function Commands() {
   const tabs = categories.map((cat) => ({
     id: cat.id,
     label: cat.label,
-    content: <CommandContent commands={cat.commands} />,
+    content: <CommandContent commands={cat.commands} isInputTypes={cat.id === "chat"} />,
   }));
 
   return (
     <Section id="commands" background="secondary">
       <SectionHeader
+        overline="Commands"
         title="30+ commands at your fingertips"
         subtitle="Organized command system covering every aspect of your coding workflow"
       />

@@ -108,7 +108,7 @@ Streaming is always enabled. Responses are progressively edited in Telegram as t
 
 - `systemPromptFile` — Path to your custom system prompt file (default: `SKILL.md`)
 
-The bot loads `SKILL.md` from the `~/.relay/` directory if it exists, otherwise uses a built-in default. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
+Resolved relative to `dataDir`, so the default location is `~/.relay/SKILL.md`. If the file exists, it's loaded as the system prompt; otherwise a built-in default is used. The file is watched and reloaded automatically on change. See [Features](/docs/features#system-prompt) for details.
 
 ## Voice / Speech-to-Text
 

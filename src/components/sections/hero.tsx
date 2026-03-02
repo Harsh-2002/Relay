@@ -5,31 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { AnimateIn } from "@/components/ui/animate-in";
 import { Terminal } from "@/components/ui/terminal";
+import { GridBackground } from "@/components/ui/grid-background";
 import { siteConfig } from "@/lib/metadata";
 import { ArrowRight } from "lucide-react";
 
 const heroTerminalLines = [
   { type: "command" as const, text: "relay onboard" },
-  { type: "success" as const, text: "OpenCode detected (v1.2.15)" },
+  { type: "success" as const, text: "OpenCode detected" },
   { type: "success" as const, text: "Bot token verified \u2014 @YourBot" },
   { type: "success" as const, text: "User ID saved" },
-  { type: "success" as const, text: "MCP tools configured: Browser, Memory" },
+  { type: "success" as const, text: "MCP tools: Browser, Fetch, Memory, Filesystem" },
+  { type: "success" as const, text: "Voice transcription configured" },
   { type: "success" as const, text: "Configuration saved to ~/.relay/config.json" },
 ];
 
 export function Hero() {
   return (
     <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 bg-bg-primary overflow-hidden">
-      {/* Grid pattern */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 64px)",
-          maskImage: "linear-gradient(to bottom, white 0%, transparent 70%)",
-          WebkitMaskImage: "linear-gradient(to bottom, white 0%, transparent 70%)",
-        }}
-      />
+      <GridBackground />
       {/* Subtle radial gradient */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -49,14 +42,14 @@ export function Hero() {
               <Badge variant="accent">v2.2</Badge>
             </div>
 
-            <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-7xl">
-              Control AI coding agents{" "}
-              <span className="text-accent">from Telegram</span>
+            <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
+              Your AI coding agent, always on —{" "}
+              <span className="text-accent">always in Telegram.</span>
             </h1>
 
             <p className="mt-6 text-lg text-text-secondary/80 max-w-2xl mx-auto leading-relaxed">
-              Powered by OpenCode with 75+ AI providers &mdash; stream responses,
-              manage sessions, run commands, all from your chat.
+              Open-source Telegram interface for AI coding agents &mdash; powered
+              by OpenCode with 75+ providers.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">

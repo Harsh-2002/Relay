@@ -56,8 +56,9 @@ const terminalLines = [
 
 export function GettingStarted() {
   return (
-    <Section id="getting-started" background="secondary">
+    <Section id="getting-started" background="primary">
       <SectionHeader
+        overline="Quick start"
         title="Get started in 60 seconds"
         subtitle="Three steps to control your AI coding agent from Telegram"
       />

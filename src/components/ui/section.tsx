@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { Container } from "./container";
+import { GridBackground } from "./grid-background";
 
 interface SectionProps {
   children: React.ReactNode;
@@ -13,18 +14,19 @@ export function Section({ children, id, className, background = "primary" }: Sec
     <section
       id={id}
       className={clsx(
-        "relative py-24 lg:py-32",
+        "relative py-24 lg:py-32 overflow-hidden",
         background === "primary" ? "bg-bg-primary" : "bg-bg-secondary",
         className
       )}
     >
+      <GridBackground />
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"
         style={{
           background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)",
         }}
       />
-      <Container>{children}</Container>
+      <Container className="relative">{children}</Container>
     </section>
   );
 }
@@ -32,14 +34,21 @@ export function Section({ children, id, className, background = "primary" }: Sec
 export function SectionHeader({
   title,
   subtitle,
+  overline,
   className,
 }: {
   title: string;
   subtitle?: string;
+  overline?: string;
   className?: string;
 }) {
   return (
     <div className={clsx("mb-16 text-center", className)}>
+      {overline && (
+        <p className="mb-3 text-xs font-mono font-medium uppercase tracking-[0.2em] text-accent/80">
+          {overline}
+        </p>
+      )}
       <h2 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
         {title}
       </h2>

@@ -65,7 +65,7 @@ export async function streamPrompt({
       dotPhase = (dotPhase % 3) + 1;
       ctx.api.editMessageText(chatId, thinkingMsgId, "Thinking" + ".".repeat(dotPhase))
         .catch(() => {}); // Ignore edit errors (rate limit, not modified, etc.)
-    }, 1000);
+    }, 500);
   } catch {
     // If sending the thinking message fails, continue without it
   }
@@ -150,8 +150,15 @@ export async function streamPrompt({
     }
   }
 
+  // Deduplication: when provider sends reasoning as both text deltas (field: "text")
+  // AND as a typed snapshot (part.type: "reasoning"), the reasoning ends up in both
+  // `accumulated` and `reasoning`. Strip the duplicate from accumulated.
+  if (reasoning && accumulated.startsWith(reasoning)) {
+    accumulated = accumulated.slice(reasoning.length).trimStart();
+  }
+
   streamLogger.info(
-    { sessionId, durationMs: Date.now() - startMs, chunkCount, editCount, responseLen: accumulated.length, filesCount: collectedFiles.length },
+    { sessionId, durationMs: Date.now() - startMs, chunkCount, editCount, responseLen: accumulated.length, reasoningLen: reasoning.length, filesCount: collectedFiles.length },
     "Stream completed"
   );
 
@@ -320,7 +327,7 @@ export function formatReasoningBlockquote(reasoning: string, maxLen: number): st
   if (text.length > maxLen) {
     text = text.slice(0, maxLen) + "...";
   }
-  return `<blockquote expandable>💭 <b>Thinking</b>\n${escapeHtml(text)}</blockquote>`;
+  return `<blockquote expandable>🧠 <b>Thinking</b>\n${escapeHtml(text)}</blockquote>`;
 }
 
 /**

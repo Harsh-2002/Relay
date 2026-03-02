@@ -6,28 +6,28 @@ Detailed guide to Relay's key features.
 
 ## Streaming Responses
 
-Relay streams AI responses in real time. As the AI generates text, the Telegram message is progressively edited so you see output as it's produced rather than waiting for the full response.
+Relay live-streams AI responses using Telegram's `sendMessageDraft` API (Bot API 9.5). Text appears with smooth animation as the AI generates it — no flickering from repeated message edits.
 
 ### How it works
 
 1. You send a message
-2. The bot sends an initial "thinking" indicator
-3. As text arrives, the message is edited in place with new content
-4. When the response is complete, the final message is sent
+2. The bot sends a draft with a "Thinking..." indicator
+3. As tokens arrive from the OpenCode SSE stream, the draft is updated with accumulated text (animated by Telegram)
+4. When the response is complete, a final `sendMessage` replaces the draft with the fully-formatted message
 
 ### Streaming behavior
 
-- Messages are updated approximately every second to avoid Telegram rate limits
+- Draft updates are throttled by `streamEditIntervalMs` to avoid Telegram rate limits
 - Very long responses are split into multiple messages (Telegram's 4096-character limit)
 - Tool use indicators (e.g., "Reading file...", "Running command...") appear during processing
 - If the AI is using tools, you'll see status updates before the final text response
-- For long responses during streaming, the message shows the most recent content (tail end) rather than the beginning
-- Unclosed code fences are automatically closed during intermediate stream updates to prevent broken formatting
-- A 60-second inactivity timeout detects stalled streams and recovers gracefully
+- For long responses during streaming, the draft shows the most recent content (tail end) rather than the beginning
+- Unclosed code fences are automatically closed during intermediate drafts to prevent broken formatting
+- A 120-second inactivity timeout detects stalled streams and recovers gracefully
 
 ### Configuration
 
-Streaming is always enabled. The edit interval (how often the message updates during streaming) can be adjusted in `~/.relay/config.json`:
+Streaming is always enabled. The draft update interval can be adjusted in `~/.relay/config.json`:
 
 ```json
 {

@@ -88,11 +88,11 @@ The directory is excluded from git via `.gitignore`.
 
 ## Streaming
 
-All responses stream by default. The edit interval controls how frequently the message is updated during streaming.
+All responses stream via Telegram's `sendMessageDraft` API. The update interval controls how frequently the draft is refreshed during streaming.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `streamEditIntervalMs` | `--stream-edit-interval-ms` | `2000` | Update interval (ms) while streaming |
+| `streamEditIntervalMs` | `--stream-edit-interval-ms` | `2000` | Draft update interval (ms) while streaming |
 
 ## Timeout
 

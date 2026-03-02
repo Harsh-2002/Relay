@@ -159,8 +159,8 @@ export interface Provider {
   prompt(sessionId: string, text: string, options?: PromptOptions): Promise<PromptResult>;
   abort(sessionId: string): Promise<void>;
 
-  // Streaming (optional — provider may not support it)
-  promptStream?(
+  // Streaming
+  promptStream(
     sessionId: string,
     text: string,
     options?: PromptOptions

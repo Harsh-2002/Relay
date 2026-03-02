@@ -134,13 +134,9 @@ Run `/mcp` to check the error message. Common causes:
 
 ## Streaming
 
-### Messages appear jumpy or laggy
+### Messages appear laggy
 
-Telegram rate limits message edits. Relay batches updates to avoid hitting limits, but on slow connections you may notice slight delays. This is normal behavior.
-
-### "Message is not modified" warnings in logs
-
-This happens when a stream update has the same content as the current message. It's harmless and can be ignored.
+Draft updates are throttled by `streamEditIntervalMs` (default 2000ms). Lower the value in `~/.relay/config.json` for faster updates, but very low values may hit Telegram rate limits.
 
 ### Very long responses get cut off
 

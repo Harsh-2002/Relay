@@ -16,7 +16,7 @@ Telegram bot for managing AI coding agents remotely, powered by [OpenCode](https
 - **Edited messages** -- edit a sent message to re-prompt the AI with the correction
 - **Reasoning display** -- AI thinking is shown in collapsible blockquotes, separate from the answer
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
-- **Streaming responses** -- progressive message editing for real-time output
+- **Streaming responses** -- live-streamed via Telegram's `sendMessageDraft` with smooth animation
 - **Session management** -- create, switch, fork, delete, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
 - **MCP servers** -- add, remove, and monitor MCP servers at runtime
@@ -234,7 +234,7 @@ src/
   utils/
     logger.ts      -- Pino-based structured logging
     store.ts       -- JSON file-backed persistence (~/.relay/)
-    stream.ts      -- Streaming response handler (reasoning, chunking, fallback)
+    stream.ts      -- Streaming response handler (drafts, reasoning, chunking)
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- HTML-aware Telegram message chunking
     markdown.ts    -- Markdown to Telegram HTML conversion
@@ -252,7 +252,7 @@ The provider implements the `Provider` interface with sessions, prompts, streami
 - **HTML-aware chunker** -- splits messages at the 4096-char limit without breaking HTML tags
 - **Prompt queue** -- serializes concurrent messages to prevent SSE stream interleaving
 - **Reasoning display** -- AI thinking shown in expandable `<blockquote>`, collapsed by default
-- **Streaming** -- progressive message editing with automatic code fence closure and tail-end display for long responses
+- **Streaming** -- live-streamed via `sendMessageDraft` with automatic code fence closure and tail-end display for long responses
 
 ## License
 

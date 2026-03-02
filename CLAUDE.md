@@ -61,7 +61,7 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 
 - **`logger.ts`** — Pino-based structured logging with child loggers per component
 - **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `~/.relay/` directory)
-- **`stream.ts`** — Streaming response handler: sends placeholder message, updates it every N seconds as chunks arrive. Handles reasoning blockquotes, markdown→HTML, chunking, plain-text fallback. Auto-closes unclosed code fences during intermediate edits; shows tail-end for long responses (>4000 chars); 60-second stall detection per chunk
+- **`stream.ts`** — Streaming response handler: uses Telegram's `sendMessageDraft` API for smooth animated streaming. Sends draft updates as chunks arrive from the OpenCode SSE stream, then finalizes with `sendMessage`. Handles reasoning blockquotes, markdown→HTML, chunking. Auto-closes unclosed code fences during intermediate drafts; shows tail-end for long responses (>4000 chars); 120-second stall detection in opencode.ts
 - **`markdown.ts`** — Markdown to Telegram HTML converter: handles bold, italic, strikethrough, code, links, blockquotes. Guards against false-positive italic on math expressions
 - **`chunker.ts`** — HTML-aware message chunker: splits at Telegram's 4096-char limit while tracking open HTML tags across chunk boundaries (closes at end, re-opens at start of next chunk)
 - **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
@@ -104,7 +104,7 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - **Config access**: Use `getConfig()` from `src/config/index.js` to read config values. Never read `process.env` directly for config values.
 - **Capability checks**: Always check `provider.capabilities.<flag>` before calling optional methods. Commands respond with "not supported" when the active provider lacks a capability.
 - **Bundled SDK**: The OpenCode SDK (`@opencode-ai/sdk`) is bundled as a dependency.
-- **Streaming**: All responses stream via `src/utils/stream.ts` — sends an initial message then edits it in-place as chunks arrive. The edit interval is configurable via `streamEditIntervalMs`. Includes stall detection (60s per-chunk inactivity timeout) and auto-closes unclosed code fences during intermediate edits.
+- **Streaming**: All responses stream via `src/utils/stream.ts` using Telegram's `sendMessageDraft` API. Draft updates are sent as chunks arrive from the OpenCode SSE stream, throttled by `streamEditIntervalMs`. A final `sendMessage` replaces the draft with the fully-formatted response. Auto-closes unclosed code fences during intermediate drafts.
 - **Prompt queue**: All prompt execution (chat and media) is wrapped in `withPromptQueue()` from `src/session.ts` to serialize concurrent messages and prevent SSE stream interleaving.
 - **Reasoning display**: AI thinking/reasoning is shown in Telegram expandable blockquotes (`<blockquote expandable>`) above the answer. For large responses, reasoning is sent as a separate message.
 - **Reply context**: When users reply to a bot message, the quoted text is prepended to the prompt as `[Replying to: "..."]`.

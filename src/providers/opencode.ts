@@ -24,6 +24,7 @@ import type {
   McpServerStatus,
 } from "./types.js";
 import type { Event as OcEvent } from "@opencode-ai/sdk";
+import { exec } from "child_process";
 import { getConfig } from "../config/index.js";
 import { providerLogger } from "../utils/logger.js";
 import { spawnAsync } from "../utils/shell.js";
@@ -263,6 +264,10 @@ export class OpenCodeProvider implements Provider {
     // Track partIDs from delta events so we can match message.part.updated
     // events (v2 API: updated events lack sessionID at top level)
     const sessionPartIds = new Set<string>();
+    const partTypeMap = new Map<string, string>();          // partID → definitive part type from updated events
+    const reasoningDeltaPartIds = new Set<string>();        // partIDs that yielded reasoning via deltas
+    const snapshotYieldedPartIds = new Set<string>();       // partIDs whose full snapshot was already yielded
+    const fieldCounts = new Map<string, number>();          // delta field names seen (diagnostics)
 
     try {
       for await (const event of sseResult.stream) {
@@ -279,10 +284,21 @@ export class OpenCodeProvider implements Provider {
 
           if (props.delta) {
             chunkCount++;
-            if (props.field === "text") {
-              yield { type: "text", content: props.delta };
-            } else if (props.field === "reasoning") {
+            const field = props.field as string;
+            fieldCounts.set(field, (fieldCounts.get(field) ?? 0) + 1);
+            const isReasoningField = field === "reasoning" || field === "reasoning_content" || field === "reasoning_details";
+            // Cross-reference: if field says "text" but partTypeMap says "reasoning", treat as reasoning
+            const isReasoningByType = field === "text" && partTypeMap.get(props.partID) === "reasoning";
+
+            if (snapshotYieldedPartIds.has(props.partID)) {
+              // Full snapshot already yielded for this part — skip delta to avoid duplication
+            } else if (isReasoningField || isReasoningByType) {
+              reasoningDeltaPartIds.add(props.partID);
               yield { type: "reasoning", content: props.delta };
+            } else if (field === "text") {
+              yield { type: "text", content: props.delta };
+            } else {
+              providerLogger.info({ sessionId, field, partID: props.partID }, "Unknown delta field");
             }
           }
 
@@ -295,6 +311,12 @@ export class OpenCodeProvider implements Provider {
             || (partId && sessionPartIds.has(partId));
           if (!isOurSession) continue;
           resetStallTimer();
+
+          // Always track part type for cross-referencing with delta events
+          if (part?.id && part?.type) {
+            partTypeMap.set(part.id, part.type);
+            sessionPartIds.add(part.id);
+          }
 
           // v1 compat: updated events may carry a delta field
           const delta = props.delta;
@@ -309,6 +331,12 @@ export class OpenCodeProvider implements Provider {
             };
           } else if (part?.type === "reasoning" && delta) {
             yield { type: "reasoning", content: delta };
+          } else if (part?.type === "reasoning" && !delta && part.text) {
+            // Reasoning snapshot without delta — yield full text if not already covered by deltas
+            if (!reasoningDeltaPartIds.has(part.id)) {
+              snapshotYieldedPartIds.add(part.id);
+              yield { type: "reasoning", content: part.text };
+            }
           } else if (part?.type === "tool") {
             toolEvents++;
             const toolName = part.tool;
@@ -371,7 +399,7 @@ export class OpenCodeProvider implements Provider {
     } finally {
       clearTimeout(stallTimer);
       providerLogger.info(
-        { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents },
+        { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents, fieldCounts: Object.fromEntries(fieldCounts) },
         "Stream completed"
       );
       try { sseResult.stream?.return?.(undefined as any); } catch {}
@@ -538,20 +566,35 @@ export class OpenCodeProvider implements Provider {
 
   // --- Shell ---
 
-  async shell(sessionId: string, command: string): Promise<string | null> {
-    providerLogger.info({ sessionId, command }, "Executing shell command");
-    const result = await client.session.shell({
-      path: { id: sessionId },
-      body: { command, agent: "default" },
+  async shell(_sessionId: string, command: string): Promise<string | null> {
+    // Get the project working directory from OpenCode
+    let cwd: string | undefined;
+    try {
+      const pathResult = await client.path.get();
+      cwd = (pathResult.data as any)?.directory;
+    } catch {
+      // Fall back to OpenCode's project worktree
+      try {
+        const projResult = await client.project.current();
+        cwd = (projResult.data as any)?.worktree;
+      } catch {
+        // Use process cwd as last resort
+      }
+    }
+    providerLogger.info({ command, cwd: cwd ?? process.cwd() }, "Executing shell command");
+
+    return new Promise((resolve, reject) => {
+      exec(command, { cwd: cwd ?? process.cwd(), timeout: 30_000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+        const output = (stdout + stderr).trim();
+        if (err && !output) {
+          providerLogger.info({ command, err: err.message }, "Shell command failed");
+          reject(new Error(err.message));
+          return;
+        }
+        providerLogger.info({ command, outputLen: output.length }, "Shell command completed");
+        resolve(output || "Command completed with no output.");
+      });
     });
-    if (result.error) throw sdkError(result.error);
-    const data = result.data as any;
-    const output = data?.output ?? data?.result ?? data?.text;
-    const resultStr = output ? String(output) : (data?.modelID
-      ? `Shell command completed (model: ${data.modelID}).`
-      : "Shell command completed.");
-    providerLogger.info({ sessionId, resultLen: resultStr.length }, "Shell command completed");
-    return resultStr;
   }
 
   async runCommand(
@@ -561,7 +604,7 @@ export class OpenCodeProvider implements Provider {
   ): Promise<PromptResult | null> {
     const result = await client.session.command({
       path: { id: sessionId },
-      body: { command, arguments: args ?? "", agent: "build" },
+      body: { command, arguments: args ?? "" },
     });
     if (result.error) throw sdkError(result.error);
     return {
@@ -680,8 +723,7 @@ export class OpenCodeProvider implements Provider {
     for (const prov of providers) {
       if (!prov.models) continue;
       for (const [key, m] of Object.entries(prov.models) as [string, any][]) {
-        const cost = m.cost;
-        const isFree = cost != null && cost.input === 0 && cost.output === 0;
+        const isFree = m.free === true;
         models.push({
           id: m.id ?? key,
           name: m.name ?? key,

@@ -25,6 +25,7 @@ import type {
 } from "./types.js";
 import type { Event as OcEvent } from "@opencode-ai/sdk";
 import { exec } from "child_process";
+import { createServer } from "net";
 import { getConfig } from "../config/index.js";
 import { providerLogger } from "../utils/logger.js";
 import { spawnAsync } from "../utils/shell.js";
@@ -58,8 +59,9 @@ export class OpenCodeProvider implements Provider {
       client = createOpencodeClient({ baseUrl });
     } else {
       const hostname = config.opencodeHostname;
-      const port = config.opencodePort;
-      providerLogger.info({ mode, hostname, port }, "Initializing provider");
+      const preferredPort = config.opencodePort;
+      const port = await findAvailablePort(preferredPort);
+      providerLogger.info({ mode, hostname, port, preferredPort }, "Initializing provider");
 
       // On Windows, the SDK's createOpencode() fails with ENOENT because
       // spawn("opencode") can't find .cmd shims. We spawn manually with
@@ -904,6 +906,40 @@ function spawnOpencodeWindows(hostname: string, port: number): Promise<string> {
       reject(new Error(msg));
     });
   });
+}
+
+// --- Port selection ---
+
+const PORT_MIN = 30000;
+const PORT_MAX = 40000;
+const PORT_MAX_ATTEMPTS = 10;
+
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = createServer();
+    srv.once("error", () => resolve(false));
+    srv.listen(port, "127.0.0.1", () => {
+      srv.close(() => resolve(true));
+    });
+  });
+}
+
+function randomPort(): number {
+  return PORT_MIN + Math.floor(Math.random() * (PORT_MAX - PORT_MIN));
+}
+
+async function findAvailablePort(preferred: number): Promise<number> {
+  if (await isPortFree(preferred)) return preferred;
+  providerLogger.info({ preferred }, "Preferred port in use, finding alternative");
+  for (let i = 0; i < PORT_MAX_ATTEMPTS; i++) {
+    const port = randomPort();
+    if (await isPortFree(port)) {
+      providerLogger.info({ port, preferred }, "Found available port");
+      return port;
+    }
+  }
+  // Last resort: let the OS pick
+  return 0;
 }
 
 // --- Helpers ---

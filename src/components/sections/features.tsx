@@ -99,7 +99,7 @@ const features = [
 
 export function Features() {
   return (
-    <Section id="features" background="secondary">
+    <Section id="features" background="secondary" gridOpacity={0.4}>
       <SectionHeader
         overline="Features"
         title="Everything you need"

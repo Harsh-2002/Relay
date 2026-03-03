@@ -7,9 +7,10 @@ interface SectionProps {
   id?: string;
   className?: string;
   background?: "primary" | "secondary";
+  gridOpacity?: number;
 }
 
-export function Section({ children, id, className, background = "primary" }: SectionProps) {
+export function Section({ children, id, className, background = "primary", gridOpacity }: SectionProps) {
   return (
     <section
       id={id}
@@ -19,7 +20,7 @@ export function Section({ children, id, className, background = "primary" }: Sec
         className
       )}
     >
-      <GridBackground />
+      <GridBackground opacity={gridOpacity} />
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"
         style={{

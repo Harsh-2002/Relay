@@ -157,7 +157,7 @@ export function Commands() {
   }));
 
   return (
-    <Section id="commands" background="secondary">
+    <Section id="commands" background="secondary" gridOpacity={0.4}>
       <SectionHeader
         overline="Commands"
         title="40+ commands at your fingertips"

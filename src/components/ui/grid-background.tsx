@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function GridBackground() {
+interface GridBackgroundProps {
+  opacity?: number;
+}
+
+export function GridBackground({ opacity = 1 }: GridBackgroundProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -27,7 +31,7 @@ export function GridBackground() {
   }, []);
 
   return (
-    <div ref={ref} className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+    <div ref={ref} className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, opacity }}>
       {/* Noise texture */}
       <div
         className="absolute inset-0 opacity-[0.035]"

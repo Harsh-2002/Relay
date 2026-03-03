@@ -18,3 +18,4 @@ export const providerLogger = logger.child({ component: "provider" });
 export const sessionLogger = logger.child({ component: "session" });
 export const sttLogger = logger.child({ component: "stt" });
 export const streamLogger = logger.child({ component: "stream" });
+export const cronLogger = logger.child({ component: "cron" });

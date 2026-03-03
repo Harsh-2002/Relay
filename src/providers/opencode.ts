@@ -427,7 +427,7 @@ export class OpenCodeProvider implements Provider {
           if (!matchesSession(evt, sessionId)) continue;
           const rawError = props.error ?? "Unknown session error";
           providerLogger.warn({ sessionId, error: rawError }, "session.error");
-          throw new Error(rawError);
+          throw sdkError(rawError);
         } else {
           providerLogger.info({ sessionId, evtType, props }, "SSE event");
         }

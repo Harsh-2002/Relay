@@ -9,6 +9,7 @@ import { registerHistoryCommands } from "./history.js";
 import { registerMediaHandlers } from "./media.js";
 import { registerChat } from "./chat.js";
 import { registerMcpCommands } from "./mcp.js";
+import { registerCronCommands } from "./cron.js";
 
 export function getBotCommands(): BotCommand[] {
   return [
@@ -56,6 +57,9 @@ export function getBotCommands(): BotCommand[] {
     // MCP
     { command: "mcp", description: "MCP server management" },
 
+    // Cron
+    { command: "cron", description: "Scheduled tasks" },
+
     // Admin
     { command: "health", description: "Server status" },
     { command: "config", description: "Show configuration" },
@@ -77,6 +81,7 @@ export function registerCommands(bot: Bot): void {
   registerShellCommands(bot);
   registerHistoryCommands(bot);
   registerMcpCommands(bot);
+  registerCronCommands(bot);
   registerMediaHandlers(bot);
   registerChat(bot);
 }

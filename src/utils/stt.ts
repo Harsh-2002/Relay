@@ -72,15 +72,49 @@ export async function transcribeAudio(
   filename: string,
   duration?: number,
 ): Promise<TranscriptionResult> {
-  const provider = getSttProvider();
-  if (!provider) {
+  const primary = getSttProvider();
+  if (!primary) {
     throw new Error(
       "No STT provider configured. Run 'relay onboard' to add STT API keys."
     );
   }
 
-  sttLogger.info({ provider, filename }, "Transcribing audio");
+  // Build list: primary first, then other configured providers as fallbacks
+  const allConfigured = getConfiguredProviders();
+  const providers: SttProvider[] = [primary as SttProvider, ...allConfigured.filter(p => p !== primary)];
 
+  let lastError: Error | null = null;
+  for (const provider of providers) {
+    try {
+      sttLogger.info({ provider, filename }, "Transcribing audio");
+      return await transcribeWith(provider, buffer, filename, duration);
+    } catch (err: any) {
+      lastError = err;
+      if (providers.length > 1) {
+        sttLogger.info({ provider, err: err?.message }, "STT provider failed, trying next");
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Voice transcription failed");
+}
+
+function getConfiguredProviders(): SttProvider[] {
+  const config = getConfig();
+  const providers: SttProvider[] = [];
+  if (config.groqApiKey) providers.push("groq");
+  if (config.sarvamApiKey) providers.push("sarvam");
+  if (config.assemblyaiApiKey) providers.push("assemblyai");
+  if (config.openaiSttApiKey) providers.push("openai");
+  return providers;
+}
+
+async function transcribeWith(
+  provider: SttProvider,
+  buffer: Buffer,
+  filename: string,
+  duration?: number,
+): Promise<TranscriptionResult> {
   switch (provider) {
     case "groq":
       return transcribeWithGroq(buffer, filename);

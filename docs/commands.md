@@ -35,7 +35,7 @@ The new session becomes the active session. All subsequent messages go to this s
 
 ### `/sessions`
 
-List all sessions, sorted by last modified date. Shows the session ID, title, and a marker for the active session.
+List all sessions, sorted by last modified date. Shows the session ID, title, and a marker for the active session. Includes inline buttons to switch or delete each session.
 
 ### `/switch <id>`
 
@@ -164,7 +164,7 @@ Show git file status (modified, added, deleted files).
 
 ### `/history`
 
-View the last 10 messages in the current session. Shows alternating user and assistant messages with a 200-character preview.
+View the last 10 messages in the current session. Shows alternating user and assistant messages with a 200-character preview. Includes "Fork after" buttons for assistant messages.
 
 ### `/summarize`
 
@@ -206,13 +206,18 @@ Run a shell command on the coding agent's machine.
 
 Commands are executed natively on the OpenCode server.
 
-### `/cmd <command> [arguments]`
+### `/cmd [command]`
 
-Run an OpenCode-specific command.
+Run an OpenCode-specific command. Without arguments, shows an interactive picker.
 
 ```
-/cmd compact
-/cmd agent_cycle
+/cmd              # Shows picker with available commands
+/cmd stats        # Token usage & cost
+/cmd version      # OpenCode version
+/cmd upgrade      # Upgrade OpenCode
+/cmd sessions     # List CLI sessions
+/cmd init         # Create/update AGENTS.md
+/cmd review       # Review code changes
 ```
 
 ### `/commands`
@@ -221,7 +226,7 @@ List all available commands that can be used with `/cmd`.
 
 ---
 
-## Models
+## Models & Agents
 
 ### `/models`
 
@@ -231,6 +236,7 @@ Each model shows capability badges:
 
 - `[reasoning]` -- The model supports extended thinking/reasoning
 - `[vision]` -- The model accepts image input
+- `[free]` -- Free-tier model
 - `✓` prefix -- Currently selected model
 
 Models are grouped by provider with header rows. If there are more than 8 models, pagination buttons (`« Prev` / `Next »`) appear at the bottom.
@@ -265,6 +271,24 @@ After switching, the bot shows the model's capabilities:
 Model set to anthropic/claude-sonnet-4-20250514
 Capabilities: reasoning, vision
 ```
+
+### `/agent [name|clear]`
+
+View or change the current agent mode. Without arguments, shows an interactive picker.
+
+```
+/agent              # Shows agent picker
+/agent build        # Switch to build agent
+/agent clear        # Reset to default agent
+```
+
+### `/agents`
+
+List all available agents with descriptions. Shows primary agents and sub-agents separately, with the active agent marked.
+
+### `/stt`
+
+View and switch the active speech-to-text provider via an interactive keyboard. Shows the currently selected provider and all configured providers with their status.
 
 ---
 
@@ -324,28 +348,72 @@ Servers persist in the OpenCode configuration across restarts.
 
 ---
 
-## Voice
+## Cron (Scheduled Tasks)
 
-### `/stt`
+Schedule recurring AI tasks that run automatically. Results are delivered to your chat.
 
-View and switch the active speech-to-text provider via an interactive keyboard. Shows the currently selected provider and all configured providers with their status.
+### `/cron`
+
+Show all scheduled jobs with action buttons for each:
+
+- **Enable/Disable** -- Toggle a job on or off
+- **Run** -- Execute a job immediately
+- **Delete** -- Remove a job
+
+Each job shows its schedule, last run time and result (ok/fail), and total run count.
+
+### `/cron add daily <HH:MM> <Title: prompt>`
+
+Schedule a job that runs once per day at the specified time.
+
+```
+/cron add daily 09:00 Git summary: Summarize recent git commits
+/cron add daily 18:00 EOD report: What files changed today?
+```
+
+### `/cron add every <interval> <Title: prompt>`
+
+Schedule a job that runs at a fixed interval. Supports minutes (`m`) and hours (`h`).
+
+```
+/cron add every 30m Health: Check server health and report any issues
+/cron add every 2h Status: Report system status
+/cron add every 1m Ping: Are you alive?
+```
+
+Minimum interval is 1 minute.
+
+### `/cron add weekly <days> <HH:MM> <Title: prompt>`
+
+Schedule a job that runs on specific days of the week. Days are comma-separated: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
+
+```
+/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs
+/cron add weekly mon 09:00 Weekly plan: What should I focus on this week?
+```
+
+### Interactive picker
+
+The `/cron` command also includes an **Add Job** button that walks you through schedule selection step by step:
+
+1. Pick schedule type (interval, daily, weekly)
+2. Pick interval duration or hour
+3. Pick minute
+4. Pick days (for weekly)
+5. Shows a ready-to-copy `/cron add` command
+
+### How it works
+
+- Jobs are persisted to `cron.json` in the data directory and survive restarts
+- The scheduler checks for due jobs every 30 seconds
+- Job execution uses the same prompt pipeline as regular messages (queued, streamed)
+- Results are sent to your chat with a header showing the job name
+- File attachments from job execution (screenshots, etc.) are sent automatically
+- If the bot restarts, missed jobs are skipped (no avalanche of past runs)
 
 ---
 
-## Agent
-
-### `/agent [name]`
-
-View or change the current agent mode.
-
-```
-/agent          # View current agent
-/agent build    # Switch to build agent
-```
-
----
-
-## Settings
+## Settings & Info
 
 ### `/health`
 
@@ -353,19 +421,19 @@ Show a dashboard with server status, current model (with reasoning badge), strea
 
 ### `/config`
 
-Show the full provider configuration as JSON.
+Show the full provider configuration as JSON. Sensitive values (bot token, API keys) are masked.
 
 ### `/providers`
 
-Show available AI providers and their models (raw JSON from the provider).
+Show available AI providers with their ID, status, and model count.
 
 ### `/agents`
 
-List available agents.
+List available agents with descriptions.
 
 ### `/tools`
 
-List all tools available to the AI.
+List all tools available to the AI with descriptions.
 
 ### `/project`
 
@@ -373,7 +441,7 @@ Show project information: ID, worktree, VCS type, branch, and directory.
 
 ### `/git`
 
-Show git branch and changed files status.
+Show git branch and changed files status. Shows up to 30 changed files with their status codes.
 
 ### `/system`
 
@@ -385,8 +453,8 @@ Force-reload the system prompt from the file. Useful if auto-reload didn't pick 
 
 ### `/start`
 
-Show a welcome message with the active provider name.
+Show a welcome message with basic usage instructions.
 
 ### `/help`
 
-Show a compact reference of all available commands.
+Show a compact reference of all available commands, organized by category.

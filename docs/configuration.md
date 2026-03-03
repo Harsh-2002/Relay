@@ -35,7 +35,7 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--allowed-user-id` | Telegram user ID |
 | `--bot-mode` | `polling` or `webhook` |
 | `--webhook-url` | Webhook URL (when `--bot-mode=webhook`) |
-| `--webhook-port` | Webhook port (default: 3000) |
+| `--webhook-port` | Webhook port (default: 39148) |
 | `--webhook-secret` | Webhook secret token |
 | `--dev` | Use `./.relay/` in current directory instead of `~/.relay/` |
 | `--stream-edit-interval-ms` | Stream edit interval in ms |
@@ -71,7 +71,7 @@ See [Providers](providers.md) for detailed setup.
 |-------------|----------|---------|-------------|
 | `botMode` | `--bot-mode` | `polling` | `polling` or `webhook` |
 | `webhookUrl` | `--webhook-url` | -- | Public URL for webhook (required when mode=`webhook`) |
-| `webhookPort` | `--webhook-port` | `3000` | Webhook HTTP server port |
+| `webhookPort` | `--webhook-port` | `39148` | Webhook HTTP server port |
 | `webhookSecret` | `--webhook-secret` | -- | Secret token for webhook verification |
 
 ## Data Persistence
@@ -85,6 +85,7 @@ Relay persists session state, model selection, and provider-specific data to dis
 Files stored:
 - `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
+- `cron.json` — Scheduled task definitions and run history
 - `SKILL.md` — Custom system prompt (optional, create manually)
 - `memory.jsonl` — Memory MCP knowledge graph (auto-created when Memory is enabled)
 
@@ -152,12 +153,7 @@ The file is watched for changes and reloaded automatically. Use `/system reload`
 | `groqSttModel` | -- | `whisper-large-v3-turbo` | Groq transcription model |
 | `openaiSttModel` | -- | `gpt-4o-mini-transcribe` | OpenAI transcription model |
 
-Set at least one API key during `relay onboard` to enable voice message support. When `sttProvider` is `auto` (default), the cheapest available provider is selected:
-
-1. **Groq** (fastest, has a free tier)
-2. **Sarvam** (optimized for Indian languages)
-3. **AssemblyAI**
-4. **OpenAI**
+Set at least one API key during `relay onboard` to enable voice message support. When `sttProvider` is `auto` (default), the cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically.
 
 Use `sarvam-translate` to transcribe and translate non-English voice messages to English. See [Providers](providers.md#translation-sarvam) for details.
 

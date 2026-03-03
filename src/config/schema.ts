@@ -46,7 +46,7 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   allowedUserId: 0,
   botMode: "polling",
   webhookUrl: "",
-  webhookPort: 3000,
+  webhookPort: 39148,
   webhookSecret: "",
 
   provider: "opencode",

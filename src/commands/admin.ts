@@ -920,6 +920,12 @@ export function registerAdminCommands(bot: Bot): void {
       `/mcp remove <code>name</code>  —  Remove MCP server\n` +
       `/mcp connect <code>name</code>  —  Reconnect MCP server\n\n` +
 
+      `<b>Cron</b>\n` +
+      `/cron  —  Scheduled tasks (picker)\n` +
+      `/cron add daily <code>HH:MM</code> <code>Title: prompt</code>\n` +
+      `/cron add every <code>Nm</code> <code>Title: prompt</code>\n` +
+      `/cron add weekly <code>days</code> <code>HH:MM</code> <code>Title: prompt</code>\n\n` +
+
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
       `/models  —  List available models\n` +

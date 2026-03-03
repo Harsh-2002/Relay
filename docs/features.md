@@ -208,12 +208,16 @@ If multiple providers are configured, the cheapest available one is selected aut
 4. The transcribed text is sent to the AI as a regular message
 5. You receive the AI's response as usual
 
-### Provider priority
+### Automatic fallback
 
-1. **Groq** — Fastest, free tier available
-2. **Sarvam AI** — Optimized for Indian languages (Hindi, Tamil, Telugu, etc.)
-3. **AssemblyAI** — Reliable general-purpose
-4. **OpenAI** — Widely available fallback
+If the selected provider fails, Relay automatically tries other configured providers. No manual intervention needed — just configure multiple providers for resilience.
+
+### Supported providers
+
+- **Groq** — Fastest, free tier available
+- **Sarvam AI** — Optimized for Indian languages (Hindi, Tamil, Telugu, etc.)
+- **AssemblyAI** — Reliable general-purpose
+- **OpenAI** — Widely available
 
 ### Translation
 
@@ -497,6 +501,7 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 | Data | File | Description |
 |------|------|-------------|
 | Active session | `~/.relay/session.json` | Current session ID and selected model |
+| Scheduled tasks | `~/.relay/cron.json` | Cron job definitions, schedules, and run history |
 
 ### How it works
 
@@ -566,6 +571,62 @@ Edit a sent message to re-prompt the AI with the corrected text. The AI processe
 
 ---
 
+## Scheduled Tasks (Cron)
+
+Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, or on specific days of the week. Results are delivered directly to your Telegram chat.
+
+### Setup
+
+Cron is built-in and requires no additional configuration. Jobs are managed entirely through Telegram commands.
+
+### Creating jobs
+
+**Daily job:**
+```
+/cron add daily 09:00 Git summary: Summarize recent git commits
+```
+
+**Recurring interval:**
+```
+/cron add every 30m Health: Check server health and report issues
+```
+
+**Weekly on specific days:**
+```
+/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs
+```
+
+The format is always: `/cron add <schedule> Title: prompt`
+
+### Interactive picker
+
+Use `/cron` and tap **Add Job** to build a schedule step by step through an inline keyboard. At the end, it shows a ready-to-copy `/cron add` command.
+
+### Managing jobs
+
+Use `/cron` to see all jobs with action buttons:
+
+- **Enable/Disable** -- Toggle a job on or off without deleting it
+- **Run** -- Execute a job immediately outside its schedule
+- **Delete** -- Remove a job permanently
+
+### How it works
+
+- The scheduler checks for due jobs every 30 seconds
+- Jobs execute through the same prompt pipeline as regular messages (queued to prevent conflicts)
+- Results are sent as formatted messages with the job name as a header
+- File attachments (screenshots, generated files) are sent automatically
+- If the bot restarts, missed jobs are skipped and schedules advance to the next future time
+- Job state (schedules, run history, run count) is persisted to `cron.json`
+
+### Limits
+
+- Minimum interval: 1 minute
+- Maximum displayed jobs: 30 (Telegram keyboard limit)
+- Job names are truncated at 40 characters in the list view
+
+---
+
 ## Webhook Deployment
 
 For production deployments, you can run Relay in webhook mode instead of long-polling.
@@ -578,7 +639,7 @@ Configure webhook mode during `relay onboard`, or set it in `~/.relay/config.jso
 {
   "botMode": "webhook",
   "webhookUrl": "https://your-server.com/bot",
-  "webhookPort": 3000,
+  "webhookPort": 39148,
   "webhookSecret": "your-random-secret"
 }
 ```
@@ -586,13 +647,13 @@ Configure webhook mode during `relay onboard`, or set it in `~/.relay/config.jso
 Or via CLI flags:
 
 ```bash
-relay --bot-mode=webhook --webhook-url=https://your-server.com/bot --webhook-port=3000
+relay --bot-mode=webhook --webhook-url=https://your-server.com/bot --webhook-port=39148
 ```
 
 ### Requirements
 
 - A public HTTPS URL that Telegram can reach
-- The port (default 3000) must be accessible
+- The port (default 39148) must be accessible
 
 ### How it works
 

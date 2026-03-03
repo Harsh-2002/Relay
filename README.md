@@ -17,15 +17,16 @@ Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](ht
 - **Reasoning display** -- AI thinking is shown in collapsible blockquotes, separate from the answer
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
 - **Streaming responses** -- live-streamed via `editMessageText` with smooth animation
-- **Session management** -- create, switch, fork, delete, and list sessions
+- **Session management** -- create, switch, fork, delete, rename, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
 - **MCP tools** -- Browser, Fetch, Memory, and Filesystem via MCP; add custom servers at runtime
+- **Scheduled tasks** -- cron jobs that run AI prompts on a schedule (interval, daily, weekly)
 - **Shell access** -- run commands on the coding agent's machine
-- **Voice transcription** -- Groq, OpenAI, or AssemblyAI speech-to-text
+- **Voice transcription** -- Groq, Sarvam, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
-- **File operations** -- read, find, search, and browse project files
+- **File operations** -- list, read, find, search, and browse project files
 - **Code diffs** -- view git diffs from sessions
-- **State persistence** -- sessions, model selection, and MCP configs survive restarts
+- **State persistence** -- sessions, model selection, cron jobs, and MCP configs survive restarts
 - **Webhook mode** -- deploy with webhooks for lower latency in production
 - **Large file support** -- text files up to 500KB fully included, larger files chunked
 
@@ -94,12 +95,14 @@ Updates to the latest version. If the daemon is running, it's automatically rest
 
 ## Configuration
 
-Config is stored in `~/.relay/config.json` (global). Memory MCP data is stored in `~/.relay/memory.jsonl`. Use the setup wizard or CLI flags:
+Config is stored in `~/.relay/config.json` (global). Use `--dev` for local development (stores in `./.relay/` instead). Memory MCP data is stored in `<data-dir>/memory.jsonl`.
 
 ```bash
 relay onboard                    # Interactive wizard
 relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 ```
+
+Re-running `relay onboard` on an existing config enters update mode — shows current values, press Enter to keep them.
 
 ### CLI flags
 
@@ -109,11 +112,10 @@ relay --bot-token=xxx --allowed-user-id=123  # CLI flags
 | `--version` | Show version |
 | `--bot-token` | Telegram bot token |
 | `--allowed-user-id` | Telegram user ID |
-| `--bot-mode` | `polling` or `webhook` |
+| `--bot-mode` | `polling` (default) or `webhook` |
 | `--dev` | Use `./.relay/` in current directory instead of `~/.relay/` |
-| `--data-dir` | Data directory (default: `~/.relay/`) |
-| `--system-prompt-file` | Custom system prompt file |
-
+| `--data-dir` | Custom data directory (default: `~/.relay/`) |
+| `--system-prompt-file` | Custom system prompt file path |
 
 ## Backend
 
@@ -124,86 +126,139 @@ Supports both `start` mode (spawns local server) and `connect` mode (remote URL)
 ## Commands
 
 ### Chat
+
 Send any text message, voice note, photo, or file to chat with the AI. File attachments from the AI (screenshots, generated files) are automatically sent back as Telegram documents or photos.
 
+- **Reply context** -- reply to any bot message to include it as context in your prompt
+- **Edit to re-prompt** -- edit a sent message to re-prompt with the corrected text
+- **Voice notes** -- automatically transcribed to text using the configured STT provider
+- **Photos** -- sent as image attachments to the AI (supports vision-capable models)
+- **Files** -- text files embedded in prompt, images/PDFs as attachments
+
 ### Sessions
-| Command | Description |
-|---------|-------------|
-| `/new` | Create a new session |
-| `/sessions` | List all sessions |
-| `/switch <id>` | Switch to a session |
-| `/delete <id>` | Delete a session |
-| `/current` | Show active session |
-| `/fork [messageId]` | Fork the current session |
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/new [title]` | Create a new session | `/new Bug fix session` |
+| `/sessions` | List all sessions (interactive picker) | `/sessions` |
+| `/switch <id>` | Switch to a session by ID | `/switch abc123` |
+| `/delete <id>` | Delete a session by ID | `/delete abc123` |
+| `/current` | Show active session info | `/current` |
+| `/rename <title>` | Rename active session | `/rename API refactor` |
+| `/fork [messageId]` | Fork session (optionally from a message) | `/fork` |
 
 ### Monitor
-| Command | Description |
-|---------|-------------|
-| `/todo` | View AI task checklist |
-| `/diff` | Session code changes summary |
-| `/diff full` | Download full diff |
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/todo` | View AI task checklist | `/todo` |
+| `/diff` | Session code changes summary | `/diff` |
+| `/diff full` | Download complete diff as file | `/diff full` |
 
 ### Files
-| Command | Description |
-|---------|-------------|
-| `/read <path>` | Read a file |
-| `/find <query>` | Find files by name |
-| `/search <pattern>` | Search file contents |
-| `/symbols <query>` | Find code symbols |
-| `/status` | Git file status |
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/ls [path]` | List directory contents | `/ls src/utils` |
+| `/read <path>` | Read a file (code block or document) | `/read src/index.ts` |
+| `/find <pattern>` | Find files by name | `/find *.ts` |
+| `/search <pattern>` | Search file contents | `/search TODO` |
+| `/symbols <query>` | Find code symbols | `/symbols handleMessage` |
+| `/status` | Git file status | `/status` |
 
 ### History
-| Command | Description |
-|---------|-------------|
-| `/history` | View conversation history |
-| `/summarize` | Summarize the session |
-| `/revert` | Undo last AI change |
-| `/abort` | Cancel running operation |
-| `/share` | Share session |
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/history` | Last 10 messages with fork buttons | `/history` |
+| `/summarize` | Session summary with stats | `/summarize` |
+| `/revert` | Undo last AI change | `/revert` |
+| `/unrevert` | Redo reverted change | `/unrevert` |
+| `/abort` | Cancel running operation | `/abort` |
+| `/share` | Generate shareable session link | `/share` |
+| `/unshare` | Revoke shared session link | `/unshare` |
 
 ### Shell
-| Command | Description |
-|---------|-------------|
-| `/shell <cmd>` | Run a shell command |
-| `/cmd <command>` | Run an OpenCode command |
-| `/commands` | List available commands |
 
-### Models
-| Command | Description |
-|---------|-------------|
-| `/models` | List available models with capabilities |
-| `/model <provider/model>` | Set the AI model |
-| `/model <name>` | Set model by partial match |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/shell <command>` | Run a shell command on the server | `/shell git log --oneline -5` |
+| `/cmd [command]` | Run OpenCode command (picker if no args) | `/cmd stats` |
+| `/commands` | List available OpenCode commands | `/commands` |
 
-Models show capability badges: `[reasoning]` for thinking/reasoning support, `[vision]` for image input, and `[active]` for the currently selected model.
+Available `/cmd` commands: `init`, `review`, `stats`, `version`, `upgrade`, `sessions`
 
-### MCP
-| Command | Description |
-|---------|-------------|
-| `/mcp` | Show MCP server status (numbered list with action buttons) |
-| `/mcp add <name> local <command...>` | Add a local MCP server |
-| `/mcp add <name> remote <url>` | Add a remote MCP server |
-| `/mcp remove <name>` | Remove an MCP server |
+### Models & Agents
 
-Four built-in MCP tools are available via `relay onboard`: **Browser** (Playwright), **Fetch** (web pages as markdown), **Memory** (persistent knowledge graph), and **Filesystem** (external file access). Additional servers can be added at runtime. Servers persist in the OpenCode configuration.
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/models` | Interactive model picker (grouped by provider) | `/models` |
+| `/model [provider/model]` | View or set model (supports partial match) | `/model anthropic/claude-sonnet-4-20250514` |
+| `/agent [name\|clear]` | View or change agent (picker if no args) | `/agent clear` |
+| `/agents` | List all agents with descriptions | `/agents` |
+| `/stt` | Switch voice transcription provider (picker) | `/stt` |
 
-### Settings
-| Command | Description |
-|---------|-------------|
-| `/system` | View system prompt |
-| `/system reload` | Reload system prompt |
-| `/health` | Server status (with reasoning badge) |
-| `/config` | Show configuration |
-| `/providers` | List available providers |
-| `/agents` | List available agents |
-| `/tools` | Available tools |
-| `/project` | Project info |
-| `/git` | Git branch and status |
-| `/help` | Show all commands |
+Models show capability badges: `[reasoning]` for thinking support, `[vision]` for image input, `[free]` for free-tier models.
+
+### MCP (Model Context Protocol)
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/mcp` | Show MCP server status with action buttons | `/mcp` |
+| `/mcp add <name> local <cmd>` | Add a local MCP server | `/mcp add myserver local npx my-mcp` |
+| `/mcp add <name> remote <url>` | Add a remote MCP server | `/mcp add api remote https://mcp.example.com` |
+| `/mcp remove <name>` | Remove an MCP server | `/mcp remove myserver` |
+| `/mcp connect <name>` | Reconnect an MCP server | `/mcp connect myserver` |
+
+Four built-in MCP tools are available via `relay onboard`:
+
+| Tool | Description |
+|------|-------------|
+| **Browser** | Playwright-based web browsing and screenshots |
+| **Fetch** | Fetch web pages as markdown |
+| **Memory** | Persistent knowledge graph (`memory.jsonl`) |
+| **Filesystem** | Read/write access to specified directories |
+
+Additional servers can be added at runtime. All MCP configs persist in OpenCode's configuration.
+
+### Cron (Scheduled Tasks)
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/cron` | Show scheduled jobs with action buttons | `/cron` |
+| `/cron add daily HH:MM Title: prompt` | Schedule a daily job | `/cron add daily 09:00 Git summary: Summarize recent git commits` |
+| `/cron add every Nm Title: prompt` | Schedule a recurring job | `/cron add every 30m Health: Check server health` |
+| `/cron add every Nh Title: prompt` | Schedule hourly recurring job | `/cron add every 2h Status: Report system status` |
+| `/cron add weekly days HH:MM Title: prompt` | Schedule a weekly job | `/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs` |
+
+The interactive picker (`/cron` → Add Job) walks through schedule type, time, and days, then shows a ready-to-copy `/cron add` command.
+
+Each job in the list shows:
+- Enable/disable toggle
+- Run now button
+- Delete button
+- Last run time and result (ok/fail)
+- Total run count
+
+Jobs are persisted to `cron.json` in the data directory and survive restarts.
+
+### Settings & Info
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/health` | Server status (provider, model, voice, project) | `/health` |
+| `/config` | Show configuration (sensitive values masked) | `/config` |
+| `/system` | View current system prompt | `/system` |
+| `/system reload` | Reload system prompt from disk | `/system reload` |
+| `/providers` | List AI providers with status and model count | `/providers` |
+| `/tools` | List available tools | `/tools` |
+| `/project` | Project info (path, VCS, branch) | `/project` |
+| `/git` | Git branch and changed files | `/git` |
+| `/help` | Show all commands | `/help` |
 
 ## Voice / STT
 
-Configure speech-to-text providers during `relay onboard` or pass API keys via CLI flags. The cheapest available provider is auto-selected.
+Configure speech-to-text providers during `relay onboard` or pass API keys via CLI flags. The cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically. Use `/stt` to switch providers manually.
 
 ## System Prompt
 
@@ -215,7 +270,7 @@ The bot loads a system prompt from `~/.relay/SKILL.md` (or `./SKILL.md` in cwd f
 src/
   config/
     schema.ts      -- Config type definitions
-    loader.ts      -- Config resolution (CLI > file > env > defaults)
+    loader.ts      -- Config resolution (CLI > file > defaults)
     setup.ts       -- Interactive setup wizard
     index.ts       -- Config singleton
   providers/
@@ -226,15 +281,17 @@ src/
     chat.ts        -- Text message handler
     session.ts     -- Session management commands
     media.ts       -- Photo, voice, audio, file handlers
-    admin.ts       -- Health, config, model, models, help commands
+    admin.ts       -- Health, config, model, agent, stt, help commands
     monitor.ts     -- Todo, diff, fork commands
-    files.ts       -- File read, find, search commands
+    files.ts       -- File listing, read, find, search commands
     history.ts     -- History, revert, share commands
-    shell.ts       -- Shell and command execution
+    shell.ts       -- Shell and OpenCode command execution
     mcp.ts         -- MCP server management
+    cron.ts        -- Scheduled task commands and UI
+  cron.ts          -- Cron scheduler engine, job execution, storage
   utils/
     logger.ts      -- Pino-based structured logging
-    store.ts       -- JSON file-backed persistence (~/.relay/)
+    store.ts       -- JSON file-backed persistence (data directory)
     stream.ts      -- Streaming response handler (reasoning, chunking)
     files.ts       -- Outbound file attachment handling
     chunker.ts     -- HTML-aware Telegram message chunking
@@ -242,7 +299,7 @@ src/
     errors.ts      -- Error formatting
     html.ts        -- HTML escaping for Telegram
     media.ts       -- File upload/download
-    stt.ts         -- Speech-to-text
+    stt.ts         -- Speech-to-text with provider fallback
     system-prompt.ts -- System prompt loading with MCP tool instructions
     opencode-config.ts -- MCP injection into OpenCode config
 ```

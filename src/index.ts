@@ -6,6 +6,7 @@ import { createBot } from "./bot.js";
 import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
+import { startCronScheduler, stopCronScheduler } from "./cron.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
 import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp } from "./utils/opencode-config.js";
 import { setDataDir } from "./utils/store.js";
@@ -82,6 +83,7 @@ async function main() {
       bot.stop();
     }
     shutdownProvider();
+    stopCronScheduler();
     stopUploadCleanup();
     unwatchSystemPrompt();
     process.exit(0);
@@ -115,6 +117,7 @@ async function main() {
     httpServer = createServer(handler);
     httpServer.listen(config.webhookPort, () => {
       logger.info({ port: config.webhookPort, url: config.webhookUrl }, "Webhook server listening");
+      startCronScheduler(bot.api, config.allowedUserId);
     });
   } else {
     // Clear any stale webhook before starting long-polling
@@ -122,7 +125,10 @@ async function main() {
 
     logger.info("Starting Telegram bot (long polling)...");
     await bot.start({
-      onStart: (info) => logger.info({ username: info.username }, "Bot is running"),
+      onStart: (info) => {
+        logger.info({ username: info.username }, "Bot is running");
+        startCronScheduler(bot.api, config.allowedUserId);
+      },
     });
   }
 }

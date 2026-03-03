@@ -244,7 +244,7 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   if (opencodeMode === "connect") {
     const urlEntered = await p.text({
       message: "OpenCode server URL:",
-      initialValue: config.opencodeUrl || "http://localhost:4096",
+      initialValue: config.opencodeUrl || "http://localhost:39147",
     });
     handleCancel(urlEntered);
     config.opencodeUrl = (urlEntered as string).trim();

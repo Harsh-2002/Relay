@@ -60,9 +60,9 @@ See [Providers](providers.md) for detailed setup.
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
 | `opencodeMode` | `--opencode-mode` | `start` | `start` spawns a local server, `connect` connects to a remote URL |
-| `opencodeUrl` | `--opencode-url` | `http://localhost:4096` | Server URL (used when mode=`connect`) |
+| `opencodeUrl` | `--opencode-url` | `http://localhost:39147` | Server URL (used when mode=`connect`) |
 | `opencodeHostname` | `--opencode-hostname` | `127.0.0.1` | Bind address (used when mode=`start`) |
-| `opencodePort` | `--opencode-port` | `4096` | Port number (used when mode=`start`) |
+| `opencodePort` | `--opencode-port` | `39147` | Port number (used when mode=`start`) |
 | `opencodeModel` | `--opencode-model` | Server default | Model override, e.g. `anthropic/claude-sonnet-4-20250514` |
 
 ## Bot Mode

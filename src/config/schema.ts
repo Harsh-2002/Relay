@@ -51,9 +51,9 @@ export const CONFIG_DEFAULTS: RelayConfig = {
 
   provider: "opencode",
   opencodeMode: "start",
-  opencodeUrl: "http://localhost:4096",
+  opencodeUrl: "http://localhost:39147",
   opencodeHostname: "127.0.0.1",
-  opencodePort: 4096,
+  opencodePort: 39147,
   opencodeModel: "",
 
   sttProvider: "auto",

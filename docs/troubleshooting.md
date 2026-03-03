@@ -55,7 +55,7 @@ The OpenCode server isn't running or isn't reachable at the configured URL:
    ```json
    {
      "opencodeMode": "connect",
-     "opencodeUrl": "http://localhost:4096"
+     "opencodeUrl": "http://localhost:39147"
    }
    ```
 3. If the server is on a different machine, ensure the port is open and the host is correct
@@ -67,13 +67,13 @@ Relay couldn't spawn the OpenCode server. Check:
 1. OpenCode is installed and in your PATH
 2. The port isn't already in use:
    ```bash
-   lsof -i :4096
+   lsof -i :39147
    ```
 3. Check the configured host and port in `~/.relay/config.json`:
    ```json
    {
      "opencodeHostname": "127.0.0.1",
-     "opencodePort": 4096
+     "opencodePort": 39147
    }
    ```
 
@@ -83,7 +83,7 @@ If you see a warning about connecting over HTTP, it means your `opencodeUrl` use
 
 ```json
 {
-  "opencodeUrl": "https://your-server.example.com:4096"
+  "opencodeUrl": "https://your-server.example.com:39147"
 }
 ```
 

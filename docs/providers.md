@@ -46,7 +46,7 @@ Relay spawns and manages the OpenCode server automatically. This is the default.
 
 ### Mode 2: Connect
 
-Connect to an already-running OpenCode server. Use this when the server is running on a different machine or managed separately. Pass `--opencode-mode=connect --opencode-url=http://your-server:4096`.
+Connect to an already-running OpenCode server. Use this when the server is running on a different machine or managed separately. Pass `--opencode-mode=connect --opencode-url=http://your-server:39147`.
 
 ### Model Selection
 

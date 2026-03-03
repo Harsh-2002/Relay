@@ -9,7 +9,7 @@ import { siteConfig } from "@/lib/metadata";
 const navLinks = [
   { label: "Features", href: "/#features" },
   { label: "Providers", href: "/#providers" },
-  { label: "Commands", href: "/#commands" },
+
   { label: "Docs", href: "/docs/getting-started" },
 ];
 

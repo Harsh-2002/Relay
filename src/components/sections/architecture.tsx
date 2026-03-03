@@ -50,14 +50,15 @@ export function Architecture() {
             </p>
           </div>
 
-          {/* Splitting arrows to bottom row */}
-          <div className="flex w-full max-w-lg justify-center gap-[calc(50%-1.5rem)]">
+          {/* Splitting arrows — two on desktop, one on mobile */}
+          <div className="hidden lg:flex w-full max-w-lg justify-center gap-[calc(50%-1.5rem)]">
             <ArrowDown size={24} className="text-text-tertiary shrink-0" />
             <ArrowDown size={24} className="text-text-tertiary shrink-0" />
           </div>
+          <ArrowDown size={24} className="text-text-tertiary shrink-0 lg:hidden" />
 
           {/* Layer 4: AI Provider + MCP Tools side by side */}
-          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 w-full max-w-lg">
+          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-xs lg:max-w-lg">
             {/* AI Provider */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">
               <Cpu size={32} className="text-text-secondary" />
@@ -66,6 +67,8 @@ export function Architecture() {
                 Claude, GPT, Gemini, DeepSeek, 75+ models
               </p>
             </div>
+
+            <ArrowDown size={24} className="text-text-tertiary shrink-0 lg:hidden" />
 
             {/* MCP Tools */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">

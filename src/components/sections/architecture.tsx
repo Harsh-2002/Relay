@@ -60,8 +60,8 @@ export function Architecture() {
           {/* Layer 4: AI Provider + MCP Tools side by side */}
           <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-xs lg:max-w-lg">
             {/* AI Provider */}
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">
-              <Cpu size={32} className="text-text-secondary" />
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-xl p-6 w-full lg:flex-1">
+              <Cpu size={32} className="text-amber-400" />
               <h3 className="font-semibold text-text-primary">AI Provider</h3>
               <p className="text-xs text-text-tertiary text-center">
                 Claude, GPT, Gemini, DeepSeek, 75+ models
@@ -71,8 +71,8 @@ export function Architecture() {
             <ArrowDown size={24} className="text-text-tertiary shrink-0 lg:hidden" />
 
             {/* MCP Tools */}
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">
-              <Puzzle size={32} className="text-text-secondary" />
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 backdrop-blur-xl p-6 w-full lg:flex-1">
+              <Puzzle size={32} className="text-purple-400" />
               <h3 className="font-semibold text-text-primary">MCP Tools</h3>
               <p className="text-xs text-text-tertiary text-center">
                 Browser, Fetch, Memory, Filesystem

@@ -57,7 +57,7 @@ export function Architecture() {
           </div>
 
           {/* Layer 4: AI Provider + MCP Tools side by side */}
-          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 w-full max-w-lg">
+          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 w-full max-w-lg">
             {/* AI Provider */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">
               <Cpu size={32} className="text-text-secondary" />
@@ -69,7 +69,7 @@ export function Architecture() {
 
             {/* MCP Tools */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border-primary bg-bg-card/80 backdrop-blur-xl p-6 w-full lg:flex-1">
-              <Puzzle size={28} className="text-text-secondary" />
+              <Puzzle size={32} className="text-text-secondary" />
               <h3 className="font-semibold text-text-primary">MCP Tools</h3>
               <p className="text-xs text-text-tertiary text-center">
                 Browser, Fetch, Memory, Filesystem

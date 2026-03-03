@@ -62,29 +62,32 @@ export function Terminal({
       )}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b border-white/5">
         <div className="flex gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-500/80" />
-          <span className="w-3 h-3 rounded-full bg-yellow-500/80" />
-          <span className="w-3 h-3 rounded-full bg-green-500/80" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500/80" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-500/80" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500/80" />
         </div>
-        <span className="flex-1 text-center text-xs text-text-tertiary font-mono">
+        <span className="flex-1 text-center text-xs text-text-tertiary font-mono truncate">
           {title}
         </span>
-        <div className="w-[54px]" /> {/* Balance the dots */}
+        <div className="w-[42px] sm:w-[54px]" />
       </div>
 
       {/* Content */}
-      <div className={clsx("font-mono text-sm leading-relaxed", compact ? "p-4" : "p-5")}>
+      <div className={clsx(
+        "font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto",
+        compact ? "p-3 sm:p-4" : "p-3 sm:p-5"
+      )}>
         {lines.map((line, i) => {
           const style = lineStyles[line.type];
 
           if (line.type === "blank") {
-            return <div key={i} className="h-4" />;
+            return <div key={i} className="h-3 sm:h-4" />;
           }
 
           const content = (
-            <div key={i} className={clsx("flex", compact ? "py-0.5" : "py-[3px]")}>
+            <div key={i} className={clsx("flex whitespace-nowrap", compact ? "py-0.5" : "py-[3px]")}>
               {style.prefix && (
                 <span
                   className={clsx(
@@ -105,13 +108,13 @@ export function Terminal({
             return (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, x: -8 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true, margin: "-30px" }}
                 transition={{
-                  duration: 0.3,
+                  duration: 0.15,
                   ease: "easeOut",
-                  delay: i * 0.08,
+                  delay: i * 0.03,
                 }}
               >
                 {content}

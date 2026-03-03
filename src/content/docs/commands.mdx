@@ -210,6 +210,36 @@ Reconnect a disconnected or failed server.
 
 ---
 
+## Cron (Scheduled Tasks)
+
+Schedule recurring AI tasks that run automatically. Results are delivered to your chat.
+
+### /cron
+
+Show all scheduled jobs with action buttons: enable/disable, run now, and delete.
+
+### /cron add daily \<HH:MM\> \<Title: prompt\>
+
+Schedule a daily job. Example: `/cron add daily 09:00 Git summary: Summarize recent git commits`
+
+### /cron add every \<interval\> \<Title: prompt\>
+
+Schedule a recurring job. Supports minutes (`m`) and hours (`h`). Minimum interval is 1 minute.
+
+Examples: `/cron add every 30m Health: Check server health` or `/cron add every 2h Status: Report system status`
+
+### /cron add weekly \<days\> \<HH:MM\> \<Title: prompt\>
+
+Schedule a weekly job on specific days. Days are comma-separated: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
+
+Example: `/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs`
+
+### Interactive picker
+
+Use `/cron` and tap **Add Job** to build a schedule step by step. The picker walks through type, time, and days, then shows a ready-to-copy `/cron add` command.
+
+---
+
 ## Admin
 
 ### /health

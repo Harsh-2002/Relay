@@ -44,7 +44,7 @@ Send voice notes to the bot and they'll be transcribed and processed as text inp
 }
 ```
 
-Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest available provider is selected: Groq > Sarvam > AssemblyAI > OpenAI.
+Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically.
 
 Sarvam AI also supports a **translate mode** (`sttProvider: "sarvam-translate"`) that transcribes non-English voice messages and translates them to English in one step. See [Providers](/docs/providers#translation-sarvam) for details.
 
@@ -176,12 +176,33 @@ Create sessions with `/new` or `/new Refactoring auth module`. Fork a session wi
 
 ---
 
+## Scheduled Tasks (Cron)
+
+Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, or on specific days of the week. Results are delivered directly to your Telegram chat.
+
+**Creating jobs:**
+
+```
+/cron add daily 09:00 Git summary: Summarize recent git commits
+/cron add every 30m Health: Check server health
+/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs
+```
+
+The format is always: `/cron add <schedule> Title: prompt`
+
+Use `/cron` to see all jobs with action buttons to enable/disable, run now, or delete. The **Add Job** button walks you through building a schedule step by step via an interactive picker.
+
+Jobs are persisted to `cron.json` and survive restarts. The scheduler checks for due jobs every 30 seconds. If the bot restarts, missed jobs are skipped (no avalanche of past runs).
+
+---
+
 ## State Persistence
 
 Relay persists critical state to disk so it survives restarts:
 
 - `~/.relay/config.json` — User configuration
 - `~/.relay/session.json` — Current session ID and selected model
+- `~/.relay/cron.json` — Scheduled task definitions and run history
 - `~/.relay/SKILL.md` — Custom system prompt (optional)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data
 
@@ -196,7 +217,7 @@ For production, run Relay in webhook mode instead of long-polling.
 ```json
 "botMode": "webhook",
 "webhookUrl": "https://your-server.com/bot",
-"webhookPort": 3000,
+"webhookPort": 39148,
 "webhookSecret": "your-random-secret"
 ```
 

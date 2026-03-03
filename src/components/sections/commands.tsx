@@ -96,6 +96,16 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     ],
   },
   {
+    id: "cron",
+    label: "Cron",
+    commands: [
+      { name: "/cron", description: "View scheduled jobs with action buttons" },
+      { name: "/cron add daily HH:MM Title: prompt", description: "Schedule a daily job" },
+      { name: "/cron add every Nm Title: prompt", description: "Schedule a recurring job (e.g. 30m, 2h)" },
+      { name: "/cron add weekly days HH:MM Title: prompt", description: "Schedule a weekly job (e.g. mon,wed,fri)" },
+    ],
+  },
+  {
     id: "admin",
     label: "Admin",
     commands: [
@@ -150,7 +160,7 @@ export function Commands() {
     <Section id="commands" background="secondary">
       <SectionHeader
         overline="Commands"
-        title="30+ commands at your fingertips"
+        title="40+ commands at your fingertips"
         subtitle="Organized command system covering every aspect of your coding workflow"
       />
       <AnimateIn>

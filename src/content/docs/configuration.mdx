@@ -59,7 +59,7 @@ You can also add custom MCP servers via `/mcp add` commands. See [Commands](/doc
 
 - `botMode` — `polling` (default) or `webhook`
 - `webhookUrl` — Public URL for receiving updates (required for webhook)
-- `webhookPort` — Port for the webhook HTTP server (default: `3000`)
+- `webhookPort` — Port for the webhook HTTP server (default: `39148`)
 - `webhookSecret` — Optional secret for webhook verification
 
 ### Long Polling (default)
@@ -77,7 +77,7 @@ Runs an HTTP server; Telegram pushes updates to it. Lower latency, better for pr
 ```json
 "botMode": "webhook",
 "webhookUrl": "https://your-server.com/bot",
-"webhookPort": 3000,
+"webhookPort": 39148,
 "webhookSecret": "your-random-secret"
 ```
 
@@ -91,6 +91,7 @@ Relay persists session state, model selection, and provider data to disk so they
 
 - `~/.relay/config.json` — User configuration (0600 permissions)
 - `~/.relay/session.json` — Active session ID and selected model
+- `~/.relay/cron.json` — Scheduled task definitions and run history
 - `~/.relay/SKILL.md` — Custom system prompt (optional)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
@@ -121,7 +122,7 @@ Resolved relative to `dataDir`, so the default location is `~/.relay/SKILL.md`. 
 - `openaiSttModel` — OpenAI transcription model (default: `gpt-4o-mini-transcribe`)
 - `assemblyaiApiKey` — AssemblyAI API key
 
-Set at least one API key to enable voice support. When `auto`, the cheapest available provider is selected: Groq > Sarvam > AssemblyAI > OpenAI.
+Set at least one API key to enable voice support. When `auto`, the cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically.
 
 Use `sarvam-translate` to transcribe and translate non-English voice messages to English. See [Providers](/docs/providers#translation-sarvam) for details.
 

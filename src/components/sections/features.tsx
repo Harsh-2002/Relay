@@ -8,6 +8,7 @@ import {
   Puzzle,
   Terminal,
   Settings,
+  Clock,
 } from "lucide-react";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { Card } from "@/components/ui/card";
@@ -69,6 +70,14 @@ const features = [
       "Browser, Fetch, Memory, and Filesystem tools built in. Add custom MCP servers too.",
     accent: "text-purple-400",
     glow: "bg-purple-400/10 ring-purple-400/20",
+  },
+  {
+    icon: Clock,
+    title: "Scheduled Tasks",
+    description:
+      "Automate recurring AI prompts with cron jobs \u2014 run daily, hourly, or on specific days.",
+    accent: "text-teal-400",
+    glow: "bg-teal-400/10 ring-teal-400/20",
   },
   {
     icon: Terminal,

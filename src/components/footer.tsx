@@ -84,9 +84,6 @@ export function Footer() {
           <p className="text-xs text-text-tertiary">
             &copy; {new Date().getFullYear()} Relay &middot; MIT License
           </p>
-          <p className="text-xs text-text-tertiary">
-            Built with Next.js
-          </p>
         </div>
       </div>
     </footer>

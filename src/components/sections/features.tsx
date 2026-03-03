@@ -106,21 +106,24 @@ export function Features() {
         subtitle="A complete Telegram interface for your AI coding workflow"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {features.map((feature, i) => (
-          <AnimateIn key={feature.title} delay={i * 0.05}>
-            <Card className="h-full">
-              <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${feature.glow} ring-1 mb-4`}>
-                <feature.icon size={20} className={feature.accent} />
-              </div>
-              <h3 className="text-lg font-semibold text-text-primary">
-                {feature.title}
-              </h3>
-              <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-                {feature.description}
-              </p>
-            </Card>
-          </AnimateIn>
-        ))}
+        {features.map((feature, i) => {
+          const isLastOdd = i === features.length - 1 && features.length % 3 === 1;
+          return (
+            <AnimateIn key={feature.title} delay={i * 0.05} className={isLastOdd ? "sm:col-span-2 lg:col-span-3" : ""}>
+              <Card className="h-full">
+                <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${feature.glow} ring-1 mb-4`}>
+                  <feature.icon size={20} className={feature.accent} />
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+                  {feature.description}
+                </p>
+              </Card>
+            </AnimateIn>
+          );
+        })}
       </div>
     </Section>
   );

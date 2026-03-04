@@ -38,48 +38,27 @@ export class OpenCodeProvider implements Provider {
 
   async init(): Promise<void> {
     const config = getConfig();
-    const mode = config.opencodeMode;
+    const hostname = config.opencodeHostname;
+    const preferredPort = config.opencodePort;
+    const port = await findAvailablePort(preferredPort);
+    providerLogger.info({ hostname, port, preferredPort }, "Initializing provider");
 
-    if (mode === "connect") {
-      const baseUrl = config.opencodeUrl;
-      providerLogger.info({ mode, baseUrl }, "Initializing provider");
-      try {
-        const url = new URL(baseUrl);
-        if (
-          url.protocol === "http:" &&
-          !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-        ) {
-          providerLogger.warn(
-            "Connecting to remote OpenCode server over HTTP (unencrypted). Use HTTPS for production."
-          );
-        }
-      } catch {
-        // Invalid URL — will fail on createOpencodeClient
-      }
+    // On Windows, the SDK's createOpencode() fails with ENOENT because
+    // spawn("opencode") can't find .cmd shims. We spawn manually with
+    // shell:true and then connect as a client.
+    // See: https://github.com/anomalyco/opencode/issues/8160
+    if (process.platform === "win32") {
+      const baseUrl = await spawnOpencodeWindows(hostname, port);
       client = createOpencodeClient({ baseUrl });
     } else {
-      const hostname = config.opencodeHostname;
-      const preferredPort = config.opencodePort;
-      const port = await findAvailablePort(preferredPort);
-      providerLogger.info({ mode, hostname, port, preferredPort }, "Initializing provider");
-
-      // On Windows, the SDK's createOpencode() fails with ENOENT because
-      // spawn("opencode") can't find .cmd shims. We spawn manually with
-      // shell:true and then connect as a client.
-      // See: https://github.com/anomalyco/opencode/issues/8160
-      if (process.platform === "win32") {
-        const baseUrl = await spawnOpencodeWindows(hostname, port);
-        client = createOpencodeClient({ baseUrl });
-      } else {
-        const result = await createOpencode({
-          hostname,
-          port,
-          timeout: 30_000,
-          config: { permission: "allow" } as any,
-        });
-        client = result.client;
-        serverClose = result.server.close;
-      }
+      const result = await createOpencode({
+        hostname,
+        port,
+        timeout: 30_000,
+        config: { permission: "allow" } as any,
+      });
+      client = result.client;
+      serverClose = result.server.close;
     }
   }
 

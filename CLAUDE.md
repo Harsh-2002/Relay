@@ -32,7 +32,7 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 ### Config System (`src/config/`)
 
-- **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`
+- **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`. OpenCode always runs locally (no remote connect mode)
 - **`loader.ts`** — Config resolution: CLI args > config file > defaults
 - **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 5-step flow: OpenCode (install check) → Bot Token → User ID → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows). OpenCode always runs locally alongside Relay (no remote mode selection in onboarding)
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
@@ -97,6 +97,7 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - `config.json` — User configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
+- `cron.json` — Scheduled task definitions and run history
 - `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
 - `SKILL.md` — Custom user system prompt override (optional). If present, replaces the default base prompt. Hot-reloaded — edits trigger `RELAY.md` regeneration
 - `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)

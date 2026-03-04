@@ -46,21 +46,7 @@ To find your Telegram user ID, send a message to [@userinfobot](https://t.me/use
 
 ## OpenCode Issues
 
-### "Connection refused" when using connect mode
-
-The OpenCode server isn't running or isn't reachable at the configured URL:
-
-1. Check that the OpenCode server is running
-2. Verify the URL in `~/.relay/config.json`:
-   ```json
-   {
-     "opencodeMode": "connect",
-     "opencodeUrl": "http://localhost:39147"
-   }
-   ```
-3. If the server is on a different machine, ensure the port is open and the host is correct
-
-### "Failed to start OpenCode server" in start mode
+### "Failed to start OpenCode server"
 
 Relay couldn't spawn the OpenCode server. Check:
 
@@ -76,16 +62,6 @@ Relay couldn't spawn the OpenCode server. Check:
      "opencodePort": 39147
    }
    ```
-
-### HTTP warning for remote OpenCode
-
-If you see a warning about connecting over HTTP, it means your `opencodeUrl` uses `http://` instead of `https://`. This is fine for local development but use HTTPS for production:
-
-```json
-{
-  "opencodeUrl": "https://your-server.example.com:39147"
-}
-```
 
 ---
 
@@ -256,7 +232,7 @@ Or access the raw files directly:
 - Check your internet connection
 - The AI provider may be experiencing high load
 - Larger models (opus, o3) are slower than smaller ones (haiku, o4-mini)
-- If using OpenCode in connect mode, check the server's health
+- Check the OpenCode server's health with `/health`
 
 ### "Operation timed out"
 

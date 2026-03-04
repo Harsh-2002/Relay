@@ -9,8 +9,6 @@ export interface RelayConfig {
 
   // Provider (always "opencode" — only supported value)
   provider: "opencode";
-  opencodeMode: "start" | "connect";
-  opencodeUrl: string;
   opencodeHostname: string;
   opencodePort: number;
   opencodeModel: string;
@@ -50,8 +48,6 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   webhookSecret: "",
 
   provider: "opencode",
-  opencodeMode: "start",
-  opencodeUrl: "http://localhost:39147",
   opencodeHostname: "127.0.0.1",
   opencodePort: 39147,
   opencodeModel: "",

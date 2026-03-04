@@ -29,8 +29,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
         "webhook-url": { type: "string" },
         "webhook-port": { type: "string" },
         "webhook-secret": { type: "string" },
-        "opencode-mode": { type: "string" },
-        "opencode-url": { type: "string" },
         "opencode-hostname": { type: "string" },
         "opencode-port": { type: "string" },
         "opencode-model": { type: "string" },
@@ -52,8 +50,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
     if (values["webhook-url"]) flags.webhookUrl = values["webhook-url"] as string;
     if (values["webhook-port"]) flags.webhookPort = Number(values["webhook-port"]);
     if (values["webhook-secret"]) flags.webhookSecret = values["webhook-secret"] as string;
-    if (values["opencode-mode"]) flags.opencodeMode = values["opencode-mode"] as RelayConfig["opencodeMode"];
-    if (values["opencode-url"]) flags.opencodeUrl = values["opencode-url"] as string;
     if (values["opencode-hostname"]) flags.opencodeHostname = values["opencode-hostname"] as string;
     if (values["opencode-port"]) flags.opencodePort = Number(values["opencode-port"]);
     if (values["opencode-model"]) flags.opencodeModel = values["opencode-model"] as string;

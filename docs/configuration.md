@@ -59,10 +59,8 @@ See [Providers](providers.md) for detailed setup.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
-| `opencodeMode` | `--opencode-mode` | `start` | `start` spawns a local server, `connect` connects to a remote URL |
-| `opencodeUrl` | `--opencode-url` | `http://localhost:39147` | Server URL (used when mode=`connect`) |
-| `opencodeHostname` | `--opencode-hostname` | `127.0.0.1` | Bind address (used when mode=`start`) |
-| `opencodePort` | `--opencode-port` | `39147` | Port number (used when mode=`start`) |
+| `opencodeHostname` | `--opencode-hostname` | `127.0.0.1` | Bind address for the local OpenCode server |
+| `opencodePort` | `--opencode-port` | `39147` | Port number for the local OpenCode server |
 | `opencodeModel` | `--opencode-model` | Server default | Model override, e.g. `anthropic/claude-sonnet-4-20250514` |
 
 ## Bot Mode
@@ -86,7 +84,8 @@ Files stored:
 - `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `cron.json` — Scheduled task definitions and run history
-- `SKILL.md` — Custom system prompt (optional, create manually)
+- `RELAY.md` — Auto-generated assembled system prompt (written on every startup)
+- `SKILL.md` — Custom system prompt override (optional, create manually)
 - `memory.jsonl` — Memory MCP knowledge graph (auto-created when Memory is enabled)
 
 The directory is excluded from git via `.gitignore`.

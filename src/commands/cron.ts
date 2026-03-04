@@ -74,6 +74,7 @@ function buildCronList(): { text: string; keyboard: InlineKeyboard } {
 // /cron add daily 9:00 Title: prompt
 // /cron add every 30m Title: prompt
 // /cron add weekly mon,wed 14:30 Title: prompt
+// /cron add once 14:30 Title: prompt
 
 function parseDirectAdd(input: string): { schedule: CronSchedule; name: string; prompt: string } | null {
   const parts = input.trim().split(/\s+/);
@@ -101,6 +102,16 @@ function parseDirectAdd(input: string): { schedule: CronSchedule; name: string; 
     const { name, prompt } = parseNamePrompt(rest);
     if (!name || !prompt) return null;
     return { schedule: { type: "daily", hour, minute }, name, prompt };
+  }
+
+  if (type === "once") {
+    const timeStr = parts[1];
+    const { hour, minute } = parseTime(timeStr);
+    if (hour === null) return null;
+    const rest = parts.slice(2).join(" ");
+    const { name, prompt } = parseNamePrompt(rest);
+    if (!name || !prompt) return null;
+    return { schedule: { type: "once", hour, minute }, name, prompt };
   }
 
   if (type === "weekly") {
@@ -147,7 +158,7 @@ function parseNamePrompt(s: string): { name: string; prompt: string } {
 // --- Inline keyboard step state (per-chat) ---
 
 interface AddFlowState {
-  type?: "interval" | "daily" | "weekly";
+  type?: "interval" | "daily" | "weekly" | "once";
   intervalMinutes?: number;
   hour?: number;
   minute?: number;
@@ -185,7 +196,8 @@ const USAGE_TEXT =
   `<b>Formats:</b>\n` +
   `<code>/cron add daily 9:00 Title: prompt</code>\n` +
   `<code>/cron add every 30m Title: prompt</code>\n` +
-  `<code>/cron add weekly mon,wed 14:30 Title: prompt</code>\n\n` +
+  `<code>/cron add weekly mon,wed 14:30 Title: prompt</code>\n` +
+  `<code>/cron add once 14:30 Title: prompt</code>\n\n` +
   `<b>Example:</b>\n` +
   `<code>/cron add daily 9:00 Git summary: Summarize recent git commits</code>`;
 
@@ -199,6 +211,10 @@ function buildAddHint(schedule: CronSchedule): string {
     const hh = String(schedule.hour ?? 9).padStart(2, "0");
     const mm = String(schedule.minute ?? 0).padStart(2, "0");
     schedPart = `daily ${hh}:${mm}`;
+  } else if (schedule.type === "once") {
+    const hh = String(schedule.hour ?? 9).padStart(2, "0");
+    const mm = String(schedule.minute ?? 0).padStart(2, "0");
+    schedPart = `once ${hh}:${mm}`;
   } else if (schedule.type === "weekly") {
     const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const days = (schedule.days ?? [1]).map(d => dayNames[d]).join(",");
@@ -257,6 +273,7 @@ export function registerCronCommands(bot: Bot): void {
       .text("Every N min", "cron_typ:interval").row()
       .text("Daily", "cron_typ:daily").row()
       .text("Weekly", "cron_typ:weekly").row()
+      .text("Once", "cron_typ:once").row()
       .text("Cancel", "cron_cancel");
 
     await safeEdit(ctx, "<b>New Cron Job</b>\n\nSelect schedule type:", { reply_markup: kb });
@@ -279,9 +296,9 @@ export function registerCronCommands(bot: Bot): void {
     await ctx.answerCallbackQuery();
   });
 
-  // Step 2b: Daily/Weekly — pick hour
-  bot.callbackQuery(/^cron_typ:(daily|weekly)$/, async (ctx) => {
-    const type = ctx.match[1] as "daily" | "weekly";
+  // Step 2b: Daily/Weekly/Once — pick hour
+  bot.callbackQuery(/^cron_typ:(daily|weekly|once)$/, async (ctx) => {
+    const type = ctx.match[1] as "daily" | "weekly" | "once";
     const flow = getFlow(ctx.chat!.id);
     flow.type = type;
 
@@ -350,8 +367,9 @@ export function registerCronCommands(bot: Bot): void {
       return;
     }
 
-    // Daily → show /cron add command
-    const schedule: CronSchedule = { type: "daily", hour: flow.hour, minute };
+    // Daily/Once → show /cron add command
+    const schedType = flow.type === "once" ? "once" as const : "daily" as const;
+    const schedule: CronSchedule = { type: schedType, hour: flow.hour, minute };
     clearFlow(ctx.chat!.id);
 
     await safeEdit(ctx, `<b>New Cron Job</b>\n\n${buildAddHint(schedule)}`);

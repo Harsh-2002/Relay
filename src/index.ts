@@ -8,6 +8,7 @@ import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { startCronScheduler, stopCronScheduler } from "./cron.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
+import { startLifecycleMonitor, stopLifecycleMonitor } from "./lifecycle.js";
 import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp } from "./utils/opencode-config.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
@@ -82,6 +83,7 @@ async function main() {
     } else {
       bot.stop();
     }
+    stopLifecycleMonitor();
     shutdownProvider();
     stopCronScheduler();
     stopUploadCleanup();
@@ -118,6 +120,7 @@ async function main() {
     httpServer.listen(config.webhookPort, () => {
       logger.info({ port: config.webhookPort, url: config.webhookUrl }, "Webhook server listening");
       startCronScheduler(bot.api, config.allowedUserId);
+      startLifecycleMonitor();
     });
   } else {
     // Clear any stale webhook before starting long-polling
@@ -128,6 +131,7 @@ async function main() {
       onStart: (info) => {
         logger.info({ username: info.username }, "Bot is running");
         startCronScheduler(bot.api, config.allowedUserId);
+        startLifecycleMonitor();
       },
     });
   }

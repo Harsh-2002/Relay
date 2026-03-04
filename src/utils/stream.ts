@@ -226,6 +226,32 @@ export async function streamPrompt({
   }
 }
 
+/**
+ * Wrapper around streamPrompt that handles stale session recovery.
+ * If the session no longer exists (e.g. after OpenCode server reconnection),
+ * clears the active session, creates a new one, and retries.
+ */
+export async function streamPromptWithRetry(opts: StreamPromptOptions): Promise<void> {
+  try {
+    await streamPrompt(opts);
+  } catch (err: any) {
+    if (isSessionStaleError(err)) {
+      streamLogger.info({ sessionId: opts.sessionId }, "Session stale — retrying with new session");
+      const { clearActiveSession, getOrCreateSession } = await import("../session.js");
+      clearActiveSession();
+      const newSessionId = await getOrCreateSession();
+      await streamPrompt({ ...opts, sessionId: newSessionId });
+    } else {
+      throw err;
+    }
+  }
+}
+
+function isSessionStaleError(err: any): boolean {
+  const msg = (err?.message ?? "").toLowerCase();
+  return msg.includes("session") && (msg.includes("not found") || msg.includes("404") || msg.includes("stale"));
+}
+
 function buildDisplayText(text: string, toolStatus: string, reasoning = ""): string {
   let display = "";
   if (!text && reasoning) {

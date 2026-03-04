@@ -9,6 +9,7 @@ import { isSttAvailable, getSttProvider, listSttProviders } from "../utils/stt.j
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { isServerDown } from "../lifecycle.js";
 
 const PROVIDER_MODELS_PER_PAGE = 8;
 
@@ -323,10 +324,13 @@ export function registerAdminCommands(bot: Bot): void {
         // Ignore — optional info
       }
 
+      const lifecycleStatus = isServerDown() ? "DOWN (auto-recovery in progress)" : "Healthy";
+
       let text =
         `<b>Server Status</b>\n\n` +
         `<b>Provider:</b>  <code>${health.provider}</code>\n` +
         `<b>Status:</b>  ${health.status}\n` +
+        `<b>Lifecycle:</b>  ${lifecycleStatus}\n` +
         `<b>Model:</b>  <code>${modelStr}</code>${reasoningBadge}\n` +
         `<b>Voice STT:</b>  ${stt}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;

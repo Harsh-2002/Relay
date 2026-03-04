@@ -19,3 +19,4 @@ export const sessionLogger = logger.child({ component: "session" });
 export const sttLogger = logger.child({ component: "stt" });
 export const streamLogger = logger.child({ component: "stream" });
 export const cronLogger = logger.child({ component: "cron" });
+export const lifecycleLogger = logger.child({ component: "lifecycle" });

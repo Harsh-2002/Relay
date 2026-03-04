@@ -2,7 +2,7 @@ import type { Bot } from "grammy";
 import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
 import { downloadTelegramFile, downloadTelegramFileBuffer } from "../utils/media.js";
 import { transcribeAudio, isSttAvailable } from "../utils/stt.js";
-import { streamPrompt } from "../utils/stream.js";
+import { streamPromptWithRetry } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
 import { readFileSync } from "fs";
@@ -75,7 +75,7 @@ export function registerMediaHandlers(bot: Bot): void {
             const parts: any[] = [{ type: "text" as const, text: promptText }];
 
             mediaLogger.info({ fileName, sessionId }, "Sending text file to provider");
-            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+            await streamPromptWithRetry({ ctx, sessionId, parts, model, system, agent });
             return;
           } else if (isImageMime(doc.mime_type) || isPdfMime(doc.mime_type)) {
             const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path!);
@@ -106,7 +106,7 @@ export function registerMediaHandlers(bot: Bot): void {
             const system = getSystemPrompt();
 
             mediaLogger.info({ fileName, mime, sessionId }, "Sending image/PDF to provider");
-            await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+            await streamPromptWithRetry({ ctx, sessionId, parts, model, system, agent });
             return;
           } else {
             promptText = `${caption}\n\n(Binary file: ${fileName}, ${doc.file_size ?? "unknown"} bytes)`;
@@ -117,7 +117,7 @@ export function registerMediaHandlers(bot: Bot): void {
           const agent = getSelectedAgent();
           const system = getSystemPrompt();
 
-          await streamPrompt({
+          await streamPromptWithRetry({
             ctx,
             sessionId,
             parts: [{ type: "text", text: promptText }],
@@ -199,7 +199,7 @@ export function registerMediaHandlers(bot: Bot): void {
           const system = getSystemPrompt();
 
           mediaLogger.info({ sessionId, bufferLen: buffer.length }, "Sending photo to provider");
-          await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+          await streamPromptWithRetry({ ctx, sessionId, parts, model, system, agent });
         } finally {
           clearInterval(typingInterval);
         }
@@ -255,7 +255,7 @@ export function registerMediaHandlers(bot: Bot): void {
         const system = getSystemPrompt();
         const promptParts = [{ type: "text" as const, text: result.text }];
 
-        await streamPrompt({ ctx, sessionId, parts: promptParts, model, system, agent });
+        await streamPromptWithRetry({ ctx, sessionId, parts: promptParts, model, system, agent });
       } finally {
         clearInterval(typingInterval);
       }
@@ -303,7 +303,7 @@ export function registerMediaHandlers(bot: Bot): void {
             const agent = getSelectedAgent();
             const system = getSystemPrompt();
 
-            await streamPrompt({
+            await streamPromptWithRetry({
               ctx, sessionId,
               parts: [{ type: "text", text: result.text }],
               model, system, agent,
@@ -322,7 +322,7 @@ export function registerMediaHandlers(bot: Bot): void {
         const system = getSystemPrompt();
 
         const promptText = `${caption}\n\n(Audio file: ${fileName})`;
-        await streamPrompt({
+        await streamPromptWithRetry({
           ctx,
           sessionId,
           parts: [{ type: "text", text: promptText }],

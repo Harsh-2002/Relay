@@ -147,6 +147,8 @@ export interface Provider {
   // Lifecycle
   init(): Promise<void>;
   shutdown(): void;
+  isAlive(): Promise<boolean>;
+  reconnect(): Promise<void>;
 
   // Sessions
   createSession(title?: string): Promise<Session>;

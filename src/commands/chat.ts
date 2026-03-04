@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "../session.js";
-import { streamPrompt } from "../utils/stream.js";
+import { streamPromptWithRetry } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
 import { chatLogger } from "../utils/logger.js";
@@ -63,7 +63,7 @@ async function handleTextMessage(ctx: Context, rawText: string, isEdit: boolean)
 
     const promptText = isEdit ? `[Edited message] ${text}` : text;
     const parts = [{ type: "text" as const, text: promptText }];
-    await streamPrompt({ ctx, sessionId, parts, model, system, agent });
+    await streamPromptWithRetry({ ctx, sessionId, parts, model, system, agent });
   }).catch(async (err: any) => {
     chatLogger.info({ err: err?.message }, "Chat error");
     ctx.reply(formatCatchError(err, "sending message"), { parse_mode: "HTML" }).catch(() => {});

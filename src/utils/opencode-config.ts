@@ -108,14 +108,13 @@ export function removeInstructions(filePath: string): void {
   writeOpenCodeConfig(config);
 }
 
-export function ensureRelayMcp(port: number, token: string): void {
+export function ensureRelayMcp(port: number): void {
   const serverPath = resolve(__dirname, "..", "mcp", "relay-server.js");
   ensureMcp("relay", {
     type: "local",
     command: ["node", serverPath],
     environment: {
       RELAY_API_PORT: String(port),
-      RELAY_API_TOKEN: token,
     },
     timeout: 30000,
   });

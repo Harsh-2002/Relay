@@ -224,32 +224,6 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
     }
   }
 
-  if (!isUpdate) {
-    p.log.info("\"Start\" spawns a local server. \"Connect\" uses an existing one.");
-  } else {
-    p.log.info(`Current: ${config.opencodeMode === "start" ? "Start (local)" : "Connect (remote)"}`);
-  }
-
-  const opencodeMode = await p.select({
-    message: "OpenCode mode:",
-    initialValue: config.opencodeMode,
-    options: [
-      { value: "start" as const, label: "Start (spawn local server)" },
-      { value: "connect" as const, label: "Connect (remote server)" },
-    ],
-  });
-  handleCancel(opencodeMode);
-  config.opencodeMode = opencodeMode as "start" | "connect";
-
-  if (opencodeMode === "connect") {
-    const urlEntered = await p.text({
-      message: "OpenCode server URL:",
-      initialValue: config.opencodeUrl || "http://localhost:39147",
-    });
-    handleCancel(urlEntered);
-    config.opencodeUrl = (urlEntered as string).trim();
-  }
-
   // ── Step 2: Bot Token ──
   p.log.step("Step 2/5 — Bot Token");
 

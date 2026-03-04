@@ -6,8 +6,7 @@
  * Relay's internal HTTP API on localhost using a shared auth token.
  *
  * Environment variables (set by OpenCode when spawning):
- *   RELAY_API_PORT  — port of the Relay internal API
- *   RELAY_API_TOKEN — bearer token for authentication
+ *   RELAY_API_PORT  — port of the Relay internal API (localhost-only, no auth needed)
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,10 +14,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod/v4";
 
 const API_PORT = process.env.RELAY_API_PORT;
-const API_TOKEN = process.env.RELAY_API_TOKEN;
 
-if (!API_PORT || !API_TOKEN) {
-  process.stderr.write("Missing RELAY_API_PORT or RELAY_API_TOKEN environment variables\n");
+if (!API_PORT) {
+  process.stderr.write("Missing RELAY_API_PORT environment variable\n");
   process.exit(1);
 }
 
@@ -41,7 +39,6 @@ async function apiCall(
       const opts: RequestInit = {
         method,
         headers: {
-          "Authorization": `Bearer ${API_TOKEN}`,
           "Content-Type": "application/json",
         },
       };

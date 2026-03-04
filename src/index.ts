@@ -81,8 +81,8 @@ async function main() {
 
   // Start Relay MCP (internal API + register in OpenCode) — always on
   try {
-    const { port, token } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
-    ensureRelayMcp(port, token);
+    const { port } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
+    ensureRelayMcp(port);
     logger.info({ port }, "Relay MCP configured in OpenCode config");
   } catch (err: any) {
     logger.info({ err: err?.message }, "Failed to start Relay MCP API");

@@ -34,7 +34,7 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 - **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`
 - **`loader.ts`** — Config resolution: CLI args > config file > defaults
-- **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 5-step flow: OpenCode → Bot Token → User ID → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows)
+- **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 5-step flow: OpenCode (install check) → Bot Token → User ID → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows). OpenCode always runs locally alongside Relay (no remote mode selection in onboarding)
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
 
 ### Provider Abstraction (`src/providers/`)
@@ -88,8 +88,8 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 - **`src/auth.ts`** — Single-user auth via `initAuth(userId)` + rate limiting (30 req/min) with countdown timer.
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
 - **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run. Passes existing config to setup wizard for update mode.
-- **`src/relay-api.ts`** — Internal localhost HTTP API (binds to `127.0.0.1` on `relayMcpPort`, default 39149). Bridges MCP tool calls to existing Relay functions (cron CRUD, notify, health). Bearer token auth with token persisted to `relay-mcp.json`. Exports `startRelayApi()` / `stopRelayApi()`.
-- **`src/mcp/relay-server.ts`** — Standalone MCP stdio server spawned by OpenCode. Exposes 8 tools: `relay_cron_list`, `relay_cron_add`, `relay_cron_update`, `relay_cron_remove`, `relay_cron_toggle`, `relay_cron_run`, `relay_notify`, `relay_health`. Schedule types: `interval`, `daily`, `weekly`, `once`. Uses newline-delimited JSON-RPC over stdio. Communicates with `relay-api.ts` via HTTP with retry logic.
+- **`src/relay-api.ts`** — Internal localhost HTTP API (binds to `127.0.0.1` on `relayMcpPort`, default 39149). Bridges MCP tool calls to existing Relay functions (cron CRUD, notify, health). No auth needed — localhost-only. Exports `startRelayApi()` / `stopRelayApi()`.
+- **`src/mcp/relay-server.ts`** — Standalone MCP stdio server spawned by OpenCode. Exposes 8 tools: `relay_cron_list`, `relay_cron_add`, `relay_cron_update`, `relay_cron_remove`, `relay_cron_toggle`, `relay_cron_run`, `relay_notify`, `relay_health`. Schedule types: `interval`, `daily`, `weekly`, `once`. Uses newline-delimited JSON-RPC over stdio. Communicates with `relay-api.ts` via localhost HTTP (no auth).
 - **`src/index.ts`** — Bot startup: loads config, auto-configures enabled MCP tools (Playwright, Fetch, Memory, Filesystem, Relay) in OpenCode config, writes assembled system prompt to `RELAY.md` and registers it in OpenCode's `instructions`, inits provider, starts Relay internal API, starts bot in polling or webhook mode.
 
 ### Persistence (`~/.relay/` directory)
@@ -97,7 +97,6 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - `config.json` — User configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
-- `relay-mcp.json` — Persisted auth token for Relay MCP API (survives restarts)
 - `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
 - `SKILL.md` — Custom user system prompt override (optional). If present, replaces the default base prompt. Hot-reloaded — edits trigger `RELAY.md` regeneration
 - `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
@@ -122,5 +121,5 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - **Media in text**: Markdown image syntax (`![alt](url)`) is stripped from text responses in `stream.ts` (code-block aware) since Telegram cannot render inline images. The system prompt also instructs the AI not to reference screenshots in text.
 - **System prompt delivery**: OpenCode ignores `body.system` (stores as metadata, never sends to LLM). System prompt is delivered via file: `writeSystemPromptFile()` assembles the full prompt (base + MCP tool docs, no timestamp) and writes to `{dataDir}/RELAY.md`. This file is registered in OpenCode's `instructions` config, which OpenCode loads into every LLM request. See `docs/prompt-architecture.md` for detailed diagrams.
 - **Cron schedule types**: `interval` (every N minutes), `daily` (once per day), `weekly` (specific days), `once` (fires once at specified time, then auto-disables with `enabled=false`, preserving execution history). Toggle re-enables for another run.
-- **Relay MCP**: When `relayMcpEnabled` is true (default), Relay starts an internal HTTP API on `127.0.0.1:relayMcpPort` (default 39149) and registers a `relay` MCP server in OpenCode's config. The MCP server is a separate stdio process (`src/mcp/relay-server.ts`) spawned by OpenCode, which calls the internal API with a persisted bearer token. The port and token are stable across restarts (token persisted to `relay-mcp.json`, port is configurable). Uses `@modelcontextprotocol/sdk` with newline-delimited JSON-RPC (not Content-Length framed).
+- **Relay MCP**: Relay starts an internal HTTP API on `127.0.0.1:relayMcpPort` (default 39149) and registers a `relay` MCP server in OpenCode's config. The MCP server is a separate stdio process (`src/mcp/relay-server.ts`) spawned by OpenCode, which calls the internal API on localhost (no auth — localhost-only binding). Uses `@modelcontextprotocol/sdk` with newline-delimited JSON-RPC (not Content-Length framed).
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

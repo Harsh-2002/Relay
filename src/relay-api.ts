@@ -1,18 +1,11 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "http";
-import { randomBytes, timingSafeEqual } from "crypto";
 import type { Api, RawApi } from "grammy";
 import { listJobs, addJob, removeJob, toggleJob, updateJob, runJobNow, formatSchedule, type CronSchedule } from "./cron.js";
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
-import { JsonStore } from "./utils/store.js";
 import { relayApiLogger } from "./utils/logger.js";
 
-interface RelayMcpState {
-  token: string;
-}
-
 let server: Server | null = null;
-let apiToken = "";
 let botApi: Api<RawApi> | null = null;
 let chatId: number | null = null;
 
@@ -62,15 +55,6 @@ function extractId(url: string, prefix: string): string | null {
 // --- Route handler ---
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const auth = req.headers["authorization"] ?? "";
-  const expected = `Bearer ${apiToken}`;
-  const authBuf = Buffer.from(auth);
-  const expectedBuf = Buffer.from(expected);
-  if (authBuf.length !== expectedBuf.length || !timingSafeEqual(authBuf, expectedBuf)) {
-    json(res, 401, { error: "Unauthorized" });
-    return;
-  }
-
   const method = req.method ?? "GET";
   const url = req.url ?? "/";
 
@@ -336,23 +320,9 @@ export async function startRelayApi(
   api: Api<RawApi>,
   userId: number,
   port: number,
-): Promise<{ port: number; token: string }> {
+): Promise<{ port: number }> {
   botApi = api;
   chatId = userId;
-
-  // Lazy-init store here (not at module level) so it uses the correct DATA_DIR
-  // after setDataDir() has been called.
-  const mcpStore = new JsonStore<RelayMcpState>("relay-mcp.json", { token: "" });
-
-  // Reuse persisted token across restarts so the MCP server process
-  // (spawned by OpenCode) doesn't need to be restarted when Relay restarts.
-  const state = mcpStore.load();
-  if (state.token) {
-    apiToken = state.token;
-  } else {
-    apiToken = randomBytes(32).toString("hex");
-    mcpStore.save({ token: apiToken });
-  }
 
   return new Promise((resolve, reject) => {
     server = createServer((req, res) => {
@@ -366,7 +336,7 @@ export async function startRelayApi(
       const addr = server!.address();
       const listenPort = typeof addr === "object" && addr ? addr.port : 0;
       relayApiLogger.info({ port: listenPort }, "Relay API listening");
-      resolve({ port: listenPort, token: apiToken });
+      resolve({ port: listenPort });
     });
 
     server.on("error", (err) => {

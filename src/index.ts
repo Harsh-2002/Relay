@@ -8,7 +8,9 @@ import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { startCronScheduler, stopCronScheduler } from "./cron.js";
 import { unwatchSystemPrompt } from "./utils/system-prompt.js";
-import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp } from "./utils/opencode-config.js";
+import { startLifecycleMonitor, stopLifecycleMonitor } from "./lifecycle.js";
+import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureRelayMcp } from "./utils/opencode-config.js";
+import { startRelayApi, stopRelayApi } from "./relay-api.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
 
@@ -68,6 +70,17 @@ async function main() {
   // Register commands with Telegram for autocomplete menu
   await bot.api.setMyCommands(getBotCommands());
 
+  // Start Relay MCP (internal API + register in OpenCode)
+  if (config.relayMcpEnabled) {
+    try {
+      const { port, token } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
+      ensureRelayMcp(port, token);
+      logger.info({ port }, "Relay MCP configured in OpenCode config");
+    } catch (err: any) {
+      logger.info({ err: err?.message }, "Failed to start Relay MCP API");
+    }
+  }
+
   const botMode = config.botMode;
   let httpServer: import("http").Server | null = null;
   let shuttingDown = false;
@@ -82,6 +95,8 @@ async function main() {
     } else {
       bot.stop();
     }
+    stopRelayApi();
+    stopLifecycleMonitor();
     shutdownProvider();
     stopCronScheduler();
     stopUploadCleanup();
@@ -118,6 +133,7 @@ async function main() {
     httpServer.listen(config.webhookPort, () => {
       logger.info({ port: config.webhookPort, url: config.webhookUrl }, "Webhook server listening");
       startCronScheduler(bot.api, config.allowedUserId);
+      startLifecycleMonitor();
     });
   } else {
     // Clear any stale webhook before starting long-polling
@@ -128,6 +144,7 @@ async function main() {
       onStart: (info) => {
         logger.info({ username: info.username }, "Bot is running");
         startCronScheduler(bot.api, config.allowedUserId);
+        startLifecycleMonitor();
       },
     });
   }

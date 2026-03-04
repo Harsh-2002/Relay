@@ -8,6 +8,8 @@ import { escapeHtml } from "./utils/html.js";
 import type { ResponseFile } from "./utils/files.js";
 import { JsonStore } from "./utils/store.js";
 import { cronLogger } from "./utils/logger.js";
+import { ensureServerAlive } from "./lifecycle.js";
+import { clearActiveSession } from "./session.js";
 
 const MAX_ERROR_LEN = 500; // Truncate error messages
 
@@ -231,6 +233,27 @@ async function executeJob(job: CronJob): Promise<void> {
   const api = schedulerApi;
   const chatId = schedulerChatId;
 
+  // Pre-flight: ensure the OpenCode server is alive before running the job
+  try {
+    await ensureServerAlive();
+  } catch (err: any) {
+    cronLogger.warn({ jobId: job.id, name: job.name, err: err?.message }, "Cron skipped: server down");
+    try {
+      await api.sendMessage(
+        chatId,
+        `<b>Cron: ${escapeHtml(job.name)}</b>\n\n` +
+        `<b>Skipped — server unreachable</b>\n` +
+        `Automatic recovery failed. Job will retry on next schedule.`,
+        { parse_mode: "HTML" },
+      );
+    } catch {}
+    job.lastRunAt = Date.now();
+    job.lastRunOk = false;
+    job.runCount++;
+    persist();
+    return;
+  }
+
   // Send header message
   let msgId: number | null = null;
   try {
@@ -316,9 +339,22 @@ async function executeJob(job: CronJob): Promise<void> {
     }
   } catch (err: any) {
     cronLogger.info({ jobId: job.id, err: err?.message }, "Cron job error");
+
+    // Clear stale session on session-related errors so the next run gets a fresh one
+    const errMsg = (err?.message ?? "").toLowerCase();
+    if (errMsg.includes("session") && (errMsg.includes("not found") || errMsg.includes("404"))) {
+      clearActiveSession();
+      cronLogger.info({ jobId: job.id }, "Cleared stale session after cron error");
+    }
+
     const errText = (err?.message ?? "unknown").slice(0, MAX_ERROR_LEN);
+    const isServerError = ["econnrefused", "econnreset", "enotfound", "fetch failed", "server is down"]
+      .some(p => errMsg.includes(p));
+    const alertText = isServerError
+      ? `${header}\n\n<b>Failed — server unreachable</b>\nThe AI server stopped responding during this job.`
+      : `${header}\n\n<i>Error: ${escapeHtml(errText)}</i>`;
     try {
-      await api.editMessageText(chatId, msgId!, `${header}\n\n<i>Error: ${escapeHtml(errText)}</i>`, { parse_mode: "HTML" });
+      await api.editMessageText(chatId, msgId!, alertText, { parse_mode: "HTML" });
     } catch {}
   }
 

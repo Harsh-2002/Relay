@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
 import { homedir } from "os";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
 const OPENCODE_CONFIG_FILE = join(OPENCODE_CONFIG_DIR, "opencode.json");
@@ -76,3 +79,17 @@ export function ensureFilesystemMcp(paths: string[]): void {
   });
 }
 export function removeFilesystemMcp(): void { removeMcp("filesystem"); }
+
+export function ensureRelayMcp(port: number, token: string): void {
+  const serverPath = resolve(__dirname, "..", "mcp", "relay-server.js");
+  ensureMcp("relay", {
+    type: "local",
+    command: ["node", serverPath],
+    environment: {
+      RELAY_API_PORT: String(port),
+      RELAY_API_TOKEN: token,
+    },
+    timeout: 30000,
+  });
+}
+export function removeRelayMcp(): void { removeMcp("relay"); }

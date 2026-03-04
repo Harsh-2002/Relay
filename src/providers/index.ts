@@ -38,4 +38,11 @@ export function shutdownProvider(): void {
   activeProvider?.shutdown();
 }
 
+export async function reconnectProvider(): Promise<void> {
+  if (!activeProvider) {
+    throw new Error("Provider not initialized. Call initProvider() first.");
+  }
+  await activeProvider.reconnect();
+}
+
 export type { Provider } from "./types.js";

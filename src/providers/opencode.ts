@@ -86,6 +86,23 @@ export class OpenCodeProvider implements Provider {
   shutdown(): void {
     providerLogger.info("Shutting down provider");
     serverClose?.();
+    serverClose = undefined;
+  }
+
+  async isAlive(): Promise<boolean> {
+    try {
+      const result = await client.config.get();
+      return !result.error;
+    } catch {
+      return false;
+    }
+  }
+
+  async reconnect(): Promise<void> {
+    providerLogger.warn("Reconnecting to OpenCode server...");
+    this.shutdown();
+    await this.init();
+    providerLogger.info("OpenCode server reconnected");
   }
 
   // --- Sessions ---

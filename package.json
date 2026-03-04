@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@opencode-ai/sdk": "^1.2.15",
     "grammy": "^1.40.1",
     "pino": "^10.3.1",

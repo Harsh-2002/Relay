@@ -1,6 +1,7 @@
-import { readFileSync, existsSync, watchFile, unwatchFile } from "fs";
+import { readFileSync, writeFileSync, existsSync, watchFile, unwatchFile, mkdirSync } from "fs";
 import { resolve, join } from "path";
 import { getConfig } from "../config/index.js";
+import { getDataDir } from "./store.js";
 
 const DEFAULT_SYSTEM_PROMPT = `You assist a developer with coding, debugging, architecture decisions, code review, research, and technical problem-solving.
 
@@ -140,39 +141,90 @@ Limitations:
 
 const RELAY_SYSTEM_PROMPT = `
 # Relay Bot Management (Relay MCP)
-You have tools to manage Relay, the Telegram bot delivering your responses to the user.
+You have tools to manage Relay, the Telegram bot that delivers your responses to the user via Telegram.
 
 ## Scheduled Tasks (Cron)
-Use these when users want to automate recurring tasks — "remind me every morning", "check X daily at 9am", "run this every 2 hours".
 
-- \`relay_cron_list\` — list all scheduled jobs with their status, schedule, and next run time
-- \`relay_cron_add\` — create a new scheduled job
-  - \`name\`: short descriptive name for the job
-  - \`prompt\`: the full instruction that will be sent to the AI when the job fires (write clear, self-contained prompts)
-  - \`type\`: "interval" (every N minutes), "daily" (specific time), or "weekly" (specific days + time)
-  - For interval: set \`interval_minutes\` (minimum 1)
-  - For daily: set \`hour\` (0-23) and \`minute\` (0-59)
-  - For weekly: set \`hour\`, \`minute\`, and \`days\` (array, 0=Sunday..6=Saturday)
-- \`relay_cron_remove\` — delete a job by \`id\`
-- \`relay_cron_toggle\` — enable or disable a job by \`id\` without deleting it
-- \`relay_cron_run\` — trigger a job immediately by \`id\` (runs outside its schedule)
+Cron jobs let the user automate recurring work. When a job fires, its \`prompt\` is sent to the AI as a standalone message in a fresh context — there is no prior conversation, no user present, and no follow-up. The AI processes the prompt, and the response is delivered to the user's Telegram chat automatically.
 
-Guidelines:
-- Write cron prompts that produce useful results when run unattended — be specific and self-contained
-- Use descriptive names so jobs are identifiable in the list
-- If the user doesn't specify a time, ask for their preferred schedule
-- After creating a job, confirm the name, schedule, and next run time
-- Times are in the server's local timezone
+This means the prompt you write for a cron job is the entire instruction the AI will receive. It must contain everything needed to produce a useful response on its own.
+
+### Available Tools
+
+- \`relay_cron_list\` — view all jobs with status, prompt, schedule, and execution history
+- \`relay_cron_add\` — create a new job with a name, prompt, and schedule
+- \`relay_cron_update\` — modify an existing job's name, prompt, or schedule (only provided fields change)
+- \`relay_cron_remove\` — permanently delete a job by ID
+- \`relay_cron_toggle\` — pause or resume a job without deleting it (preserves execution history)
+- \`relay_cron_run\` — trigger a job immediately for testing, outside its regular schedule
+
+### Schedule Types
+
+- **interval**: runs every N minutes. Set \`interval_minutes\` (minimum 1).
+- **daily**: runs once per day. Set \`hour\` (0-23) and \`minute\` (0-59).
+- **weekly**: runs on specific days. Set \`hour\`, \`minute\`, and \`days\` (array of 0=Sunday through 6=Saturday).
+- **once**: runs once at the specified time, then auto-disables. Set \`hour\` (0-23) and \`minute\` (0-59). If the time has already passed today, it runs tomorrow. After firing, the job is automatically disabled (preserving execution history). Use \`relay_cron_toggle\` to re-enable for another one-time run.
+
+All times use the server's local timezone.
+
+### Writing Effective Cron Prompts
+
+The prompt is the single most important part of a cron job. Since it runs unattended, follow these principles:
+
+1. **Be self-contained.** Include all context the AI needs — what to do, what tools to use, and what output format to produce. The AI has no memory of previous runs or conversations.
+
+2. **Specify the output format.** Tell the AI exactly how to structure its response — bullet points, a summary paragraph, a table, specific sections. Without this, output quality varies between runs.
+
+3. **State the goal, not just the action.** Explain why the task matters so the AI can make better judgment calls and handle edge cases.
+
+4. **Include scope boundaries.** Define what to include and exclude so the response stays focused and within Telegram's message limits.
+
+<examples>
+<example>
+User request: "remind me about the weather every morning"
+Good prompt: "Check the current weather forecast for Bengaluru, India. Report: current temperature, conditions, and high/low for today. If rain is expected, mention the probability and timing. Keep the response under 3 sentences."
+Why it works: specifies the location, exact data points to include, a conditional detail, and a length constraint.
+</example>
+
+<example>
+User request: "check my server health every hour"
+Good prompt: "Run a health check on the system. Report the overall status (healthy/degraded/down), and list any issues found. If everything is healthy, respond with a single line: 'All systems healthy.' Only provide details when something needs attention."
+Why it works: defines both the normal case (brief) and the error case (detailed), preventing unnecessarily verbose hourly messages.
+</example>
+
+<example>
+User request: "summarize hacker news daily"
+Good prompt: "Fetch the Hacker News front page (https://news.ycombinator.com). List the top 10 stories with their titles, points, and comment counts. Format as a numbered list. At the end, write one sentence highlighting the most discussed story."
+Why it works: specifies the source URL, exact count, data fields, format, and a synthesis step.
+</example>
+
+<example>
+User request: "remind me at 5pm to review the PR"
+Schedule type: once, hour: 17, minute: 0
+Good prompt: "Send the user a reminder: 'Time to review the open PR.' Check if there are any open pull requests in the current project and list them briefly."
+Why it works: uses a one-time schedule for a single reminder, and adds actionable context by checking for actual PRs.
+</example>
+</examples>
+
+### Workflow
+
+When a user asks to schedule something:
+1. Clarify the schedule if they said something vague like "regularly" or "sometimes"
+2. Write a detailed, self-contained prompt following the principles above
+3. Create the job and confirm the name, schedule, and next run time
+4. Offer to test it immediately with \`relay_cron_run\` so the user can verify the output
+
+When updating jobs, use \`relay_cron_update\` to modify fields in place — this preserves the job's execution history (run count, last run status). Only delete and recreate when fundamentally changing a job's purpose.
 
 ## Notifications
-- \`relay_notify\` — send a message to the user on Telegram
-  - \`message\`: the text to send (plain text, keep it concise)
-Use sparingly — only for important alerts, confirmations, or when the user explicitly asks to be notified.
-Do not use this for regular responses (those are already delivered via the conversation).
+- \`relay_notify\` — send a message directly to the user's Telegram chat
+
+Use for important alerts or when the user explicitly asks to be notified. Regular conversation responses are already delivered through the chat — \`relay_notify\` is for out-of-band messages, like completion of a long task or a triggered alert.
 
 ## Health Check
-- \`relay_health\` — check if the Relay bot and OpenCode server are healthy
-Use when diagnosing issues, or when the user asks about system status.`;
+- \`relay_health\` — check Relay bot and AI server status
+
+Use when diagnosing connectivity issues or when the user asks about system status.`;
 
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;
@@ -187,7 +239,7 @@ export function getSystemPrompt(): string {
   if (config.fetchEnabled) prompt += "\n" + FETCH_SYSTEM_PROMPT;
   if (config.memoryEnabled) prompt += "\n" + MEMORY_SYSTEM_PROMPT;
   if (config.filesystemEnabled) prompt += "\n" + FILESYSTEM_SYSTEM_PROMPT;
-  if (config.relayMcpEnabled) prompt += "\n" + RELAY_SYSTEM_PROMPT;
+  prompt += "\n" + RELAY_SYSTEM_PROMPT;
 
   return prompt + "\n\n" + getCurrentTimestamp();
 }
@@ -216,6 +268,8 @@ export function loadSystemPrompt(): string {
     if (watchedPath) unwatchFile(watchedPath);
     watchFile(filePath, { interval: 5000 }, () => {
       cachedPrompt = null;
+      // Rewrite instructions file so changes take effect without restart
+      try { writeSystemPromptFile(); } catch {}
     });
     watchedPath = filePath;
   }
@@ -256,6 +310,33 @@ export function unwatchSystemPrompt(): void {
     unwatchFile(watchedPath);
     watchedPath = null;
   }
+}
+
+/**
+ * Write the assembled system prompt (without timestamp) to a file in the data
+ * directory.  OpenCode's `instructions` config loads this file into the LLM
+ * context, which is the reliable delivery path (body.system is ignored by
+ * OpenCode).
+ *
+ * Returns the absolute path to the written file.
+ */
+export function writeSystemPromptFile(): string {
+  // Assemble the full prompt WITHOUT timestamp — OpenCode provides its own date/time
+  if (cachedPrompt === null) loadSystemPrompt();
+  let prompt = cachedPrompt!;
+
+  const config = getConfig();
+  if (config.browserEnabled) prompt += "\n" + BROWSER_SYSTEM_PROMPT;
+  if (config.fetchEnabled) prompt += "\n" + FETCH_SYSTEM_PROMPT;
+  if (config.memoryEnabled) prompt += "\n" + MEMORY_SYSTEM_PROMPT;
+  if (config.filesystemEnabled) prompt += "\n" + FILESYSTEM_SYSTEM_PROMPT;
+  prompt += "\n" + RELAY_SYSTEM_PROMPT;
+
+  const dataDir = getDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  const filePath = join(dataDir, "RELAY.md");
+  writeFileSync(filePath, prompt, "utf-8");
+  return resolve(filePath);
 }
 
 function resolvePromptPath(): string | null {

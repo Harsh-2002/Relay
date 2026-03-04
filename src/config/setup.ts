@@ -579,19 +579,13 @@ export function saveConfig(config: RelayConfig, dataDir: string): void {
     mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   }
 
-  // Strip empty/default values for a cleaner config file
+  // Strip default values for a cleaner config file
   const toSave: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
     if (key === "dataDir") continue; // Don't persist dataDir — it's derived
-    if (value === "" || value === 0 || value === false) {
-      // Only include non-default falsy values for key fields
-      if (key === "botToken" || key === "allowedUserId") {
-        toSave[key] = value;
-      }
-      continue;
-    }
     const defaultVal = (CONFIG_DEFAULTS as any)[key];
-    if (value !== defaultVal) {
+    // Save if value differs from default (deep-compare arrays)
+    if (Array.isArray(value) ? JSON.stringify(value) !== JSON.stringify(defaultVal) : value !== defaultVal) {
       toSave[key] = value;
     }
   }

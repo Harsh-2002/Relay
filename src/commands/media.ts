@@ -44,14 +44,14 @@ export function registerMediaHandlers(bot: Bot): void {
       // Fire-and-forget so /abort can be processed while streaming
       withPromptQueue(async () => {
         try {
-          const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
-          mediaLogger.info({ fileName, localPath }, "Document downloaded");
           const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
 
           const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
           let promptText: string;
 
           if (isTextFile) {
+            const localPath = await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
+            mediaLogger.info({ fileName, localPath }, "Document downloaded to disk");
             let content: string;
             try {
               content = readFileSync(localPath, "utf-8");
@@ -190,8 +190,6 @@ export function registerMediaHandlers(bot: Bot): void {
               url: dataUrl,
             },
           ];
-
-          await downloadTelegramFile(getBotToken(), file.file_path!, fileName);
 
           const sessionId = await getOrCreateSession();
           const model = getSelectedModel();

@@ -16,7 +16,7 @@ const MAX_ERROR_LEN = 500; // Truncate error messages
 // --- Data Model ---
 
 export interface CronSchedule {
-  type: "interval" | "daily" | "weekly";
+  type: "interval" | "daily" | "weekly" | "once";
   intervalMinutes?: number;
   hour?: number;
   minute?: number;
@@ -65,7 +65,7 @@ export function computeNextRun(schedule: CronSchedule, afterMs: number): number 
     return afterMs + mins * 60_000;
   }
 
-  if (schedule.type === "daily") {
+  if (schedule.type === "daily" || schedule.type === "once") {
     const h = schedule.hour ?? 9;
     const m = schedule.minute ?? 0;
     // Start from the day of `after`, set time
@@ -109,6 +109,7 @@ export function formatSchedule(s: CronSchedule): string {
   }
   const hh = String(s.hour ?? 9).padStart(2, "0");
   const mm = String(s.minute ?? 0).padStart(2, "0");
+  if (s.type === "once") return `once ${hh}:${mm}`;
   if (s.type === "daily") return `daily ${hh}:${mm}`;
   if (s.type === "weekly") {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -174,6 +175,24 @@ export function toggleJob(id: string): CronJob | null {
   return job;
 }
 
+export function updateJob(id: string, updates: { name?: string; prompt?: string; schedule?: CronSchedule }): CronJob | null {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return null;
+  if (updates.name !== undefined) job.name = updates.name;
+  if (updates.prompt !== undefined) job.prompt = updates.prompt;
+  if (updates.schedule !== undefined) {
+    // Enforce minimum 1-minute interval
+    if (updates.schedule.type === "interval" && (updates.schedule.intervalMinutes ?? 0) < 1) {
+      updates.schedule = { ...updates.schedule, intervalMinutes: 1 };
+    }
+    job.schedule = updates.schedule;
+    job.nextRunAt = computeNextRun(job.schedule, Date.now());
+  }
+  persist();
+  cronLogger.info({ jobId: id, name: job.name }, "Job updated");
+  return job;
+}
+
 // --- Scheduler Engine ---
 
 let tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -218,6 +237,13 @@ function tick(): void {
 
     // Advance nextRunAt immediately to prevent double-fire
     job.nextRunAt = computeNextRun(job.schedule, now);
+
+    // One-time jobs auto-disable after firing (preserves history, prevents re-fire)
+    if (job.schedule.type === "once") {
+      job.enabled = false;
+      cronLogger.info({ jobId: job.id, name: job.name }, "One-time job fired, auto-disabled");
+    }
+
     persist();
 
     cronLogger.info({ jobId: job.id, name: job.name }, "Firing cron job");
@@ -237,7 +263,7 @@ async function executeJob(job: CronJob): Promise<void> {
   try {
     await ensureServerAlive();
   } catch (err: any) {
-    cronLogger.warn({ jobId: job.id, name: job.name, err: err?.message }, "Cron skipped: server down");
+    cronLogger.info({ jobId: job.id, name: job.name, err: err?.message }, "Cron skipped: server down");
     try {
       await api.sendMessage(
         chatId,

@@ -40,7 +40,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
         "assemblyai-api-key": { type: "string" },
         "sarvam-api-key": { type: "string" },
         "stream-edit-interval-ms": { type: "string" },
-        "prompt-timeout-ms": { type: "string" },
         "data-dir": { type: "string" },
         "system-prompt-file": { type: "string" },
       },
@@ -64,7 +63,6 @@ function parseCli(): { flags: Partial<RelayConfig>; showHelp: boolean; showVersi
     if (values["assemblyai-api-key"]) flags.assemblyaiApiKey = values["assemblyai-api-key"] as string;
     if (values["sarvam-api-key"]) flags.sarvamApiKey = values["sarvam-api-key"] as string;
     if (values["stream-edit-interval-ms"]) flags.streamEditIntervalMs = Number(values["stream-edit-interval-ms"]);
-    if (values["prompt-timeout-ms"]) flags.promptTimeoutMs = Number(values["prompt-timeout-ms"]);
     if (values["data-dir"]) flags.dataDir = values["data-dir"] as string;
     if (values["system-prompt-file"]) flags.systemPromptFile = values["system-prompt-file"] as string;
 

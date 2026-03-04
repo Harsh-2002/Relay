@@ -43,7 +43,7 @@ OpenCode is the sole backend, implementing the `Provider` interface (`src/provid
 
 - **`types.ts`** — Defines `Provider` interface, `ProviderCapabilities` flags, `PromptResult`, `StreamChunk`, `SessionInfo`, and all shared types
 - **`index.ts`** — Provider factory and singleton accessor
-- **`opencode.ts`** — Uses `@opencode-ai/sdk` (full feature set). Session matching for `message.part.updated` events uses `part.sessionID` (v2 API puts sessionID on the part object, not at top-level props). Extracts tool attachments (e.g. Playwright screenshots) from `state.attachments` and yields them as file chunks.
+- **`opencode.ts`** — Uses `@opencode-ai/sdk` (full feature set). Session matching for `message.part.updated` events uses `part.sessionID` (v2 API puts sessionID on the part object, not at top-level props). Extracts tool attachments (e.g. Playwright screenshots) from `state.attachments` and yields them as file chunks. Does NOT send `body.system` — system prompt is delivered via OpenCode's `instructions` config (file-based).
 
 ### Command System (`src/commands/`)
 
@@ -62,17 +62,17 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 ### Key Utilities (`src/utils/`)
 
 - **`logger.ts`** — Pino-based structured logging with child loggers per component
-- **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `~/.relay/` directory)
+- **`store.ts`** — `JsonStore<T>` class for atomic JSON file persistence (writes to `~/.relay/` directory). Exports `setDataDir()` / `getDataDir()` for dev/prod path switching
 - **`stream.ts`** — Streaming response handler: sends a "Thinking." message via `sendMessage`, then edits it in-place via `editMessageText` as chunks arrive. Handles reasoning blockquotes, markdown→HTML, chunking. Strips markdown image syntax (`![]()`; code-block aware) since Telegram can't render inline images. Auto-closes unclosed code fences during intermediate edits; shows tail-end for long responses (>4000 chars); 120-second stall detection in opencode.ts
 - **`markdown.ts`** — Markdown to Telegram HTML converter: handles bold, italic, strikethrough, code, links, blockquotes, tables. Guards against false-positive italic on math expressions
 - **`chunker.ts`** — HTML-aware message chunker: splits at Telegram's 4096-char limit while tracking open HTML tags across chunk boundaries (closes at end, re-opens at start of next chunk)
 - **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
 - **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses and tool attachments, sends images via `sendPhoto` (no caption) and other files via `sendDocument`. Resolves both base64 data URLs and HTTP URLs
 - **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > Sarvam > AssemblyAI > OpenAI. Sarvam supports batch jobs for audio >30s and a translate-to-English mode
-- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Conditionally appends MCP tool instructions (Browser, Fetch, Memory, Filesystem, Relay) based on config flags. Appends fresh IST timestamp to every prompt
+- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Conditionally appends MCP tool instructions (Browser, Fetch, Memory, Filesystem, Relay) based on config flags. Appends fresh IST timestamp to every prompt via `getSystemPrompt()`. Also exports `writeSystemPromptFile()` which assembles the full prompt (without timestamp) and writes it to `{dataDir}/RELAY.md` for delivery via OpenCode's `instructions` config. Hot-reload rewrites `RELAY.md` automatically when `SKILL.md` changes
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
-- **`opencode-config.ts`** — Auto-injects MCP server configs into OpenCode's config (`~/.config/opencode/opencode.json`). Supports 5 MCPs: Playwright, Fetch (uvx), Memory (with `MEMORY_FILE_PATH` env var pointing to `dataDir/memory.jsonl`), Filesystem (with user-specified paths), and Relay (internal MCP for AI-driven bot management). Provides `ensure*Mcp()` and `remove*Mcp()` for each. Idempotent — skips if already configured
+- **`opencode-config.ts`** — Auto-injects MCP server configs into OpenCode's config (`~/.config/opencode/opencode.json`). Supports 5 MCPs: Playwright, Fetch (uvx), Memory (with `MEMORY_FILE_PATH` env var pointing to `dataDir/memory.jsonl`), Filesystem (with user-specified paths), and Relay (internal MCP for AI-driven bot management). Provides `ensure*Mcp()` and `remove*Mcp()` for each. Also provides `ensureInstructions(filePath)` / `removeInstructions(filePath)` to manage OpenCode's `instructions` array for system prompt delivery. Idempotent — skips if already configured
 
 ### Daemon Management (`src/daemon.ts`)
 
@@ -89,8 +89,8 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 - **`src/bot.ts`** — Creates grammY bot instance, applies auth middleware, registers commands.
 - **`src/cli.ts`** — CLI entry point: handles `onboard` subcommand, `--help`, `--version`, auto-detects first run. Passes existing config to setup wizard for update mode.
 - **`src/relay-api.ts`** — Internal localhost HTTP API (binds to `127.0.0.1` on `relayMcpPort`, default 39149). Bridges MCP tool calls to existing Relay functions (cron CRUD, notify, health). Bearer token auth with token persisted to `relay-mcp.json`. Exports `startRelayApi()` / `stopRelayApi()`.
-- **`src/mcp/relay-server.ts`** — Standalone MCP stdio server spawned by OpenCode. Exposes 7 tools: `relay_cron_list`, `relay_cron_add`, `relay_cron_remove`, `relay_cron_toggle`, `relay_cron_run`, `relay_notify`, `relay_health`. Uses newline-delimited JSON-RPC over stdio. Communicates with `relay-api.ts` via HTTP with retry logic.
-- **`src/index.ts`** — Bot startup: loads config, inits provider, auto-configures enabled MCP tools (Playwright, Fetch, Memory, Filesystem, Relay) in OpenCode config, starts Relay internal API, starts bot in polling or webhook mode.
+- **`src/mcp/relay-server.ts`** — Standalone MCP stdio server spawned by OpenCode. Exposes 8 tools: `relay_cron_list`, `relay_cron_add`, `relay_cron_update`, `relay_cron_remove`, `relay_cron_toggle`, `relay_cron_run`, `relay_notify`, `relay_health`. Schedule types: `interval`, `daily`, `weekly`, `once`. Uses newline-delimited JSON-RPC over stdio. Communicates with `relay-api.ts` via HTTP with retry logic.
+- **`src/index.ts`** — Bot startup: loads config, auto-configures enabled MCP tools (Playwright, Fetch, Memory, Filesystem, Relay) in OpenCode config, writes assembled system prompt to `RELAY.md` and registers it in OpenCode's `instructions`, inits provider, starts Relay internal API, starts bot in polling or webhook mode.
 
 ### Persistence (`~/.relay/` directory)
 
@@ -98,7 +98,8 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - `config.json` — User configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `relay-mcp.json` — Persisted auth token for Relay MCP API (survives restarts)
-- `SKILL.md` — Custom system prompt (optional)
+- `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
+- `SKILL.md` — Custom user system prompt override (optional). If present, replaces the default base prompt. Hot-reloaded — edits trigger `RELAY.md` regeneration
 - `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ### Bot Modes
@@ -119,5 +120,7 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - **Telegram constraints**: Messages are HTML-formatted, max 4096 chars (chunked by `src/utils/chunker.ts` which is HTML-aware — tracks open tags across chunks). File uploads max 20MB. Use `src/utils/html.ts` for escaping.
 - **Tool attachments**: Tool results (e.g. Playwright screenshots) carry file attachments in `state.attachments`. These are yielded as `file` chunks by `opencode.ts`, collected by `stream.ts`, and sent to Telegram via `files.ts` as separate photo/document messages.
 - **Media in text**: Markdown image syntax (`![alt](url)`) is stripped from text responses in `stream.ts` (code-block aware) since Telegram cannot render inline images. The system prompt also instructs the AI not to reference screenshots in text.
+- **System prompt delivery**: OpenCode ignores `body.system` (stores as metadata, never sends to LLM). System prompt is delivered via file: `writeSystemPromptFile()` assembles the full prompt (base + MCP tool docs, no timestamp) and writes to `{dataDir}/RELAY.md`. This file is registered in OpenCode's `instructions` config, which OpenCode loads into every LLM request. See `docs/prompt-architecture.md` for detailed diagrams.
+- **Cron schedule types**: `interval` (every N minutes), `daily` (once per day), `weekly` (specific days), `once` (fires once at specified time, then auto-disables with `enabled=false`, preserving execution history). Toggle re-enables for another run.
 - **Relay MCP**: When `relayMcpEnabled` is true (default), Relay starts an internal HTTP API on `127.0.0.1:relayMcpPort` (default 39149) and registers a `relay` MCP server in OpenCode's config. The MCP server is a separate stdio process (`src/mcp/relay-server.ts`) spawned by OpenCode, which calls the internal API with a persisted bearer token. The port and token are stable across restarts (token persisted to `relay-mcp.json`, port is configurable). Uses `@modelcontextprotocol/sdk` with newline-delimited JSON-RPC (not Content-Length framed).
 - **File imports**: All local imports use `.js` extensions (ESM with NodeNext resolution), e.g., `import { foo } from "./bar.js"`.

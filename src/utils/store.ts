@@ -8,6 +8,10 @@ export function setDataDir(dir: string): void {
   DATA_DIR = dir;
 }
 
+export function getDataDir(): string {
+  return DATA_DIR;
+}
+
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });

@@ -49,7 +49,7 @@ async function apiCall(
         opts.body = JSON.stringify(body);
       }
 
-      const res = await fetch(url, opts);
+      const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(10_000) });
       const data = await res.json();
       return { status: res.status, data };
     } catch (err: any) {
@@ -96,7 +96,7 @@ server.registerTool("relay_cron_list", {
     return { content: [{ type: "text", text: "No scheduled jobs." }] };
   }
   const lines = jobs.map((j: any) =>
-    `• [${j.enabled ? "ON" : "OFF"}] ${j.name} (${j.id})\n  Schedule: ${j.schedule}\n  Next run: ${j.nextRunAt}\n  Last run: ${j.lastRunAt ?? "never"} (${j.lastRunOk === null ? "n/a" : j.lastRunOk ? "ok" : "failed"})\n  Runs: ${j.runCount}`,
+    `• [${j.enabled ? "ON" : "OFF"}] ${j.name} (${j.id})\n  Prompt: ${j.prompt}\n  Schedule: ${j.schedule}\n  Next run: ${j.nextRunAt}\n  Last run: ${j.lastRunAt ?? "never"} (${j.lastRunOk === null ? "n/a" : j.lastRunOk ? "ok" : "failed"})\n  Runs: ${j.runCount}`,
   );
   return { content: [{ type: "text", text: lines.join("\n\n") }] };
 });
@@ -110,10 +110,10 @@ server.registerTool("relay_cron_add", {
   inputSchema: {
     name: z.string().describe("Short descriptive name for the job"),
     prompt: z.string().describe("The full instruction sent to the AI when the job runs"),
-    type: z.enum(["interval", "daily", "weekly"]).describe("Schedule type"),
+    type: z.enum(["interval", "daily", "weekly", "once"]).describe("Schedule type"),
     interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
-    hour: z.number().optional().describe("Hour of day 0-23 (for daily/weekly)"),
-    minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly)"),
+    hour: z.number().optional().describe("Hour of day 0-23 (for daily/weekly/once)"),
+    minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
     days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
   },
 }, async (args) => {
@@ -132,6 +132,45 @@ server.registerTool("relay_cron_add", {
       content: [{
         type: "text",
         text: `Created cron job "${d.name}" (${d.id})\nSchedule: ${d.schedule}\nNext run: ${d.nextRunAt}`,
+      }],
+    };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: relay_cron_update ---
+
+server.registerTool("relay_cron_update", {
+  title: "Update Cron Job",
+  description:
+    "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields.",
+  inputSchema: {
+    id: z.string().describe("The job ID to update"),
+    name: z.string().optional().describe("New name for the job"),
+    prompt: z.string().optional().describe("New prompt for the job"),
+    type: z.enum(["interval", "daily", "weekly", "once"]).optional().describe("New schedule type (also provide associated fields)"),
+    interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
+    hour: z.number().optional().describe("Hour of day 0-23 (for daily/weekly/once)"),
+    minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
+    days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
+  },
+}, async (args) => {
+  const body: Record<string, unknown> = {};
+  if (args.name !== undefined) body.name = args.name;
+  if (args.prompt !== undefined) body.prompt = args.prompt;
+  if (args.type !== undefined) body.type = args.type;
+  if (args.interval_minutes !== undefined) body.interval_minutes = args.interval_minutes;
+  if (args.hour !== undefined) body.hour = args.hour;
+  if (args.minute !== undefined) body.minute = args.minute;
+  if (args.days !== undefined) body.days = args.days;
+
+  const { status, data } = await apiCall("PATCH", `/cron/jobs/${encodeURIComponent(args.id)}`, body);
+  if (status === 200) {
+    const d = data as any;
+    return {
+      content: [{
+        type: "text",
+        text: `Updated job "${d.name}" (${d.id})\nSchedule: ${d.schedule}\nNext run: ${d.nextRunAt}`,
       }],
     };
   }

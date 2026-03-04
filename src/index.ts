@@ -7,9 +7,9 @@ import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { startCronScheduler, stopCronScheduler } from "./cron.js";
-import { unwatchSystemPrompt } from "./utils/system-prompt.js";
+import { unwatchSystemPrompt, writeSystemPromptFile } from "./utils/system-prompt.js";
 import { startLifecycleMonitor, stopLifecycleMonitor } from "./lifecycle.js";
-import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureRelayMcp } from "./utils/opencode-config.js";
+import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureRelayMcp, ensureInstructions } from "./utils/opencode-config.js";
 import { startRelayApi, stopRelayApi } from "./relay-api.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
@@ -54,6 +54,15 @@ async function main() {
     }
   }
 
+  // Write assembled system prompt to file and register in OpenCode's instructions
+  try {
+    const promptFilePath = writeSystemPromptFile();
+    ensureInstructions(promptFilePath);
+    logger.info({ path: promptFilePath }, "System prompt instructions configured");
+  } catch (err: any) {
+    logger.info({ err: err?.message }, "Failed to write system prompt instructions");
+  }
+
   const providerName = getProviderName();
   try {
     await initProvider();
@@ -70,15 +79,13 @@ async function main() {
   // Register commands with Telegram for autocomplete menu
   await bot.api.setMyCommands(getBotCommands());
 
-  // Start Relay MCP (internal API + register in OpenCode)
-  if (config.relayMcpEnabled) {
-    try {
-      const { port, token } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
-      ensureRelayMcp(port, token);
-      logger.info({ port }, "Relay MCP configured in OpenCode config");
-    } catch (err: any) {
-      logger.info({ err: err?.message }, "Failed to start Relay MCP API");
-    }
+  // Start Relay MCP (internal API + register in OpenCode) — always on
+  try {
+    const { port, token } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
+    ensureRelayMcp(port, token);
+    logger.info({ port }, "Relay MCP configured in OpenCode config");
+  } catch (err: any) {
+    logger.info({ err: err?.message }, "Failed to start Relay MCP API");
   }
 
   const botMode = config.botMode;

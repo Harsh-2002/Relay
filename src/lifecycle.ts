@@ -39,7 +39,7 @@ export function startLifecycleMonitor(): void {
   );
   healthTimer = setInterval(() => {
     healthCheck().catch((err) => {
-      lifecycleLogger.error({ err: err?.message }, "Health check unexpected error");
+      lifecycleLogger.info({ err: err?.message }, "Health check unexpected error");
     });
   }, HEALTH_CHECK_INTERVAL_MS);
 }
@@ -107,23 +107,25 @@ async function healthCheck(): Promise<void> {
     if (serverDown) {
       lifecycleLogger.info("Server recovered (detected by health check)");
       serverDown = false;
+      clearActiveSession();
     }
     consecutiveFailures = 0;
     return;
   }
 
-  // Server did not respond
+  // Server did not respond — don't count failures during active reconnection
+  if (reconnectPromise) return;
   consecutiveFailures++;
-  lifecycleLogger.warn(
+  lifecycleLogger.info(
     { consecutiveFailures, threshold: FAILURE_THRESHOLD },
     "Health check failed — server unresponsive"
   );
 
   if (consecutiveFailures >= FAILURE_THRESHOLD && !reconnectPromise) {
     serverDown = true;
-    lifecycleLogger.warn("Failure threshold reached — attempting reconnection");
+    lifecycleLogger.info("Failure threshold reached — attempting reconnection");
     attemptReconnect().catch((err) => {
-      lifecycleLogger.error({ err: err?.message }, "Reconnection attempt failed");
+      lifecycleLogger.info({ err: err?.message }, "Reconnection attempt failed");
     });
   }
 }
@@ -155,9 +157,9 @@ async function attemptReconnect(): Promise<boolean> {
           return true;
         }
 
-        lifecycleLogger.warn({ attempt }, "Reconnection completed but server still unresponsive");
+        lifecycleLogger.info({ attempt }, "Reconnection completed but server still unresponsive");
       } catch (err: any) {
-        lifecycleLogger.warn(
+        lifecycleLogger.info(
           { attempt, err: err?.message },
           "Reconnection attempt failed"
         );
@@ -171,7 +173,7 @@ async function attemptReconnect(): Promise<boolean> {
       }
     }
 
-    lifecycleLogger.error(
+    lifecycleLogger.info(
       { maxAttempts: MAX_RECONNECT_ATTEMPTS },
       "All reconnection attempts failed — server remains down"
     );

@@ -249,7 +249,8 @@ export class OpenCodeProvider implements Provider {
       parts: options?.parts ?? [{ type: "text", text }],
     };
     if (options?.model) body.model = options.model;
-    if (options?.system) body.system = options.system;
+    // System prompt is delivered via OpenCode's instructions config (file-based),
+    // not body.system (which OpenCode stores as metadata but never sends to the LLM).
     if (options?.agent) body.agent = options.agent;
 
     providerLogger.info({ sessionId, body }, "promptAsync request body");

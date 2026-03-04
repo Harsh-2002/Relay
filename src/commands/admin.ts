@@ -328,11 +328,11 @@ export function registerAdminCommands(bot: Bot): void {
 
       let text =
         `<b>Server Status</b>\n\n` +
-        `<b>Provider:</b>  <code>${health.provider}</code>\n` +
-        `<b>Status:</b>  ${health.status}\n` +
+        `<b>Provider:</b>  <code>${escapeHtml(health.provider)}</code>\n` +
+        `<b>Status:</b>  ${escapeHtml(health.status)}\n` +
         `<b>Lifecycle:</b>  ${lifecycleStatus}\n` +
-        `<b>Model:</b>  <code>${modelStr}</code>${reasoningBadge}\n` +
-        `<b>Voice STT:</b>  ${stt}\n` +
+        `<b>Model:</b>  <code>${escapeHtml(modelStr)}</code>${reasoningBadge}\n` +
+        `<b>Voice STT:</b>  ${escapeHtml(stt)}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
 
       if (health.project) {
@@ -534,7 +534,7 @@ export function registerAdminCommands(bot: Bot): void {
           // Ignore — capabilities are optional info
         }
         await ctx.reply(
-          `<b>Current model:</b>  <code>${current.providerID}/${current.modelID}</code>${capStr}\n\n<i>Use /models to list available models</i>`,
+          `<b>Current model:</b>  <code>${escapeHtml(current.providerID)}/${escapeHtml(current.modelID)}</code>${capStr}\n\n<i>Use /models to list available models</i>`,
           { parse_mode: "HTML" }
         );
       } else {
@@ -559,7 +559,7 @@ export function registerAdminCommands(bot: Bot): void {
           if (match.attachment) caps.push("vision");
           const capStr = caps.length > 0 ? `\n<b>Capabilities:</b>  ${caps.join(", ")}` : "";
           await ctx.reply(
-            `Model set to <code>${match.provider}/${match.id}</code>${capStr}`,
+            `Model set to <code>${escapeHtml(match.provider)}/${escapeHtml(match.id)}</code>${capStr}`,
             { parse_mode: "HTML" }
           );
           return;
@@ -597,7 +597,7 @@ export function registerAdminCommands(bot: Bot): void {
     }
 
     await ctx.reply(
-      `Model set to <code>${providerID}/${modelID}</code>${capStr}`,
+      `Model set to <code>${escapeHtml(providerID)}/${escapeHtml(modelID)}</code>${capStr}`,
       { parse_mode: "HTML" }
     );
   });

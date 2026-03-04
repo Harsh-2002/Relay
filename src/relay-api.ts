@@ -1,7 +1,7 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "http";
-import { randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
 import type { Api, RawApi } from "grammy";
-import { listJobs, addJob, removeJob, toggleJob, runJobNow, formatSchedule, type CronSchedule } from "./cron.js";
+import { listJobs, addJob, removeJob, toggleJob, updateJob, runJobNow, formatSchedule, type CronSchedule } from "./cron.js";
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
 import { JsonStore } from "./utils/store.js";
@@ -18,10 +18,21 @@ let chatId: number | null = null;
 
 // --- Helpers ---
 
+const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c));
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_BODY_BYTES) {
+        req.destroy();
+        reject(new Error("Request body too large"));
+        return;
+      }
+      chunks.push(c);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
     req.on("error", reject);
   });
@@ -51,14 +62,19 @@ function extractId(url: string, prefix: string): string | null {
 // --- Route handler ---
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const auth = req.headers["authorization"];
-  if (auth !== `Bearer ${apiToken}`) {
+  const auth = req.headers["authorization"] ?? "";
+  const expected = `Bearer ${apiToken}`;
+  const authBuf = Buffer.from(auth);
+  const expectedBuf = Buffer.from(expected);
+  if (authBuf.length !== expectedBuf.length || !timingSafeEqual(authBuf, expectedBuf)) {
     json(res, 401, { error: "Unauthorized" });
     return;
   }
 
   const method = req.method ?? "GET";
   const url = req.url ?? "/";
+
+  relayApiLogger.info({ method, url }, "Relay API request");
 
   try {
     // --- Cron routes ---
@@ -87,16 +103,59 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       const schedule: CronSchedule = { type: body.type };
       if (body.type === "interval") {
-        schedule.intervalMinutes = body.interval_minutes ?? 60;
+        const mins = body.interval_minutes ?? 60;
+        if (typeof mins !== "number" || mins < 1) {
+          json(res, 400, { error: "interval_minutes must be >= 1" });
+          return;
+        }
+        schedule.intervalMinutes = mins;
       } else if (body.type === "daily") {
-        schedule.hour = body.hour ?? 9;
-        schedule.minute = body.minute ?? 0;
+        const h = body.hour ?? 9;
+        const m = body.minute ?? 0;
+        if (typeof h !== "number" || h < 0 || h > 23) {
+          json(res, 400, { error: "hour must be 0-23" });
+          return;
+        }
+        if (typeof m !== "number" || m < 0 || m > 59) {
+          json(res, 400, { error: "minute must be 0-59" });
+          return;
+        }
+        schedule.hour = h;
+        schedule.minute = m;
       } else if (body.type === "weekly") {
-        schedule.hour = body.hour ?? 9;
-        schedule.minute = body.minute ?? 0;
-        schedule.days = body.days ?? [1];
+        const h = body.hour ?? 9;
+        const m = body.minute ?? 0;
+        const days = body.days ?? [1];
+        if (typeof h !== "number" || h < 0 || h > 23) {
+          json(res, 400, { error: "hour must be 0-23" });
+          return;
+        }
+        if (typeof m !== "number" || m < 0 || m > 59) {
+          json(res, 400, { error: "minute must be 0-59" });
+          return;
+        }
+        if (!Array.isArray(days) || days.some((d: unknown) => typeof d !== "number" || d < 0 || d > 6)) {
+          json(res, 400, { error: "days must be an array of numbers 0-6 (Sun-Sat)" });
+          return;
+        }
+        schedule.hour = h;
+        schedule.minute = m;
+        schedule.days = days;
+      } else if (body.type === "once") {
+        const h = body.hour ?? 9;
+        const m = body.minute ?? 0;
+        if (typeof h !== "number" || h < 0 || h > 23) {
+          json(res, 400, { error: "hour must be 0-23" });
+          return;
+        }
+        if (typeof m !== "number" || m < 0 || m > 59) {
+          json(res, 400, { error: "minute must be 0-59" });
+          return;
+        }
+        schedule.hour = h;
+        schedule.minute = m;
       } else {
-        json(res, 400, { error: `Invalid schedule type: ${body.type}. Must be interval, daily, or weekly.` });
+        json(res, 400, { error: `Invalid schedule type: ${body.type}. Must be interval, daily, weekly, or once.` });
         return;
       }
 
@@ -105,6 +164,94 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         id: job.id,
         name: job.name,
         schedule: formatSchedule(job.schedule),
+        nextRunAt: new Date(job.nextRunAt).toISOString(),
+      });
+      return;
+    }
+
+    if (url.startsWith("/cron/jobs/") && !url.includes("/toggle") && !url.includes("/run") && method === "PATCH") {
+      const id = extractId(url, "/cron/jobs/");
+      if (!id) { json(res, 400, { error: "Missing job ID" }); return; }
+      const body = parseJson(await readBody(req)) as any;
+      if (!body || typeof body !== "object") {
+        json(res, 400, { error: "Invalid request body" });
+        return;
+      }
+
+      const updates: { name?: string; prompt?: string; schedule?: CronSchedule } = {};
+      if (body.name !== undefined) updates.name = String(body.name);
+      if (body.prompt !== undefined) updates.prompt = String(body.prompt);
+
+      // Build schedule if any schedule fields provided
+      if (body.type !== undefined) {
+        const schedule: CronSchedule = { type: body.type };
+        if (body.type === "interval") {
+          const mins = body.interval_minutes ?? 60;
+          if (typeof mins !== "number" || mins < 1) {
+            json(res, 400, { error: "interval_minutes must be >= 1" });
+            return;
+          }
+          schedule.intervalMinutes = mins;
+        } else if (body.type === "daily") {
+          const h = body.hour ?? 9;
+          const m = body.minute ?? 0;
+          if (typeof h !== "number" || h < 0 || h > 23) {
+            json(res, 400, { error: "hour must be 0-23" });
+            return;
+          }
+          if (typeof m !== "number" || m < 0 || m > 59) {
+            json(res, 400, { error: "minute must be 0-59" });
+            return;
+          }
+          schedule.hour = h;
+          schedule.minute = m;
+        } else if (body.type === "weekly") {
+          const h = body.hour ?? 9;
+          const m = body.minute ?? 0;
+          const days = body.days ?? [1];
+          if (typeof h !== "number" || h < 0 || h > 23) {
+            json(res, 400, { error: "hour must be 0-23" });
+            return;
+          }
+          if (typeof m !== "number" || m < 0 || m > 59) {
+            json(res, 400, { error: "minute must be 0-59" });
+            return;
+          }
+          if (!Array.isArray(days) || days.some((d: unknown) => typeof d !== "number" || d < 0 || d > 6)) {
+            json(res, 400, { error: "days must be an array of numbers 0-6 (Sun-Sat)" });
+            return;
+          }
+          schedule.hour = h;
+          schedule.minute = m;
+          schedule.days = days;
+        } else if (body.type === "once") {
+          const h = body.hour ?? 9;
+          const m = body.minute ?? 0;
+          if (typeof h !== "number" || h < 0 || h > 23) {
+            json(res, 400, { error: "hour must be 0-23" });
+            return;
+          }
+          if (typeof m !== "number" || m < 0 || m > 59) {
+            json(res, 400, { error: "minute must be 0-59" });
+            return;
+          }
+          schedule.hour = h;
+          schedule.minute = m;
+        } else {
+          json(res, 400, { error: `Invalid schedule type: ${body.type}. Must be interval, daily, weekly, or once.` });
+          return;
+        }
+        updates.schedule = schedule;
+      }
+
+      const job = updateJob(id, updates);
+      if (!job) { json(res, 404, { error: "Job not found" }); return; }
+      json(res, 200, {
+        id: job.id,
+        name: job.name,
+        prompt: job.prompt,
+        schedule: formatSchedule(job.schedule),
+        enabled: job.enabled,
         nextRunAt: new Date(job.nextRunAt).toISOString(),
       });
       return;
@@ -173,8 +320,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     // --- 404 ---
     json(res, 404, { error: "Not found" });
   } catch (err: any) {
-    relayApiLogger.error({ err: err?.message, url, method }, "Relay API error");
-    json(res, 500, { error: err?.message ?? "Internal server error" });
+    const msg = err?.message ?? "Internal server error";
+    if (msg === "Request body too large") {
+      json(res, 413, { error: "Request body too large" });
+      return;
+    }
+    relayApiLogger.info({ err: msg, url, method }, "Relay API error");
+    json(res, 500, { error: msg });
   }
 }
 
@@ -189,7 +341,7 @@ export async function startRelayApi(
   chatId = userId;
 
   // Lazy-init store here (not at module level) so it uses the correct DATA_DIR
-  // after setDataDir() has been called, and doesn't run when relayMcpEnabled is false.
+  // after setDataDir() has been called.
   const mcpStore = new JsonStore<RelayMcpState>("relay-mcp.json", { token: "" });
 
   // Reuse persisted token across restarts so the MCP server process
@@ -205,7 +357,7 @@ export async function startRelayApi(
   return new Promise((resolve, reject) => {
     server = createServer((req, res) => {
       handleRequest(req, res).catch((err) => {
-        relayApiLogger.error({ err: err?.message }, "Unhandled request error");
+        relayApiLogger.info({ err: err?.message }, "Unhandled request error");
         if (!res.headersSent) json(res, 500, { error: "Internal error" });
       });
     });
@@ -218,7 +370,7 @@ export async function startRelayApi(
     });
 
     server.on("error", (err) => {
-      relayApiLogger.error({ err: err?.message }, "Relay API server error");
+      relayApiLogger.info({ err: err?.message }, "Relay API server error");
       reject(err);
     });
   });

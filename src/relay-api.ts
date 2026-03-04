@@ -4,7 +4,6 @@ import type { Api, RawApi } from "grammy";
 import { listJobs, addJob, removeJob, toggleJob, runJobNow, formatSchedule, type CronSchedule } from "./cron.js";
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
-import { chunkMessage } from "./utils/chunker.js";
 import { JsonStore } from "./utils/store.js";
 import { relayApiLogger } from "./utils/logger.js";
 
@@ -12,10 +11,7 @@ interface RelayMcpState {
   token: string;
 }
 
-const mcpStore = new JsonStore<RelayMcpState>("relay-mcp.json", { token: "" });
-
 let server: Server | null = null;
-let apiPort = 0;
 let apiToken = "";
 let botApi: Api<RawApi> | null = null;
 let chatId: number | null = null;
@@ -153,10 +149,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
       const text = String(body.message).slice(0, 4096);
-      const chunks = chunkMessage(text);
-      for (const chunk of chunks) {
-        await botApi.sendMessage(chatId, chunk);
-      }
+      await botApi.sendMessage(chatId, text);
       json(res, 200, { sent: true });
       return;
     }
@@ -195,6 +188,10 @@ export async function startRelayApi(
   botApi = api;
   chatId = userId;
 
+  // Lazy-init store here (not at module level) so it uses the correct DATA_DIR
+  // after setDataDir() has been called, and doesn't run when relayMcpEnabled is false.
+  const mcpStore = new JsonStore<RelayMcpState>("relay-mcp.json", { token: "" });
+
   // Reuse persisted token across restarts so the MCP server process
   // (spawned by OpenCode) doesn't need to be restarted when Relay restarts.
   const state = mcpStore.load();
@@ -215,9 +212,9 @@ export async function startRelayApi(
 
     server.listen(port, "127.0.0.1", () => {
       const addr = server!.address();
-      apiPort = typeof addr === "object" && addr ? addr.port : 0;
-      relayApiLogger.info({ port: apiPort }, "Relay API listening");
-      resolve({ port: apiPort, token: apiToken });
+      const listenPort = typeof addr === "object" && addr ? addr.port : 0;
+      relayApiLogger.info({ port: listenPort }, "Relay API listening");
+      resolve({ port: listenPort, token: apiToken });
     });
 
     server.on("error", (err) => {

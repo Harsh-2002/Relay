@@ -71,7 +71,7 @@ async function main() {
   await bot.api.setMyCommands(getBotCommands());
 
   // Start Relay MCP (internal API + register in OpenCode)
-  if (config.relayMcpEnabled !== false) {
+  if (config.relayMcpEnabled) {
     try {
       const { port, token } = await startRelayApi(bot.api, config.allowedUserId, config.relayMcpPort);
       ensureRelayMcp(port, token);

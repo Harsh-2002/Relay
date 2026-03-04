@@ -5,7 +5,14 @@ import { listJobs, addJob, removeJob, toggleJob, runJobNow, formatSchedule, type
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
 import { chunkMessage } from "./utils/chunker.js";
+import { JsonStore } from "./utils/store.js";
 import { relayApiLogger } from "./utils/logger.js";
+
+interface RelayMcpState {
+  token: string;
+}
+
+const mcpStore = new JsonStore<RelayMcpState>("relay-mcp.json", { token: "" });
 
 let server: Server | null = null;
 let apiPort = 0;
@@ -183,10 +190,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 export async function startRelayApi(
   api: Api<RawApi>,
   userId: number,
+  port: number,
 ): Promise<{ port: number; token: string }> {
   botApi = api;
   chatId = userId;
-  apiToken = randomBytes(32).toString("hex");
+
+  // Reuse persisted token across restarts so the MCP server process
+  // (spawned by OpenCode) doesn't need to be restarted when Relay restarts.
+  const state = mcpStore.load();
+  if (state.token) {
+    apiToken = state.token;
+  } else {
+    apiToken = randomBytes(32).toString("hex");
+    mcpStore.save({ token: apiToken });
+  }
 
   return new Promise((resolve, reject) => {
     server = createServer((req, res) => {
@@ -196,7 +213,7 @@ export async function startRelayApi(
       });
     });
 
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(port, "127.0.0.1", () => {
       const addr = server!.address();
       apiPort = typeof addr === "object" && addr ? addr.port : 0;
       relayApiLogger.info({ port: apiPort }, "Relay API listening");

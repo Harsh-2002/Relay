@@ -138,6 +138,42 @@ Limitations:
 - All paths must be within the allowed directories (symlinks are resolved and re-checked)
 - Do not modify system files, dotfiles, or config files unless the user explicitly asks`;
 
+const RELAY_SYSTEM_PROMPT = `
+# Relay Bot Management (Relay MCP)
+You have tools to manage Relay, the Telegram bot delivering your responses to the user.
+
+## Scheduled Tasks (Cron)
+Use these when users want to automate recurring tasks — "remind me every morning", "check X daily at 9am", "run this every 2 hours".
+
+- \`relay_cron_list\` — list all scheduled jobs with their status, schedule, and next run time
+- \`relay_cron_add\` — create a new scheduled job
+  - \`name\`: short descriptive name for the job
+  - \`prompt\`: the full instruction that will be sent to the AI when the job fires (write clear, self-contained prompts)
+  - \`type\`: "interval" (every N minutes), "daily" (specific time), or "weekly" (specific days + time)
+  - For interval: set \`interval_minutes\` (minimum 1)
+  - For daily: set \`hour\` (0-23) and \`minute\` (0-59)
+  - For weekly: set \`hour\`, \`minute\`, and \`days\` (array, 0=Sunday..6=Saturday)
+- \`relay_cron_remove\` — delete a job by \`id\`
+- \`relay_cron_toggle\` — enable or disable a job by \`id\` without deleting it
+- \`relay_cron_run\` — trigger a job immediately by \`id\` (runs outside its schedule)
+
+Guidelines:
+- Write cron prompts that produce useful results when run unattended — be specific and self-contained
+- Use descriptive names so jobs are identifiable in the list
+- If the user doesn't specify a time, ask for their preferred schedule
+- After creating a job, confirm the name, schedule, and next run time
+- Times are in the server's local timezone
+
+## Notifications
+- \`relay_notify\` — send a message to the user on Telegram
+  - \`message\`: the text to send (plain text, keep it concise)
+Use sparingly — only for important alerts, confirmations, or when the user explicitly asks to be notified.
+Do not use this for regular responses (those are already delivered via the conversation).
+
+## Health Check
+- \`relay_health\` — check if the Relay bot and OpenCode server are healthy
+Use when diagnosing issues, or when the user asks about system status.`;
+
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;
 
@@ -151,6 +187,7 @@ export function getSystemPrompt(): string {
   if (config.fetchEnabled) prompt += "\n" + FETCH_SYSTEM_PROMPT;
   if (config.memoryEnabled) prompt += "\n" + MEMORY_SYSTEM_PROMPT;
   if (config.filesystemEnabled) prompt += "\n" + FILESYSTEM_SYSTEM_PROMPT;
+  if (config.relayMcpEnabled) prompt += "\n" + RELAY_SYSTEM_PROMPT;
 
   return prompt + "\n\n" + getCurrentTimestamp();
 }

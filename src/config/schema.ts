@@ -31,6 +31,7 @@ export interface RelayConfig {
   memoryEnabled: boolean;
   filesystemEnabled: boolean;
   filesystemPaths: string[];
+  relayMcpEnabled: boolean;
 
   // Behavior
   streamEditIntervalMs: number;
@@ -70,6 +71,7 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   memoryEnabled: false,
   filesystemEnabled: false,
   filesystemPaths: [],
+  relayMcpEnabled: true,
 
   streamEditIntervalMs: 2000,
   promptTimeoutMs: 300_000,

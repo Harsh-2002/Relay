@@ -165,16 +165,16 @@ function formatProvidersResponse(data: any): string {
   const items = Array.isArray(data) ? data : [data];
   if (items.length === 0) return "No providers found.";
 
-  let text = `<b>Providers</b>  (${items.length})\n\n`;
+  let text = `<b>Providers</b>  (${items.length})\n`;
   for (const p of items) {
     const name = p.name ?? p.id ?? "unknown";
-    text += `<b>${escapeHtml(name)}</b>`;
+    text += `\n<b>${escapeHtml(name)}</b>`;
     if (p.id && p.id !== name) text += `  <code>${escapeHtml(p.id)}</code>`;
-    if (p.status) text += `  —  ${escapeHtml(p.status)}`;
-    text += "\n";
+    if (p.status) text += `  \u2014  ${escapeHtml(p.status)}`;
     if (p.models && Array.isArray(p.models)) {
-      text += `  Models: ${p.models.length}\n`;
+      text += `\n    Models: ${p.models.length}`;
     }
+    text += "\n";
   }
 
   return text;
@@ -479,16 +479,15 @@ export function registerAdminCommands(bot: Bot): void {
         return;
       }
 
-      const text =
-        `<b>Available Tools</b>  (${tools.length})\n\n` +
-        tools.map((t) => {
-          let line = `<code>${escapeHtml(t.id)}</code>`;
-          if (t.description) {
-            const desc = t.description.length > 80 ? t.description.slice(0, 80) + "..." : t.description;
-            line += ` \u2014 ${escapeHtml(desc)}`;
-          }
-          return line;
-        }).join("\n");
+      let text = `<b>Available Tools</b>  (${tools.length})\n`;
+      for (const t of tools) {
+        text += `\n\u2022 <code>${escapeHtml(t.id)}</code>`;
+        if (t.description) {
+          const desc = t.description.length > 80 ? t.description.slice(0, 80) + "..." : t.description;
+          text += `\n  ${escapeHtml(desc)}`;
+        }
+        text += `\n`;
+      }
 
       const chunks = chunkMessage(text);
       for (const chunk of chunks) {

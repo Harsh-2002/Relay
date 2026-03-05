@@ -82,20 +82,22 @@ const server = new McpServer(
 
 server.registerTool("relay_cron_list", {
   title: "List Cron Jobs",
-  description: "List all scheduled cron jobs with their status, schedule, and next run time.",
+  description: "List all scheduled cron jobs with their status, schedule, and next run time. All times are shown in the user's configured timezone.",
 }, async () => {
   const { status, data } = await apiCall("GET", "/cron/jobs");
   if (status !== 200) {
     return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
   }
-  const jobs = (data as any).jobs;
+  const d = data as any;
+  const jobs = d.jobs;
   if (!jobs || jobs.length === 0) {
     return { content: [{ type: "text", text: "No scheduled jobs." }] };
   }
+  const header = d.timezone ? `Timezone: ${d.timezone}\n\n` : "";
   const lines = jobs.map((j: any) =>
-    `• [${j.enabled ? "ON" : "OFF"}] ${j.name} (${j.id})\n  Prompt: ${j.prompt}\n  Schedule: ${j.schedule}\n  Next run: ${j.nextRunAt}\n  Last run: ${j.lastRunAt ?? "never"} (${j.lastRunOk === null ? "n/a" : j.lastRunOk ? "ok" : "failed"})\n  Runs: ${j.runCount}`,
+    `• [${j.enabled ? "ON" : "OFF"}] ${j.name} (${j.id})\n  Schedule: ${j.schedule}\n  Next run: ${j.nextRunAt}\n  Last run: ${j.lastRunAt ?? "never"} (${j.lastRunOk === null ? "n/a" : j.lastRunOk ? "ok" : "failed"})\n  Runs: ${j.runCount}\n  Prompt: ${j.prompt}`,
   );
-  return { content: [{ type: "text", text: lines.join("\n\n") }] };
+  return { content: [{ type: "text", text: header + lines.join("\n\n") }] };
 });
 
 // --- Tool: relay_cron_add ---
@@ -103,13 +105,13 @@ server.registerTool("relay_cron_list", {
 server.registerTool("relay_cron_add", {
   title: "Create Cron Job",
   description:
-    "Create a new scheduled cron job. The prompt will be sent to the AI when the job fires.",
+    "Create a new scheduled cron job. The prompt will be sent to the AI when the job fires. All times are in the user's configured timezone.",
   inputSchema: {
     name: z.string().describe("Short descriptive name for the job"),
     prompt: z.string().describe("The full instruction sent to the AI when the job runs"),
     type: z.enum(["interval", "daily", "weekly", "once"]).describe("Schedule type"),
     interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
-    hour: z.number().optional().describe("Hour of day 0-23 (for daily/weekly/once)"),
+    hour: z.number().optional().describe("Hour of day 0-23 in user's timezone (for daily/weekly/once)"),
     minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
     days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
   },
@@ -140,14 +142,14 @@ server.registerTool("relay_cron_add", {
 server.registerTool("relay_cron_update", {
   title: "Update Cron Job",
   description:
-    "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields.",
+    "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields. All times are in the user's configured timezone.",
   inputSchema: {
     id: z.string().describe("The job ID to update"),
     name: z.string().optional().describe("New name for the job"),
     prompt: z.string().optional().describe("New prompt for the job"),
     type: z.enum(["interval", "daily", "weekly", "once"]).optional().describe("New schedule type (also provide associated fields)"),
     interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
-    hour: z.number().optional().describe("Hour of day 0-23 (for daily/weekly/once)"),
+    hour: z.number().optional().describe("Hour of day 0-23 in user's timezone (for daily/weekly/once)"),
     minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
     days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
   },

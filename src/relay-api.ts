@@ -81,7 +81,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         nextRunAt: `${formatInTimezone(j.nextRunAt, tz, "datetime")} ${abbr}`,
         runCount: j.runCount,
       }));
-      json(res, 200, { jobs });
+      json(res, 200, { timezone: tz, jobs });
       return;
     }
 

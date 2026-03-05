@@ -71,6 +71,8 @@ export function getBotCommands(): BotCommand[] {
     { command: "tools", description: "Available tools" },
     { command: "providers", description: "List providers" },
     { command: "agents", description: "List agents" },
+    { command: "restart", description: "Restart the bot" },
+    { command: "update", description: "Update and restart" },
   ];
 }
 

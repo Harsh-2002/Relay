@@ -165,7 +165,7 @@ This means the prompt you write for a cron job is the entire instruction the AI 
 - **weekly**: runs on specific days. Set \`hour\`, \`minute\`, and \`days\` (array of 0=Sunday through 6=Saturday).
 - **once**: runs once at the specified time, then auto-disables. Set \`hour\` (0-23) and \`minute\` (0-59). If the time has already passed today, it runs tomorrow. After firing, the job is automatically disabled (preserving execution history). Use \`relay_cron_toggle\` to re-enable for another one-time run.
 
-All times use the server's local timezone.
+All times use the user's configured timezone (shown in the Current Date & Time section below).
 
 ### Writing Effective Cron Prompts
 
@@ -271,7 +271,7 @@ function getCurrentTimestamp(): string {
     second: "2-digit",
     hour12: true,
   }).format(now);
-  return `# Current Date & Time\n${formatted} ${abbr}`;
+  return `# Current Date & Time\n${formatted} ${abbr}\nTimezone: ${tz}`;
 }
 
 export function loadSystemPrompt(): string {

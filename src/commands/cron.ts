@@ -37,16 +37,23 @@ function buildCronList(): { text: string; keyboard: InlineKeyboard } {
   const displayJobs = allJobs.slice(0, MAX_JOBS_DISPLAY);
   const overflow = allJobs.length > MAX_JOBS_DISPLAY;
 
-  let text = `<b>Cron Jobs</b>  (${allJobs.length})\n\n`;
+  const tz = getConfig().timezone || "UTC";
+  const tzAbbr = getTimezoneAbbr(tz);
+  let text = `<b>Cron Jobs</b>  (${allJobs.length})\n`;
   for (let i = 0; i < displayJobs.length; i++) {
     const j = displayJobs[i];
     const num = i + 1;
-    const status = j.enabled ? "\u2713" : "\u2717";
+    const status = j.enabled ? "\u2705" : "\u274c";
     const name = j.name.length > MAX_NAME_DISPLAY ? j.name.slice(0, MAX_NAME_DISPLAY) + "..." : j.name;
-    text += `<b>${num}.</b> ${escapeHtml(name)} \u2014 ${escapeHtml(formatSchedule(j.schedule))} ${status}\n`;
+    text += `\n${status} <b>${num}. ${escapeHtml(name)}</b>\n`;
+    text += `    ${escapeHtml(formatSchedule(j.schedule))}`;
+    if (j.enabled) {
+      text += ` \u2014 next ${formatInTimezone(j.nextRunAt, tz)} ${tzAbbr}`;
+    }
+    text += `\n`;
     if (j.lastRunAt) {
-      const okStr = j.lastRunOk ? "ok" : "fail";
-      text += `   Last: ${relativeTime(j.lastRunAt)} (${okStr}) | Runs: ${j.runCount}\n`;
+      const okStr = j.lastRunOk ? "\u2713" : "\u2717";
+      text += `    Last: ${relativeTime(j.lastRunAt)} ${okStr}  \u00b7  Runs: ${j.runCount}\n`;
     }
   }
   if (overflow) {

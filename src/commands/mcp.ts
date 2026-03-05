@@ -5,15 +5,22 @@ import type { McpServerStatus } from "../providers/types.js";
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 
+function mcpStatusIcon(status: string): string {
+  if (status === "connected") return "\u{1f7e2}";
+  if (status === "connecting") return "\u{1f7e1}";
+  return "\u{1f534}";
+}
+
 function buildMcpStatus(servers: McpServerStatus[]): { text: string; keyboard: InlineKeyboard } {
-  let text = `<b>MCP Servers</b>  (${servers.length})\n\n`;
+  let text = `<b>MCP Servers</b>  (${servers.length})\n`;
 
   servers.forEach((srv, i) => {
     const num = i + 1;
-    const statusIcon = srv.status === "connected" ? "ok" : srv.status;
-    text += `${num}. <code>${escapeHtml(srv.name)}</code>  ${statusIcon}`;
+    const icon = mcpStatusIcon(srv.status);
+    text += `\n${icon} <b>${num}. ${escapeHtml(srv.name)}</b>`;
+    text += `\n    ${escapeHtml(srv.status)}`;
     if (srv.error) {
-      text += `\n   <i>${escapeHtml(srv.error)}</i>`;
+      text += `\n    <i>${escapeHtml(srv.error)}</i>`;
     }
     text += "\n";
   });

@@ -23,15 +23,12 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
-      const lines = todos.map((t) => {
+      let text = `<b>Todo List</b>  (${todos.length} item${todos.length === 1 ? "" : "s"})\n`;
+      for (const t of todos) {
         const icon = statusIcon(t.status);
-        const priority = t.priority ? ` [${t.priority}]` : "";
-        return `${icon}  ${escapeHtml(t.content)}${priority}`;
-      });
-
-      const text =
-        `<b>Todo List</b>  (${todos.length} item${todos.length === 1 ? "" : "s"})\n\n` +
-        lines.join("\n");
+        const priority = t.priority ? `  <i>[${escapeHtml(t.priority)}]</i>` : "";
+        text += `\n${icon}  ${escapeHtml(t.content)}${priority}\n`;
+      }
 
       const chunks = chunkMessage(text);
       for (const chunk of chunks) {

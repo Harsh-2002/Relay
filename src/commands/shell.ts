@@ -83,12 +83,9 @@ const CMD_KEYS = Object.keys(CMD_DEFS);
 
 // ── Handlers ───────────────────────────────────────────────────────
 
-// Commands that would kill/restart the bot process, causing a replay loop
+// Block relay lifecycle commands that would kill/restart the bot process
 const BLOCKED_PATTERNS = [
-  /\brelay\s+(restart|stop|start)\b/i,
-  /\bpm2\s+(restart|stop|delete|kill)\b/i,
-  /\bkill\s+(-\d+\s+)?(\$\$|%|\d)/i,
-  /\bkillall\s+node\b/i,
+  /\brelay\s+(restart|stop|start|update)\b/i,
 ];
 
 export function registerShellCommands(bot: Bot): void {

@@ -2,10 +2,11 @@ import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import {
   listJobs, addJob, removeJob, toggleJob, runJobNow,
-  formatSchedule,
+  formatSchedule, formatInTimezone, getTimezoneAbbr,
   type CronSchedule,
 } from "../cron.js";
 import { escapeHtml } from "../utils/html.js";
+import { getConfig } from "../config/index.js";
 
 const MAX_JOBS_DISPLAY = 30; // Cap keyboard buttons (30 jobs × 3 buttons + 1 = 91 < 100 limit)
 const MAX_NAME_DISPLAY = 40; // Truncate job names in list
@@ -246,13 +247,14 @@ export function registerCronCommands(bot: Bot): void {
         return;
       }
       const job = addJob(parsed.name, parsed.prompt, parsed.schedule);
-      const nextRunDate = new Date(job.nextRunAt);
-      const nextRunStr = nextRunDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+      const tz = getConfig().timezone || "UTC";
+      const nextRunStr = formatInTimezone(job.nextRunAt, tz);
+      const tzAbbr = getTimezoneAbbr(tz);
       await ctx.reply(
         `<b>Job created!</b>\n\n` +
         `<b>Name:</b>  ${escapeHtml(job.name)}\n` +
         `<b>Schedule:</b>  ${escapeHtml(formatSchedule(job.schedule))}\n` +
-        `<b>Next run:</b>  ${nextRunStr}\n\n` +
+        `<b>Next run:</b>  ${nextRunStr} ${tzAbbr}\n\n` +
         `<b>Prompt:</b>\n<code>${escapeHtml(job.prompt)}</code>`,
         { parse_mode: "HTML" },
       );

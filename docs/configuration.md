@@ -42,6 +42,7 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--prompt-timeout-ms` | Prompt timeout in ms |
 | `--data-dir` | Data directory (default: `~/.relay/`) |
 | `--system-prompt-file` | Custom system prompt file path |
+| `--timezone` | IANA timezone for cron scheduling and timestamps |
 
 ## Core Settings
 
@@ -50,6 +51,7 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `botToken` | `--bot-token` | -- | Telegram bot token from [@BotFather](https://t.me/BotFather) |
 | `allowedUserId` | `--allowed-user-id` | -- | Your Telegram user ID |
 | `provider` | -- | `opencode` | Coding agent backend (OpenCode) |
+| `timezone` | `--timezone` | `UTC` | IANA timezone for cron scheduling and timestamps (e.g. `Asia/Kolkata`, `America/New_York`) |
 
 ## Provider Configuration
 

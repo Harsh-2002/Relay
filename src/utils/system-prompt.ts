@@ -246,8 +246,22 @@ export function getSystemPrompt(): string {
 
 function getCurrentTimestamp(): string {
   const now = new Date();
-  const ist = new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
+  let tz: string;
+  try {
+    tz = getConfig().timezone || "UTC";
+  } catch {
+    tz = "UTC";
+  }
+
+  // Get timezone abbreviation
+  let abbr = tz;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(now);
+    abbr = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+  } catch {}
+
+  const formatted = new Intl.DateTimeFormat("en-IN", {
+    timeZone: tz,
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -257,7 +271,7 @@ function getCurrentTimestamp(): string {
     second: "2-digit",
     hour12: true,
   }).format(now);
-  return `# Current Date & Time\n${ist} IST`;
+  return `# Current Date & Time\n${formatted} ${abbr}`;
 }
 
 export function loadSystemPrompt(): string {

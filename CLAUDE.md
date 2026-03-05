@@ -32,9 +32,9 @@ Relay is a Telegram bot (built on [grammY](https://grammy.dev/)) that proxies us
 
 ### Config System (`src/config/`)
 
-- **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`. OpenCode always runs locally (no remote connect mode)
+- **`schema.ts`** — `RelayConfig` interface and `CONFIG_DEFAULTS`. Includes `timezone` field (IANA, defaults to `"UTC"`). OpenCode always runs locally (no remote connect mode)
 - **`loader.ts`** — Config resolution: CLI args > config file > defaults
-- **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 5-step flow: OpenCode (install check) → Bot Token → User ID → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows). OpenCode always runs locally alongside Relay (no remote mode selection in onboarding)
+- **`setup.ts`** — Interactive setup wizard using `@clack/prompts`. 6-step flow: OpenCode (install check) → Bot Token → User ID → Timezone → MCP Tools → Voice. Supports new config creation and update mode (re-running shows current values, Enter to keep). Detects OpenCode installation, checks for uvx when Fetch MCP is selected, prompts for filesystem paths. Cross-platform (Linux/macOS/Windows). OpenCode always runs locally alongside Relay (no remote mode selection in onboarding)
 - **`index.ts`** — Singleton accessor: `getConfig()` / `setConfig()`
 
 ### Provider Abstraction (`src/providers/`)
@@ -50,7 +50,7 @@ OpenCode is the sole backend, implementing the `Provider` interface (`src/provid
 Commands are registered in `src/commands/index.ts` in a specific order. Each module registers Grammy handlers:
 
 - **`chat.ts`** — Main text message handler; routes to streaming prompt pipeline. Supports reply-to-message context and edited message re-prompting
-- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/stt`, `/agent`, `/agents`, `/system`, `/help`, `/project`, `/git`, `/tools`, `/providers`, `/start`
+- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/stt`, `/agent`, `/agents`, `/system`, `/help`, `/project`, `/git`, `/tools`, `/providers`, `/start`, `/timezone`
 - **`session.ts`** — `/new`, `/sessions`, `/switch`, `/delete`, `/current`, `/rename`
 - **`monitor.ts`** — `/todo`, `/diff`, `/fork`
 - **`files.ts`** — `/ls`, `/read`, `/find`, `/search`, `/symbols`, `/status`
@@ -69,7 +69,7 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 - **`html.ts`** — HTML escaping for Telegram (`&`, `<`, `>`, `"`)
 - **`files.ts`** — Outbound file attachment handling: extracts file parts from provider responses and tool attachments, sends images via `sendPhoto` (no caption) and other files via `sendDocument`. Resolves both base64 data URLs and HTTP URLs
 - **`stt.ts`** — Speech-to-text with provider fallback chain: Groq > Sarvam > AssemblyAI > OpenAI. Sarvam supports batch jobs for audio >30s and a translate-to-English mode
-- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Conditionally appends MCP tool instructions (Browser, Fetch, Memory, Filesystem, Relay) based on config flags. Appends fresh IST timestamp to every prompt via `getSystemPrompt()`. Also exports `writeSystemPromptFile()` which assembles the full prompt (without timestamp) and writes it to `{dataDir}/RELAY.md` for delivery via OpenCode's `instructions` config. Hot-reload rewrites `RELAY.md` automatically when `SKILL.md` changes
+- **`system-prompt.ts`** — Loads custom system prompt from `~/.relay/SKILL.md` (or `systemPromptFile` config), watches for hot-reload. Conditionally appends MCP tool instructions (Browser, Fetch, Memory, Filesystem, Relay) based on config flags. Appends fresh timestamp in configured timezone to every prompt via `getSystemPrompt()`. Also exports `writeSystemPromptFile()` which assembles the full prompt (without timestamp) and writes it to `{dataDir}/RELAY.md` for delivery via OpenCode's `instructions` config. Hot-reload rewrites `RELAY.md` automatically when `SKILL.md` changes
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
 - **`opencode-config.ts`** — Auto-injects MCP server configs into OpenCode's config (`~/.config/opencode/opencode.json`). Supports 5 MCPs: Playwright, Fetch (uvx), Memory (with `MEMORY_FILE_PATH` env var pointing to `dataDir/memory.jsonl`), Filesystem (with user-specified paths), and Relay (internal MCP for AI-driven bot management). Provides `ensure*Mcp()` and `remove*Mcp()` for each. Also provides `ensureInstructions(filePath)` / `removeInstructions(filePath)` to manage OpenCode's `instructions` array for system prompt delivery. Idempotent — skips if already configured

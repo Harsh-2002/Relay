@@ -10,6 +10,7 @@ import { JsonStore } from "./utils/store.js";
 import { cronLogger } from "./utils/logger.js";
 import { ensureServerAlive } from "./lifecycle.js";
 import { clearActiveSession } from "./session.js";
+import { getConfig } from "./config/index.js";
 
 const MAX_ERROR_LEN = 500; // Truncate error messages
 
@@ -55,43 +56,133 @@ function generateId(): string {
   return "k_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+// --- Timezone Helpers ---
+
+/** Get the configured timezone, falling back to UTC. */
+function getTimezone(): string {
+  try {
+    return getConfig().timezone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * Get date/time parts in a specific timezone.
+ * Returns { year, month (1-based), day, hour, minute, weekday (0=Sun) }.
+ */
+function getPartsInTz(utcMs: number, tz: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short",
+  });
+  const parts = fmt.formatToParts(new Date(utcMs));
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? "";
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: parseInt(get("year")),
+    month: parseInt(get("month")),
+    day: parseInt(get("day")),
+    hour: parseInt(get("hour")) % 24, // Intl may return 24 for midnight in some locales
+    minute: parseInt(get("minute")),
+    weekday: weekdayMap[get("weekday")] ?? 0,
+  };
+}
+
+/**
+ * Convert a date + time in a specific timezone to UTC milliseconds.
+ * Uses a binary-search approach to find the exact UTC instant.
+ */
+function tzDateToUtcMs(year: number, month: number, day: number, hour: number, minute: number, tz: string): number {
+  // Start with a UTC guess
+  const guessUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  // Get what that UTC instant looks like in the target timezone
+  const parts = getPartsInTz(guessUtc, tz);
+  // Calculate the offset: how far off we are
+  const guessLocalMs = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0, 0);
+  const offsetMs = guessLocalMs - guessUtc;
+  // Adjust: subtract the offset to get the true UTC time
+  // Note: DST spring-forward gaps (e.g. 2:30 AM doesn't exist) may produce ±1h drift — acceptable
+  return guessUtc - offsetMs;
+}
+
+/**
+ * Format a UTC timestamp in the user's timezone.
+ * Returns e.g. "14:30" or "2026-03-05 14:30".
+ */
+export function formatInTimezone(utcMs: number, tz: string, style: "time" | "datetime" = "time"): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  };
+  if (style === "datetime") {
+    opts.year = "numeric";
+    opts.month = "2-digit";
+    opts.day = "2-digit";
+  }
+  return new Intl.DateTimeFormat("en-GB", opts).format(new Date(utcMs));
+}
+
+/**
+ * Get the short timezone abbreviation (e.g. "IST", "EST", "UTC").
+ */
+export function getTimezoneAbbr(tz: string): string {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" });
+    const parts = fmt.formatToParts(new Date());
+    return parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+  } catch {
+    return tz;
+  }
+}
+
 // --- Schedule Math ---
 
 export function computeNextRun(schedule: CronSchedule, afterMs: number): number {
-  const after = new Date(afterMs);
-
   if (schedule.type === "interval") {
     const mins = schedule.intervalMinutes ?? 60;
     return afterMs + mins * 60_000;
   }
 
+  const tz = getTimezone();
+  const h = schedule.hour ?? 9;
+  const m = schedule.minute ?? 0;
+
   if (schedule.type === "daily" || schedule.type === "once") {
-    const h = schedule.hour ?? 9;
-    const m = schedule.minute ?? 0;
-    // Start from the day of `after`, set time
-    const candidate = new Date(after);
-    candidate.setHours(h, m, 0, 0);
-    // If already past today, move to tomorrow
-    if (candidate.getTime() <= afterMs) {
-      candidate.setDate(candidate.getDate() + 1);
+    // Get "today" in user's timezone
+    const local = getPartsInTz(afterMs, tz);
+    // Try today at h:m
+    let candidate = tzDateToUtcMs(local.year, local.month, local.day, h, m, tz);
+    if (candidate <= afterMs) {
+      // Move to tomorrow
+      const tomorrow = new Date(Date.UTC(local.year, local.month - 1, local.day + 1));
+      candidate = tzDateToUtcMs(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth() + 1, tomorrow.getUTCDate(), h, m, tz);
     }
-    return candidate.getTime();
+    return candidate;
   }
 
   if (schedule.type === "weekly") {
-    const h = schedule.hour ?? 9;
-    const m = schedule.minute ?? 0;
     const days = schedule.days ?? [1]; // Default Monday
     if (days.length === 0) return afterMs + 7 * 24 * 60 * 60_000;
 
+    const local = getPartsInTz(afterMs, tz);
     // Check next 8 days to find the closest matching day
     for (let offset = 0; offset <= 7; offset++) {
-      const candidate = new Date(after);
-      candidate.setDate(candidate.getDate() + offset);
-      candidate.setHours(h, m, 0, 0);
-      if (candidate.getTime() <= afterMs) continue;
-      if (days.includes(candidate.getDay())) {
-        return candidate.getTime();
+      const d = new Date(Date.UTC(local.year, local.month - 1, local.day + offset));
+      const candidate = tzDateToUtcMs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), h, m, tz);
+      if (candidate <= afterMs) continue;
+      // Check what day of week this is in the user's timezone
+      const candidateParts = getPartsInTz(candidate, tz);
+      if (days.includes(candidateParts.weekday)) {
+        return candidate;
       }
     }
     // Fallback: 7 days out
@@ -107,14 +198,16 @@ export function formatSchedule(s: CronSchedule): string {
     if (mins >= 60 && mins % 60 === 0) return `every ${mins / 60}h`;
     return `every ${mins}m`;
   }
+  const tz = getTimezone();
+  const abbr = getTimezoneAbbr(tz);
   const hh = String(s.hour ?? 9).padStart(2, "0");
   const mm = String(s.minute ?? 0).padStart(2, "0");
-  if (s.type === "once") return `once ${hh}:${mm}`;
-  if (s.type === "daily") return `daily ${hh}:${mm}`;
+  if (s.type === "once") return `once ${hh}:${mm} ${abbr}`;
+  if (s.type === "daily") return `daily ${hh}:${mm} ${abbr}`;
   if (s.type === "weekly") {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const days = (s.days ?? [1]).map(d => dayNames[d]).join(",");
-    return `${days} ${hh}:${mm}`;
+    return `${days} ${hh}:${mm} ${abbr}`;
   }
   return "unknown";
 }

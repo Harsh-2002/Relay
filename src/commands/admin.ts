@@ -10,6 +10,7 @@ import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../uti
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 import { isServerDown } from "../lifecycle.js";
+import { getConfig, setConfig, saveConfig } from "../config/index.js";
 
 const PROVIDER_MODELS_PER_PAGE = 8;
 
@@ -325,12 +326,14 @@ export function registerAdminCommands(bot: Bot): void {
       }
 
       const lifecycleStatus = isServerDown() ? "DOWN (auto-recovery in progress)" : "Healthy";
+      const port = provider.getPort();
 
       let text =
         `<b>Server Status</b>\n\n` +
         `<b>Provider:</b>  <code>${escapeHtml(health.provider)}</code>\n` +
         `<b>Status:</b>  ${escapeHtml(health.status)}\n` +
         `<b>Lifecycle:</b>  ${lifecycleStatus}\n` +
+        (port ? `<b>Port:</b>  <code>${port}</code>\n` : "") +
         `<b>Model:</b>  <code>${escapeHtml(modelStr)}</code>${reasoningBadge}\n` +
         `<b>Voice STT:</b>  ${escapeHtml(stt)}\n` +
         `<b>System Prompt:</b>  ${promptSource} (${prompt.length} chars)`;
@@ -874,6 +877,41 @@ export function registerAdminCommands(bot: Bot): void {
     );
   });
 
+  bot.command("timezone", async (ctx) => {
+    const config = getConfig();
+    const input = ctx.match?.trim();
+
+    if (!input) {
+      await ctx.reply(
+        `<b>Timezone:</b>  <code>${escapeHtml(config.timezone || "UTC")}</code>\n\n` +
+        `<b>Usage:</b>  <code>/timezone Asia/Kolkata</code>\n` +
+        `Use any IANA timezone identifier.`,
+        { parse_mode: "HTML" },
+      );
+      return;
+    }
+
+    // Validate IANA timezone
+    try {
+      Intl.DateTimeFormat("en", { timeZone: input });
+    } catch {
+      await ctx.reply(
+        `Invalid timezone: <code>${escapeHtml(input)}</code>\n\n` +
+        `Use IANA format, e.g. <code>Asia/Kolkata</code>, <code>America/New_York</code>, <code>UTC</code>`,
+        { parse_mode: "HTML" },
+      );
+      return;
+    }
+
+    config.timezone = input;
+    saveConfig(config, config.dataDir);
+    setConfig(config);
+    await ctx.reply(
+      `Timezone updated to <code>${escapeHtml(input)}</code>`,
+      { parse_mode: "HTML" },
+    );
+  });
+
   bot.command("help", async (ctx) => {
     const text =
       `<b>Relay</b>\n\n` +
@@ -935,6 +973,7 @@ export function registerAdminCommands(bot: Bot): void {
       `/models  —  List available models\n` +
       `/stt  —  Switch voice transcription provider\n` +
       `/agent <code>[name|clear]</code>  —  View or change agent\n` +
+      `/timezone <code>[tz]</code>  —  View or set timezone\n` +
       `/system  —  View system prompt\n` +
       `/system reload  —  Reload prompt\n` +
       `/health  —  Server status\n` +

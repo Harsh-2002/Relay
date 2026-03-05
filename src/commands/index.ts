@@ -61,6 +61,7 @@ export function getBotCommands(): BotCommand[] {
     { command: "cron", description: "Scheduled tasks" },
 
     // Admin
+    { command: "timezone", description: "View or set timezone" },
     { command: "health", description: "Server status" },
     { command: "config", description: "Show configuration" },
     { command: "system", description: "View system prompt" },

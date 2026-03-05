@@ -34,6 +34,9 @@ export interface RelayConfig {
   // Behavior
   streamEditIntervalMs: number;
 
+  // Timezone
+  timezone: string; // IANA timezone string, e.g. "Asia/Kolkata", "America/New_York"
+
   // Paths
   dataDir: string;
   systemPromptFile: string;
@@ -69,6 +72,8 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   relayMcpPort: 39149,
 
   streamEditIntervalMs: 2000,
+
+  timezone: "UTC",
 
   dataDir: "",
   systemPromptFile: "",

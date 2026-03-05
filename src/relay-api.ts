@@ -1,15 +1,21 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "http";
 import type { Api, RawApi } from "grammy";
-import { listJobs, addJob, removeJob, toggleJob, updateJob, runJobNow, formatSchedule, type CronSchedule } from "./cron.js";
+import { listJobs, addJob, removeJob, toggleJob, updateJob, runJobNow, formatSchedule, formatInTimezone, getTimezoneAbbr, type CronSchedule } from "./cron.js";
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
 import { relayApiLogger } from "./utils/logger.js";
+import { getConfig } from "./config/index.js";
 
 let server: Server | null = null;
 let botApi: Api<RawApi> | null = null;
 let chatId: number | null = null;
 
 // --- Helpers ---
+
+function getTzInfo(): { tz: string; abbr: string } {
+  const tz = getConfig().timezone || "UTC";
+  return { tz, abbr: getTimezoneAbbr(tz) };
+}
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
 
@@ -63,15 +69,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   try {
     // --- Cron routes ---
     if (url === "/cron/jobs" && method === "GET") {
+      const { tz, abbr } = getTzInfo();
       const jobs = listJobs().map((j) => ({
         id: j.id,
         name: j.name,
         prompt: j.prompt,
         schedule: formatSchedule(j.schedule),
         enabled: j.enabled,
-        lastRunAt: j.lastRunAt ? new Date(j.lastRunAt).toISOString() : null,
+        lastRunAt: j.lastRunAt ? `${formatInTimezone(j.lastRunAt, tz, "datetime")} ${abbr}` : null,
         lastRunOk: j.lastRunOk,
-        nextRunAt: new Date(j.nextRunAt).toISOString(),
+        nextRunAt: `${formatInTimezone(j.nextRunAt, tz, "datetime")} ${abbr}`,
         runCount: j.runCount,
       }));
       json(res, 200, { jobs });
@@ -144,11 +151,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       }
 
       const job = addJob(body.name, body.prompt, schedule);
+      const { tz, abbr } = getTzInfo();
       json(res, 201, {
         id: job.id,
         name: job.name,
         schedule: formatSchedule(job.schedule),
-        nextRunAt: new Date(job.nextRunAt).toISOString(),
+        nextRunAt: `${formatInTimezone(job.nextRunAt, tz, "datetime")} ${abbr}`,
       });
       return;
     }
@@ -230,13 +238,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       const job = updateJob(id, updates);
       if (!job) { json(res, 404, { error: "Job not found" }); return; }
+      const { tz, abbr } = getTzInfo();
       json(res, 200, {
         id: job.id,
         name: job.name,
         prompt: job.prompt,
         schedule: formatSchedule(job.schedule),
         enabled: job.enabled,
-        nextRunAt: new Date(job.nextRunAt).toISOString(),
+        nextRunAt: `${formatInTimezone(job.nextRunAt, tz, "datetime")} ${abbr}`,
       });
       return;
     }
@@ -254,7 +263,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (!id) { json(res, 400, { error: "Missing job ID" }); return; }
       const job = toggleJob(id);
       if (!job) { json(res, 404, { error: "Job not found" }); return; }
-      json(res, 200, { id: job.id, enabled: job.enabled, nextRunAt: new Date(job.nextRunAt).toISOString() });
+      const { tz, abbr } = getTzInfo();
+      json(res, 200, { id: job.id, enabled: job.enabled, nextRunAt: `${formatInTimezone(job.nextRunAt, tz, "datetime")} ${abbr}` });
       return;
     }
 

@@ -32,6 +32,7 @@ import { spawnAsync } from "../utils/shell.js";
 
 let client: OpencodeClient;
 let serverClose: (() => void) | undefined;
+let activePort: number | null = null;
 
 export class OpenCodeProvider implements Provider {
   readonly name = "opencode" as const;
@@ -41,6 +42,7 @@ export class OpenCodeProvider implements Provider {
     const hostname = config.opencodeHostname;
     const preferredPort = config.opencodePort;
     const port = await findAvailablePort(preferredPort);
+    activePort = port;
     providerLogger.info({ hostname, port, preferredPort }, "Initializing provider");
 
     // On Windows, the SDK's createOpencode() fails with ENOENT because
@@ -60,6 +62,10 @@ export class OpenCodeProvider implements Provider {
       client = result.client;
       serverClose = result.server.close;
     }
+  }
+
+  getPort(): number | null {
+    return activePort;
   }
 
   shutdown(): void {

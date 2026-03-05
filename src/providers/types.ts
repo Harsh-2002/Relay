@@ -201,6 +201,7 @@ export interface Provider {
   getTools(): Promise<ToolInfo[] | null>;
   getCommands(): Promise<CommandInfo[] | null>;
   getHealth(): Promise<HealthInfo>;
+  getPort(): number | null;
   getConfig(): Promise<unknown>;
   getProviders(): Promise<unknown>;
   getAgents(): Promise<unknown[] | null>;

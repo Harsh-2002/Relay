@@ -19,6 +19,15 @@ function handleCancel(value: unknown): void {
   }
 }
 
+function isValidTimezone(tz: string): boolean {
+  try {
+    Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Run a shell command and return trimmed stdout, or null on failure */
 function checkCommand(cmd: string): string | null {
   try {
@@ -177,7 +186,7 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   const s = p.spinner();
 
   // ── Step 1: OpenCode ──
-  p.log.step("Step 1/5 — OpenCode");
+  p.log.step("Step 1/6 — OpenCode");
 
   const opencodeVersion = checkCommand("opencode --version");
 
@@ -225,7 +234,7 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   }
 
   // ── Step 2: Bot Token ──
-  p.log.step("Step 2/5 — Bot Token");
+  p.log.step("Step 2/6 — Bot Token");
 
   if (!isUpdate) {
     p.note(
@@ -271,7 +280,7 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   config.botToken = botToken;
 
   // ── Step 3: User ID ──
-  p.log.step("Step 3/5 — Telegram User ID");
+  p.log.step("Step 3/6 — Telegram User ID");
 
   if (!isUpdate) {
     p.note(
@@ -315,8 +324,40 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
     p.log.success("Kept existing user ID.");
   }
 
-  // ── Step 4: MCP Tools ──
-  p.log.step("Step 4/5 — MCP Tools");
+  // ── Step 4: Timezone ──
+  p.log.step("Step 4/6 — Timezone");
+
+  const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const currentTz = config.timezone && config.timezone !== "UTC" ? config.timezone : detectedTz;
+
+  if (isUpdate) {
+    p.log.info(`Current: ${config.timezone}`);
+  } else {
+    p.log.info(`Detected: ${detectedTz}`);
+  }
+
+  const timezoneInput = await p.text({
+    message: "IANA timezone (e.g. Asia/Kolkata, America/New_York):",
+    placeholder: isUpdate ? "Press Enter to keep existing" : currentTz,
+    initialValue: isUpdate ? "" : currentTz,
+    validate: (v = "") => {
+      if (isUpdate && v.trim() === "") return undefined;
+      if (!isValidTimezone(v.trim())) return "Invalid timezone — use IANA format (e.g. Asia/Kolkata)";
+      return undefined;
+    },
+  });
+  handleCancel(timezoneInput);
+
+  const tzValue = (timezoneInput as string).trim();
+  if (tzValue === "" && isUpdate) {
+    p.log.success("Kept existing timezone.");
+  } else if (tzValue) {
+    config.timezone = tzValue;
+    p.log.success(`Timezone set to ${config.timezone}`);
+  }
+
+  // ── Step 5: MCP Tools ──
+  p.log.step("Step 5/6 — MCP Tools");
 
   if (!isUpdate) {
     p.note(
@@ -455,8 +496,8 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
     p.log.info("No MCP tools enabled.");
   }
 
-  // ── Step 5: Voice Transcription ──
-  p.log.step("Step 5/5 — Voice Transcription");
+  // ── Step 6: Voice Transcription ──
+  p.log.step("Step 6/6 — Voice Transcription");
 
   const hasStt = isUpdate && config.sttProvider && config.sttProvider !== "auto";
   if (hasStt) {

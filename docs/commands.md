@@ -206,6 +206,8 @@ Run a shell command on the coding agent's machine.
 
 Commands are executed natively on the OpenCode server.
 
+> **Blocked commands:** `relay restart`, `relay stop`, `relay start`, and `relay update` are blocked in `/shell` to prevent killing the bot process. Use `/restart` or `/update` instead.
+
 ### `/cmd [command]`
 
 Run an OpenCode-specific command. Without arguments, shows an interactive picker.
@@ -305,9 +307,12 @@ Example output:
 ```
 MCP Servers (2)
 
-1. memory  ok
-2. browser  failed
-   Connection refused
+🟢 1. memory
+    connected
+
+🔴 2. browser
+    disconnected
+    Connection refused
 ```
 
 ### `/mcp add <name> local <command...>`
@@ -350,7 +355,7 @@ Servers persist in the OpenCode configuration across restarts.
 
 ## Cron (Scheduled Tasks)
 
-Schedule recurring AI tasks that run automatically. Results are delivered to your chat.
+Schedule recurring AI tasks that run automatically. Results are delivered to your chat. All times use your configured timezone (set via `/timezone`).
 
 ### `/cron`
 
@@ -360,7 +365,7 @@ Show all scheduled jobs with action buttons for each:
 - **Run** -- Execute a job immediately
 - **Delete** -- Remove a job
 
-Each job shows its schedule, last run time and result (ok/fail), and total run count.
+Each job shows its schedule, next run time in your timezone, last run status, and total run count.
 
 ### `/cron add daily <HH:MM> <Title: prompt>`
 
@@ -392,11 +397,19 @@ Schedule a job that runs on specific days of the week. Days are comma-separated:
 /cron add weekly mon 09:00 Weekly plan: What should I focus on this week?
 ```
 
+### `/cron add once <HH:MM> <Title: prompt>`
+
+Schedule a one-time job. It fires once at the specified time, then auto-disables (preserving run history). Toggle to re-enable for another run.
+
+```
+/cron add once 14:30 Reminder: Time to review the open PR
+```
+
 ### Interactive picker
 
 The `/cron` command also includes an **Add Job** button that walks you through schedule selection step by step:
 
-1. Pick schedule type (interval, daily, weekly)
+1. Pick schedule type (interval, daily, weekly, once)
 2. Pick interval duration or hour
 3. Pick minute
 4. Pick days (for weekly)
@@ -443,6 +456,18 @@ Show project information: ID, worktree, VCS type, branch, and directory.
 
 Show git branch and changed files status. Shows up to 30 changed files with their status codes.
 
+### `/timezone [timezone]`
+
+View or set the timezone used for cron scheduling and timestamps.
+
+```
+/timezone                    # Show current timezone
+/timezone Asia/Kolkata       # Set timezone
+/timezone America/New_York   # Any IANA timezone
+```
+
+The timezone affects cron job scheduling, next run times, and the timestamp in the system prompt.
+
 ### `/system`
 
 View the current system prompt (first 500 characters), its source (custom file or built-in default), and character count.
@@ -450,6 +475,14 @@ View the current system prompt (first 500 characters), its source (custom file o
 ### `/system reload`
 
 Force-reload the system prompt from the file. Useful if auto-reload didn't pick up a change.
+
+### `/restart`
+
+Restart the bot process. The bot sends a confirmation message before restarting via pm2.
+
+### `/update`
+
+Update Relay to the latest version from npm and restart. Shows the new version number on success.
 
 ### `/start`
 

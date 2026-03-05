@@ -197,7 +197,8 @@ Cron jobs use the same delivery path. When a job fires:
     executeJob(job)
                |
                +---> getSystemPrompt()
-               |       Returns assembled prompt + IST timestamp.
+               |       Returns assembled prompt + timestamp in
+               |       user's configured timezone.
                |       Passed as options.system to promptStream().
                |       But opencode.ts does NOT send body.system --
                |       the prompt reaches the LLM via instructions.

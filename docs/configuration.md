@@ -94,7 +94,7 @@ The directory is excluded from git via `.gitignore`.
 
 ## MCP Tools
 
-Built-in MCP tools are configured during `relay onboard` (Step 4). Each runs as a local process managed by OpenCode.
+Built-in MCP tools are configured during `relay onboard` (Step 5). Each runs as a local process managed by OpenCode.
 
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
@@ -165,6 +165,7 @@ Use `sarvam-translate` to transcribe and translate non-English voice messages to
   "botToken": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
   "allowedUserId": 987654321,
   "provider": "opencode",
+  "timezone": "Asia/Kolkata",
   "groqApiKey": "gsk_..."
 }
 ```

@@ -291,9 +291,12 @@ Use `/mcp` to see all configured servers and their connection status. Servers ar
 ```
 MCP Servers (2)
 
-1. memory  ok
-2. browser  failed
-   Connection refused
+🟢 1. memory
+    connected
+
+🔴 2. browser
+    disconnected
+    Connection refused
 ```
 
 ### Removing a server
@@ -573,7 +576,7 @@ Edit a sent message to re-prompt the AI with the corrected text. The AI processe
 
 ## Scheduled Tasks (Cron)
 
-Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, or on specific days of the week. Results are delivered directly to your Telegram chat.
+Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, weekly, or as a one-time task. All times use your configured timezone (set via `/timezone`). Results are delivered directly to your Telegram chat.
 
 ### Setup
 
@@ -594,6 +597,11 @@ Cron is built-in and requires no additional configuration. Jobs are managed enti
 **Weekly on specific days:**
 ```
 /cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs
+```
+
+**One-time job:**
+```
+/cron add once 14:30 Reminder: Review the open PR
 ```
 
 The format is always: `/cron add <schedule> Title: prompt`

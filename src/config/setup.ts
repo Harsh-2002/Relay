@@ -328,31 +328,110 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   p.log.step("Step 4/6 — Timezone");
 
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const currentTz = config.timezone && config.timezone !== "UTC" ? config.timezone : detectedTz;
 
   if (isUpdate) {
-    p.log.info(`Current: ${config.timezone}`);
+    p.log.info(`Current: ${config.timezone || "UTC"}`);
   } else {
     p.log.info(`Detected: ${detectedTz}`);
   }
 
-  const timezoneInput = await p.text({
-    message: "IANA timezone (e.g. Asia/Kolkata, America/New_York):",
-    placeholder: isUpdate ? "Press Enter to keep existing" : currentTz,
-    initialValue: isUpdate ? "" : currentTz,
-    validate: (v = "") => {
-      if (isUpdate && v.trim() === "") return undefined;
-      if (!isValidTimezone(v.trim())) return "Invalid timezone — use IANA format (e.g. Asia/Kolkata)";
-      return undefined;
-    },
-  });
-  handleCancel(timezoneInput);
+  // Build timezone options: detected first (if not UTC), then common ones, then custom
+  const COMMON_TIMEZONES = [
+    // Americas
+    { value: "America/New_York", label: "America/New_York", hint: "EST/EDT (UTC-5/-4)" },
+    { value: "America/Chicago", label: "America/Chicago", hint: "CST/CDT (UTC-6/-5)" },
+    { value: "America/Denver", label: "America/Denver", hint: "MST/MDT (UTC-7/-6)" },
+    { value: "America/Los_Angeles", label: "America/Los_Angeles", hint: "PST/PDT (UTC-8/-7)" },
+    { value: "America/Toronto", label: "America/Toronto", hint: "EST/EDT (UTC-5/-4)" },
+    { value: "America/Vancouver", label: "America/Vancouver", hint: "PST/PDT (UTC-8/-7)" },
+    { value: "America/Sao_Paulo", label: "America/Sao_Paulo", hint: "BRT (UTC-3)" },
+    { value: "America/Mexico_City", label: "America/Mexico_City", hint: "CST (UTC-6)" },
+    { value: "America/Argentina/Buenos_Aires", label: "America/Argentina/Buenos_Aires", hint: "ART (UTC-3)" },
+    { value: "America/Bogota", label: "America/Bogota", hint: "COT (UTC-5)" },
+    // Europe
+    { value: "Europe/London", label: "Europe/London", hint: "GMT/BST (UTC+0/+1)" },
+    { value: "Europe/Berlin", label: "Europe/Berlin", hint: "CET/CEST (UTC+1/+2)" },
+    { value: "Europe/Paris", label: "Europe/Paris", hint: "CET/CEST (UTC+1/+2)" },
+    { value: "Europe/Amsterdam", label: "Europe/Amsterdam", hint: "CET/CEST (UTC+1/+2)" },
+    { value: "Europe/Moscow", label: "Europe/Moscow", hint: "MSK (UTC+3)" },
+    { value: "Europe/Istanbul", label: "Europe/Istanbul", hint: "TRT (UTC+3)" },
+    { value: "Europe/Zurich", label: "Europe/Zurich", hint: "CET/CEST (UTC+1/+2)" },
+    { value: "Europe/Rome", label: "Europe/Rome", hint: "CET/CEST (UTC+1/+2)" },
+    { value: "Europe/Stockholm", label: "Europe/Stockholm", hint: "CET/CEST (UTC+1/+2)" },
+    // Asia
+    { value: "Asia/Kolkata", label: "Asia/Kolkata", hint: "IST (UTC+5:30)" },
+    { value: "Asia/Dubai", label: "Asia/Dubai", hint: "GST (UTC+4)" },
+    { value: "Asia/Karachi", label: "Asia/Karachi", hint: "PKT (UTC+5)" },
+    { value: "Asia/Dhaka", label: "Asia/Dhaka", hint: "BST (UTC+6)" },
+    { value: "Asia/Bangkok", label: "Asia/Bangkok", hint: "ICT (UTC+7)" },
+    { value: "Asia/Jakarta", label: "Asia/Jakarta", hint: "WIB (UTC+7)" },
+    { value: "Asia/Singapore", label: "Asia/Singapore", hint: "SGT (UTC+8)" },
+    { value: "Asia/Hong_Kong", label: "Asia/Hong_Kong", hint: "HKT (UTC+8)" },
+    { value: "Asia/Shanghai", label: "Asia/Shanghai", hint: "CST (UTC+8)" },
+    { value: "Asia/Taipei", label: "Asia/Taipei", hint: "CST (UTC+8)" },
+    { value: "Asia/Seoul", label: "Asia/Seoul", hint: "KST (UTC+9)" },
+    { value: "Asia/Tokyo", label: "Asia/Tokyo", hint: "JST (UTC+9)" },
+    { value: "Asia/Riyadh", label: "Asia/Riyadh", hint: "AST (UTC+3)" },
+    { value: "Asia/Tehran", label: "Asia/Tehran", hint: "IRST (UTC+3:30)" },
+    // Africa
+    { value: "Africa/Cairo", label: "Africa/Cairo", hint: "EET (UTC+2)" },
+    { value: "Africa/Lagos", label: "Africa/Lagos", hint: "WAT (UTC+1)" },
+    { value: "Africa/Johannesburg", label: "Africa/Johannesburg", hint: "SAST (UTC+2)" },
+    { value: "Africa/Nairobi", label: "Africa/Nairobi", hint: "EAT (UTC+3)" },
+    // Oceania
+    { value: "Australia/Sydney", label: "Australia/Sydney", hint: "AEST/AEDT (UTC+10/+11)" },
+    { value: "Australia/Melbourne", label: "Australia/Melbourne", hint: "AEST/AEDT (UTC+10/+11)" },
+    { value: "Australia/Perth", label: "Australia/Perth", hint: "AWST (UTC+8)" },
+    { value: "Pacific/Auckland", label: "Pacific/Auckland", hint: "NZST/NZDT (UTC+12/+13)" },
+    { value: "Pacific/Honolulu", label: "Pacific/Honolulu", hint: "HST (UTC-10)" },
+    // UTC
+    { value: "UTC", label: "UTC", hint: "Coordinated Universal Time" },
+  ];
 
-  const tzValue = (timezoneInput as string).trim();
-  if (tzValue === "" && isUpdate) {
+  const tzOptions: Array<{ value: string; label: string; hint?: string }> = [];
+
+  // If detected timezone isn't in the common list, add it at the top
+  if (detectedTz && !COMMON_TIMEZONES.some(t => t.value === detectedTz)) {
+    tzOptions.push({ value: detectedTz, label: detectedTz, hint: "Detected from system" });
+  }
+
+  // Add common timezones, marking the detected one
+  for (const tz of COMMON_TIMEZONES) {
+    tzOptions.push({
+      ...tz,
+      hint: tz.value === detectedTz ? `${tz.hint} — detected` : tz.hint,
+    });
+  }
+
+  tzOptions.push({ value: "__custom__", label: "Other — type manually", hint: "Any IANA timezone" });
+
+  if (isUpdate) {
+    tzOptions.unshift({ value: "__keep__", label: `Keep current (${config.timezone || "UTC"})` });
+  }
+
+  const tzChoice = await p.select({
+    message: "Select your timezone:",
+    options: tzOptions,
+    initialValue: isUpdate ? "__keep__" : (detectedTz || "UTC"),
+  });
+  handleCancel(tzChoice);
+
+  if (tzChoice === "__keep__") {
     p.log.success("Kept existing timezone.");
-  } else if (tzValue) {
-    config.timezone = tzValue;
+  } else if (tzChoice === "__custom__") {
+    const customTz = await p.text({
+      message: "IANA timezone (e.g. Asia/Kolkata, America/New_York):",
+      validate: (v = "") => {
+        if (v.trim().length === 0) return "Timezone is required";
+        if (!isValidTimezone(v.trim())) return "Invalid timezone — use IANA format (e.g. Asia/Kolkata)";
+        return undefined;
+      },
+    });
+    handleCancel(customTz);
+    config.timezone = (customTz as string).trim();
+    p.log.success(`Timezone set to ${config.timezone}`);
+  } else {
+    config.timezone = tzChoice as string;
     p.log.success(`Timezone set to ${config.timezone}`);
   }
 

@@ -50,7 +50,7 @@ OpenCode is the sole backend, implementing the `Provider` interface (`src/provid
 Commands are registered in `src/commands/index.ts` in a specific order. Each module registers Grammy handlers:
 
 - **`chat.ts`** — Main text message handler; routes to streaming prompt pipeline. Supports reply-to-message context and edited message re-prompting
-- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/stt`, `/agent`, `/agents`, `/system`, `/help`, `/project`, `/git`, `/tools`, `/providers`, `/start`, `/timezone`
+- **`admin.ts`** — `/health`, `/config`, `/models`, `/model`, `/stt`, `/agent`, `/agents`, `/system`, `/help`, `/project`, `/git`, `/tools`, `/providers`, `/start`, `/timezone`, `/restart`, `/update`
 - **`session.ts`** — `/new`, `/sessions`, `/switch`, `/delete`, `/current`, `/rename`
 - **`monitor.ts`** — `/todo`, `/diff`, `/fork`
 - **`files.ts`** — `/ls`, `/read`, `/find`, `/search`, `/symbols`, `/status`

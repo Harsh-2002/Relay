@@ -83,11 +83,27 @@ const CMD_KEYS = Object.keys(CMD_DEFS);
 
 // ── Handlers ───────────────────────────────────────────────────────
 
+// Commands that would kill/restart the bot process, causing a replay loop
+const BLOCKED_PATTERNS = [
+  /\brelay\s+(restart|stop|start)\b/i,
+  /\bpm2\s+(restart|stop|delete|kill)\b/i,
+  /\bkill\s+(-\d+\s+)?(\$\$|%|\d)/i,
+  /\bkillall\s+node\b/i,
+];
+
 export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
     const command = ctx.match?.trim();
     if (!command) {
       await ctx.reply("Usage: <code>/shell &lt;command&gt;</code>", { parse_mode: "HTML" });
+      return;
+    }
+
+    if (BLOCKED_PATTERNS.some(p => p.test(command))) {
+      await ctx.reply(
+        `<b>Blocked:</b> This command would kill the bot process.\n\nUse /restart or /update instead.`,
+        { parse_mode: "HTML" },
+      );
       return;
     }
 

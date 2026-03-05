@@ -11,6 +11,7 @@ import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
 import { isServerDown } from "../lifecycle.js";
 import { getConfig, setConfig, saveConfig } from "../config/index.js";
+import { exec } from "child_process";
 
 const PROVIDER_MODELS_PER_PAGE = 8;
 
@@ -912,6 +913,49 @@ export function registerAdminCommands(bot: Bot): void {
     );
   });
 
+  bot.command("restart", async (ctx) => {
+    await ctx.reply("Restarting Relay...", { parse_mode: "HTML" });
+    // Delay to ensure Telegram acknowledges the update before the process dies
+    setTimeout(() => {
+      exec("pm2 restart relay", (err) => {
+        if (err) {
+          // pm2 not available or not running as daemon — exit and let pm2 handle restart
+          process.exit(0);
+        }
+      });
+    }, 500);
+  });
+
+  bot.command("update", async (ctx) => {
+    await ctx.reply("<b>Updating Relay...</b>\nThis may take a moment.", { parse_mode: "HTML" });
+    exec("npm install -g @4via6/relay@latest", { timeout: 120_000 }, async (err, stdout, stderr) => {
+      if (err) {
+        const errMsg = (stderr || err.message || "").trim().slice(0, 500);
+        try {
+          await ctx.reply(
+            `<b>Update failed</b>\n\n<pre>${escapeHtml(errMsg)}</pre>`,
+            { parse_mode: "HTML" },
+          );
+        } catch {}
+        return;
+      }
+      // Extract version from npm output
+      const versionMatch = (stdout || "").match(/@4via6\/relay@([\d.]+)/);
+      const versionStr = versionMatch ? ` to v${versionMatch[1]}` : "";
+      try {
+        await ctx.reply(
+          `<b>Updated${escapeHtml(versionStr)}!</b>\nRestarting...`,
+          { parse_mode: "HTML" },
+        );
+      } catch {}
+      setTimeout(() => {
+        exec("pm2 restart relay", (restartErr) => {
+          if (restartErr) process.exit(0);
+        });
+      }, 500);
+    });
+  });
+
   bot.command("help", async (ctx) => {
     const text =
       `<b>Relay</b>\n\n` +
@@ -978,6 +1022,8 @@ export function registerAdminCommands(bot: Bot): void {
       `/system reload  —  Reload prompt\n` +
       `/health  —  Server status\n` +
       `/config  —  Show config\n` +
+      `/restart  —  Restart the bot\n` +
+      `/update  —  Update to latest version\n` +
       `/providers  —  List providers\n` +
       `/agents  —  List agents\n` +
       `/tools  —  Available tools\n` +

@@ -385,6 +385,16 @@ async function executeJob(job: CronJob): Promise<void> {
 
   const header = `<b>Cron: ${escapeHtml(job.name.slice(0, 100))}</b>`;
   let ok = false;
+
+  // Animated dots while running (same pattern as chat "Thinking.")
+  let dotPhase = 0;
+  const dotTimer = setInterval(() => {
+    if (!msgId) return;
+    dotPhase = (dotPhase % 3) + 1;
+    api.editMessageText(chatId, msgId, `${header}\n\nRunning${".".repeat(dotPhase)}`, { parse_mode: "HTML" })
+      .catch(() => {});
+  }, 500);
+
   try {
     const { text: result, files: collectedFiles } = await withPromptQueue(async () => {
       const provider = getProvider();
@@ -414,6 +424,8 @@ async function executeJob(job: CronJob): Promise<void> {
 
       return { text: accumulated, files };
     });
+
+    clearInterval(dotTimer);
 
     if (result && result.trim()) {
       const html = markdownToHtml(result);
@@ -457,6 +469,7 @@ async function executeJob(job: CronJob): Promise<void> {
       }
     }
   } catch (err: any) {
+    clearInterval(dotTimer);
     cronLogger.info({ jobId: job.id, err: err?.message }, "Cron job error");
 
     // Clear stale session on session-related errors so the next run gets a fresh one

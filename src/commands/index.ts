@@ -10,6 +10,7 @@ import { registerMediaHandlers } from "./media.js";
 import { registerChat } from "./chat.js";
 import { registerMcpCommands } from "./mcp.js";
 import { registerCronCommands } from "./cron.js";
+import { registerQuestionHandlers } from "./question.js";
 
 export function getBotCommands(): BotCommand[] {
   return [
@@ -85,6 +86,7 @@ export function registerCommands(bot: Bot): void {
   registerHistoryCommands(bot);
   registerMcpCommands(bot);
   registerCronCommands(bot);
+  registerQuestionHandlers(bot);
   registerMediaHandlers(bot);
   registerChat(bot);
 }

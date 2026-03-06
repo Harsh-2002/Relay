@@ -10,6 +10,8 @@ import {
   ensureFetchMcp, removeFetchMcp,
   ensureMemoryMcp, removeMemoryMcp,
   ensureFilesystemMcp, removeFilesystemMcp,
+  ensureGithubMcp, removeGithubMcp,
+  ensureContext7Mcp, removeContext7Mcp,
 } from "../utils/opencode-config.js";
 
 function handleCancel(value: unknown): void {
@@ -450,6 +452,8 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
       `Fetch ${config.fetchEnabled ? "✓" : "✗"}`,
       `Memory ${config.memoryEnabled ? "✓" : "✗"}`,
       `Filesystem ${config.filesystemEnabled ? "✓" : "✗"}`,
+      `GitHub ${config.githubEnabled ? "✓" : "✗"}`,
+      `Context7 ${config.context7Enabled ? "✓" : "✗"}`,
     ].join(", ");
     p.log.info(`Current: ${mcpStatus}`);
   }
@@ -459,6 +463,8 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   if (config.fetchEnabled) currentMcps.push("fetch");
   if (config.memoryEnabled) currentMcps.push("memory");
   if (config.filesystemEnabled) currentMcps.push("filesystem");
+  if (config.githubEnabled) currentMcps.push("github");
+  if (config.context7Enabled) currentMcps.push("context7");
 
   const selectedMcps = await p.multiselect({
     message: "Enable MCP tools (Space to toggle, Enter to confirm):",
@@ -467,6 +473,8 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
       { value: "fetch", label: "Fetch", hint: "Read web pages as markdown" },
       { value: "memory", label: "Memory", hint: "Persistent knowledge graph across sessions" },
       { value: "filesystem", label: "Filesystem", hint: "Read/write files outside the project" },
+      { value: "github", label: "GitHub", hint: "Issues, PRs, code search, Actions (requires PAT)" },
+      { value: "context7", label: "Context7", hint: "Up-to-date library/framework documentation" },
     ],
     initialValues: currentMcps,
     required: false,
@@ -478,6 +486,8 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   config.fetchEnabled = mcps.includes("fetch");
   config.memoryEnabled = mcps.includes("memory");
   config.filesystemEnabled = mcps.includes("filesystem");
+  config.githubEnabled = mcps.includes("github");
+  config.context7Enabled = mcps.includes("context7");
 
   // Fetch requires uvx (Python) — check and offer install
   if (config.fetchEnabled) {
@@ -543,6 +553,53 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
       .map((p) => p.startsWith("~") ? p.replace("~", homedir()) : p);
   }
 
+  // GitHub requires PAT
+  if (config.githubEnabled) {
+    const existingPat = config.githubPatToken || "";
+    if (existingPat && isUpdate) {
+      p.log.info(`Current PAT: ${maskSecret(existingPat)}`);
+    }
+
+    const patInput = await p.text({
+      message: "GitHub Personal Access Token:",
+      placeholder: isUpdate && existingPat ? "Press Enter to keep existing" : "ghp_... — create at github.com/settings/tokens",
+      validate: (v = "") => {
+        if (isUpdate && existingPat && v.trim() === "") return undefined;
+        return v.trim().length > 0 ? undefined : "GitHub PAT is required";
+      },
+    });
+    handleCancel(patInput);
+
+    const patValue = (patInput as string).trim();
+    if (patValue) {
+      config.githubPatToken = patValue;
+    }
+    // If empty in update mode, keep existing
+  }
+
+  // Context7 — optional API key for higher rate limits
+  if (config.context7Enabled) {
+    const existingKey = config.context7ApiKey || "";
+    if (existingKey && isUpdate) {
+      p.log.info(`Current API key: ${maskSecret(existingKey)}`);
+    }
+
+    const keyInput = await p.text({
+      message: "Context7 API key (optional — for higher rate limits):",
+      placeholder: isUpdate && existingKey
+        ? "Press Enter to keep existing"
+        : "Get free key at context7.com/dashboard — or press Enter to skip",
+      validate: () => undefined,
+    });
+    handleCancel(keyInput);
+
+    const keyValue = (keyInput as string).trim();
+    if (keyValue) {
+      config.context7ApiKey = keyValue;
+    }
+    // If empty: keep existing in update mode, or leave blank for new config
+  }
+
   // Ensure/remove each MCP in OpenCode config
   const mcpActions: Array<{ name: string; enabled: boolean; ensure: () => void; remove: () => void }> = [
     { name: "Playwright", enabled: config.browserEnabled, ensure: ensurePlaywrightMcp, remove: removePlaywrightMcp },
@@ -554,6 +611,13 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
       ensure: () => ensureFilesystemMcp(config.filesystemPaths),
       remove: removeFilesystemMcp,
     },
+    {
+      name: "GitHub",
+      enabled: config.githubEnabled && !!config.githubPatToken,
+      ensure: () => ensureGithubMcp(config.githubPatToken),
+      remove: removeGithubMcp,
+    },
+    { name: "Context7", enabled: config.context7Enabled, ensure: () => ensureContext7Mcp(config.context7ApiKey || undefined), remove: removeContext7Mcp },
   ];
 
   for (const mcp of mcpActions) {

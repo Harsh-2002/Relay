@@ -51,6 +51,8 @@ from modular sections:
 |  | + Fetch MCP          <-- if fetchEnabled                  ||
 |  | + Memory MCP         <-- if memoryEnabled                 ||
 |  | + Filesystem MCP     <-- if filesystemEnabled             ||
+|  | + GitHub MCP         <-- if githubEnabled                 ||
+|  | + Context7 MCP       <-- if context7Enabled               ||
 |  +----------------------------------------------------------+|
 |                          |                                    |
 |                          v                                    |

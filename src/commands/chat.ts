@@ -4,6 +4,7 @@ import { streamPromptWithRetry } from "../utils/stream.js";
 import { getSystemPrompt } from "../utils/system-prompt.js";
 import { formatCatchError } from "../utils/errors.js";
 import { chatLogger } from "../utils/logger.js";
+import { consumePendingTextQuestion } from "./question.js";
 
 const MAX_INPUT_LENGTH = 32_000;
 
@@ -32,6 +33,15 @@ function buildPromptWithReplyContext(ctx: Context, text: string): string {
  */
 async function handleTextMessage(ctx: Context, rawText: string, isEdit: boolean): Promise<void> {
   if (rawText.startsWith("/")) return;
+
+  // Check for pending typed answer to an AI question (only for new messages, not edits)
+  if (!isEdit) {
+    const pending = consumePendingTextQuestion(ctx.chat!.id);
+    if (pending) {
+      await pending.handle(rawText, ctx);
+      return;
+    }
+  }
 
   const text = buildPromptWithReplyContext(ctx, rawText);
 

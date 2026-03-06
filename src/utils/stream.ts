@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import { getProvider } from "../providers/index.js";
+import { startQuestionFlow } from "../commands/question.js";
 import { chunkMessage } from "./chunker.js";
 import { formatCatchError, EMPTY_RESPONSE_MSG } from "./errors.js";
 import { sendResponseFiles, type ResponseFile } from "./files.js";
@@ -101,6 +102,11 @@ export async function streamPrompt({
         toolStatus = chunk.content;
       } else if (chunk.type === "file" && chunk.file) {
         collectedFiles.push(chunk.file);
+      } else if (chunk.type === "question" && chunk.question) {
+        if (thinkingTimer) { clearInterval(thinkingTimer); thinkingTimer = null; }
+        await startQuestionFlow(ctx, chatId, chunk.question, streamMsgId);
+        streamMsgId = null;
+        continue;
       } else if (chunk.type === "done") {
         break;
       }

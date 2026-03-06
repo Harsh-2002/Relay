@@ -217,6 +217,19 @@ export class OpenCodeProvider implements Provider {
     await client.session.abort({ path: { id: sessionId } });
   }
 
+  // --- Questions ---
+  // The v1 SDK client doesn't expose a .question namespace — use direct HTTP calls.
+
+  async replyToQuestion(requestId: string, answers: string[][]): Promise<void> {
+    providerLogger.info({ requestId, answers }, "Replying to question");
+    await questionReply(requestId, answers);
+  }
+
+  async rejectQuestion(requestId: string): Promise<void> {
+    providerLogger.info({ requestId }, "Rejecting question");
+    await questionReject(requestId);
+  }
+
   // --- Streaming ---
 
   async *promptStream(
@@ -251,17 +264,34 @@ export class OpenCodeProvider implements Provider {
 
     const controller = new AbortController();
     const STALL_TIMEOUT = 120_000;
+    let pendingQuestion = false;
+    let questionAutoReplyTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Stall detection: abort if no session-relevant events arrive for 120s.
     // There is no global wall-clock timeout — the stream stays open as long as
     // OpenCode is making progress (tool runs, reasoning steps, etc.)
+    // Skips abort when a question is pending user input.
     let stallTimer = setTimeout(() => {
+      if (pendingQuestion) {
+        stallTimer = setTimeout(() => {
+          providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
+          controller.abort();
+        }, STALL_TIMEOUT);
+        return;
+      }
       providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
       controller.abort();
     }, STALL_TIMEOUT);
     const resetStallTimer = () => {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => {
+        if (pendingQuestion) {
+          stallTimer = setTimeout(() => {
+            providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
+            controller.abort();
+          }, STALL_TIMEOUT);
+          return;
+        }
         providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
         controller.abort();
       }, STALL_TIMEOUT);
@@ -396,23 +426,70 @@ export class OpenCodeProvider implements Provider {
           }
 
         // --- permission requests (auto-approve so tools can run) ---
+        // Not session-filtered — handles sub-agent permissions too
         } else if (evtType === "permission.asked" || evtType === "permission.updated") {
           const permission = props as any;
-          const permSessionId = permission.sessionID ?? permission.session_id;
-          if (permSessionId && permSessionId !== sessionId) continue;
           const permId = permission.id;
           if (!permId) continue;
           resetStallTimer();
+          const permSessionId = permission.sessionID ?? permission.session_id;
           providerLogger.info(
-            { sessionId, permId, permType: permission.type, title: permission.title },
+            { sessionId, permId, permSessionId, permType: permission.permission, title: permission.title },
             "Auto-approving permission"
           );
-          client.postSessionIdPermissionsPermissionId({
-            path: { id: sessionId, permissionID: permId },
-            body: { response: "always" },
-          }).catch((err: any) => {
+          // v1 SDK lacks .permission namespace — use direct HTTP
+          permissionReply(permSessionId ?? sessionId, permId).catch((err: any) => {
             providerLogger.warn({ sessionId, permId, err: err?.message }, "Permission auto-approve failed");
           });
+
+        // --- question requests (forward to Telegram or auto-reply) ---
+        // Not session-filtered — handles sub-agent questions too
+        } else if (evtType === "question.asked") {
+          const questionReq = props as any;
+          const questionId = questionReq.id;
+          if (!questionId) continue;
+          resetStallTimer();
+          pendingQuestion = true;
+
+          const items = questionReq.questions ?? [];
+          providerLogger.info(
+            { sessionId, questionId, questionSessionId: questionReq.sessionID, itemCount: items.length },
+            "Question asked"
+          );
+
+          yield {
+            type: "question" as const,
+            content: "",
+            question: {
+              requestId: questionId,
+              sessionId: questionReq.sessionID ?? sessionId,
+              items: items.map((q: any) => ({
+                header: q.header ?? "",
+                question: q.question ?? "",
+                options: (q.options ?? []).map((o: any) => ({ label: o.label, description: o.description })),
+                multiple: q.multiple,
+                custom: q.custom,
+              })),
+            },
+          };
+          // 5-min auto-reply fallback for ALL question types
+          questionAutoReplyTimer = setTimeout(async () => {
+            providerLogger.info({ questionId }, "Question auto-reply timeout — selecting first option");
+            const answers = items.map((q: any) => [q.options?.[0]?.label ?? "yes"]);
+            try {
+              await questionReply(questionId, answers);
+            } catch (err: any) {
+              providerLogger.warn({ questionId, err: err?.message }, "Question auto-reply failed");
+            }
+            try { const { cleanupQuestionFlow } = await import("../commands/question.js"); await cleanupQuestionFlow(questionId, "timeout"); } catch {}
+            pendingQuestion = false;
+          }, 300_000);
+
+        } else if (evtType === "question.replied" || evtType === "question.rejected") {
+          pendingQuestion = false;
+          if (questionAutoReplyTimer) { clearTimeout(questionAutoReplyTimer); questionAutoReplyTimer = null; }
+          try { const { cleanupQuestionFlow } = await import("../commands/question.js"); await cleanupQuestionFlow(props.requestID, "resolved"); } catch {}
+          providerLogger.info({ sessionId, evtType, requestId: props.requestID }, "Question resolved");
 
         // --- session lifecycle ---
         } else if (evtType === "session.idle") {
@@ -439,6 +516,7 @@ export class OpenCodeProvider implements Provider {
       }
     } finally {
       clearTimeout(stallTimer);
+      if (questionAutoReplyTimer) clearTimeout(questionAutoReplyTimer);
       providerLogger.info(
         { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents, fieldCounts: Object.fromEntries(fieldCounts) },
         "Stream completed"
@@ -842,6 +920,47 @@ export class OpenCodeProvider implements Provider {
     } catch {
       return false;
     }
+  }
+}
+
+// --- Question & Permission API (direct HTTP — v1 SDK lacks these namespaces) ---
+
+function getBaseUrl(): string {
+  const config = getConfig();
+  return `http://${config.opencodeHostname}:${activePort}`;
+}
+
+async function questionReply(requestId: string, answers: string[][]): Promise<void> {
+  const res = await fetch(`${getBaseUrl()}/question/${encodeURIComponent(requestId)}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Question reply failed: ${res.status} ${text}`);
+  }
+}
+
+async function questionReject(requestId: string): Promise<void> {
+  const res = await fetch(`${getBaseUrl()}/question/${encodeURIComponent(requestId)}/reject`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Question reject failed: ${res.status} ${text}`);
+  }
+}
+
+async function permissionReply(sessionId: string, permissionId: string): Promise<void> {
+  const res = await fetch(`${getBaseUrl()}/session/${encodeURIComponent(sessionId)}/permissions/${encodeURIComponent(permissionId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reply: "always" }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Permission reply failed: ${res.status} ${text}`);
   }
 }
 

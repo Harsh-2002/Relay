@@ -9,7 +9,7 @@ import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { startCronScheduler, stopCronScheduler } from "./cron.js";
 import { unwatchSystemPrompt, writeSystemPromptFile } from "./utils/system-prompt.js";
 import { startLifecycleMonitor, stopLifecycleMonitor } from "./lifecycle.js";
-import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureRelayMcp, ensureInstructions } from "./utils/opencode-config.js";
+import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureGithubMcp, ensureContext7Mcp, ensureRelayMcp, ensureInstructions } from "./utils/opencode-config.js";
 import { startRelayApi, stopRelayApi } from "./relay-api.js";
 import { setDataDir } from "./utils/store.js";
 import logger from "./utils/logger.js";
@@ -41,6 +41,12 @@ async function main() {
       enabled: config.filesystemEnabled && config.filesystemPaths.length > 0,
       setup: () => ensureFilesystemMcp(config.filesystemPaths),
     },
+    {
+      name: "GitHub",
+      enabled: config.githubEnabled && !!config.githubPatToken,
+      setup: () => ensureGithubMcp(config.githubPatToken),
+    },
+    { name: "Context7", enabled: config.context7Enabled, setup: () => ensureContext7Mcp(config.context7ApiKey || undefined) },
   ];
 
   for (const mcp of mcpSetup) {

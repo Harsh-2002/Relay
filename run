@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Dev helper: kill any running relay, rebuild, and start with logs
 
-# Kill existing instances
-pkill -f "node dist/cli.js" 2>/dev/null && echo "Killed previous instance" || true
-
 # Build
 echo "Building..."
 npm run build || exit 1
 
-# Start with logs in foreground (--dev uses ./.relay/ in cwd)
-echo "Starting relay (dev mode)..."
-exec node dist/cli.js --dev
+if [ "$1" = "onboard" ]; then
+  echo "Starting onboard wizard (dev mode)..."
+  exec node dist/cli.js onboard --dev
+else
+  # Kill existing instances
+  pkill -f "node dist/cli.js" 2>/dev/null && echo "Killed previous instance" || true
+
+  # Start with logs in foreground (--dev uses ./.relay/ in cwd)
+  echo "Starting relay (dev mode)..."
+  exec node dist/cli.js --dev
+fi

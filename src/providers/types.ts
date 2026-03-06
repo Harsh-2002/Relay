@@ -35,10 +35,21 @@ export interface PromptResult {
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_use" | "status" | "done" | "file" | "reasoning" | "reasoning_reclassify";
+  type: "text" | "tool_use" | "status" | "done" | "file" | "reasoning" | "reasoning_reclassify" | "question";
   content: string;
   file?: { mime: string; filename: string; url: string };
   deltaText?: string;
+  question?: {
+    requestId: string;
+    sessionId: string;
+    items: Array<{
+      header: string;
+      question: string;
+      options: Array<{ label: string; description?: string }>;
+      multiple?: boolean;
+      custom?: boolean;
+    }>;
+  };
 }
 
 export interface FileNode {
@@ -208,6 +219,10 @@ export interface Provider {
 
   // Models
   listModels(): Promise<ModelDetail[]>;
+
+  // Questions (interactive AI decisions)
+  replyToQuestion?(requestId: string, answers: string[][]): Promise<void>;
+  rejectQuestion?(requestId: string): Promise<void>;
 
   // MCP (return null if not supported)
   getMcpStatus(): Promise<McpServerStatus[] | null>;

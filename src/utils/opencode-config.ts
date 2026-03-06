@@ -108,6 +108,29 @@ export function removeInstructions(filePath: string): void {
   writeOpenCodeConfig(config);
 }
 
+export function ensureGithubMcp(token: string): void {
+  ensureMcp("github", {
+    type: "local",
+    command: ["npx", "-y", "@modelcontextprotocol/server-github"],
+    environment: { GITHUB_PERSONAL_ACCESS_TOKEN: token },
+    timeout: 30000,
+  });
+}
+export function removeGithubMcp(): void { removeMcp("github"); }
+
+export function ensureContext7Mcp(apiKey?: string): void {
+  const mcpConfig: any = {
+    type: "local",
+    command: ["npx", "-y", "@upstash/context7-mcp"],
+    timeout: 30000,
+  };
+  if (apiKey) {
+    mcpConfig.environment = { CONTEXT7_API_KEY: apiKey };
+  }
+  ensureMcp("context7", mcpConfig);
+}
+export function removeContext7Mcp(): void { removeMcp("context7"); }
+
 export function ensureRelayMcp(port: number): void {
   const serverPath = resolve(__dirname, "..", "mcp", "relay-server.js");
   ensureMcp("relay", {

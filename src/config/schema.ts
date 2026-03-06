@@ -29,6 +29,10 @@ export interface RelayConfig {
   memoryEnabled: boolean;
   filesystemEnabled: boolean;
   filesystemPaths: string[];
+  githubEnabled: boolean;
+  githubPatToken: string;
+  context7Enabled: boolean;
+  context7ApiKey: string;
   relayMcpPort: number;
 
   // Behavior
@@ -69,6 +73,10 @@ export const CONFIG_DEFAULTS: RelayConfig = {
   memoryEnabled: false,
   filesystemEnabled: false,
   filesystemPaths: [],
+  githubEnabled: false,
+  githubPatToken: "",
+  context7Enabled: false,
+  context7ApiKey: "",
   relayMcpPort: 39149,
 
   streamEditIntervalMs: 2000,

@@ -90,6 +90,9 @@ When a cron job fires, its \`prompt\` is sent to the AI in a fresh context — n
 - **weekly**: specific days (\`hour\`, \`minute\`, \`days\` array 0=Sun–6=Sat).
 - **once**: fires once then auto-disables (preserving history). Use \`relay_cron_toggle\` to re-enable for another run.
 
+### Timezone Rule
+All cron times (hour, minute) are interpreted as the user's local timezone (shown in the timestamp below). When the user states a time without a timezone, pass it directly — if user says "9 AM", pass hour=9. If the user explicitly names a different timezone (e.g., "at 9 AM UTC"), convert it to the user's local timezone before passing. The system does not accept UTC values — it always interprets hour/minute as local time.
+
 ### Writing Cron Prompts
 
 Since prompts run unattended with no memory of previous runs:
@@ -169,7 +172,8 @@ function getCurrentTimestamp(): string {
   let abbr = tz;
   try {
     const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(now);
-    abbr = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+    const raw = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+    abbr = (raw.startsWith("GMT+") || raw.startsWith("GMT-")) ? tz : raw;
   } catch {}
 
   const formatted = new Intl.DateTimeFormat("en-IN", {

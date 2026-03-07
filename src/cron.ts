@@ -1,7 +1,6 @@
 import { InputFile, type Api, type RawApi } from "grammy";
 import { getProvider } from "./providers/index.js";
-import { getOrCreateSession, getSelectedModel, getSelectedAgent, withPromptQueue } from "./session.js";
-import { getSystemPrompt } from "./utils/system-prompt.js";
+import { getSelectedModel } from "./session.js";
 import { markdownToHtml } from "./utils/markdown.js";
 import { chunkMessage } from "./utils/chunker.js";
 import { escapeHtml } from "./utils/html.js";
@@ -9,7 +8,6 @@ import type { ResponseFile } from "./utils/files.js";
 import { JsonStore } from "./utils/store.js";
 import { cronLogger } from "./utils/logger.js";
 import { ensureServerAlive } from "./lifecycle.js";
-import { clearActiveSession } from "./session.js";
 import { getConfig } from "./config/index.js";
 
 const MAX_ERROR_LEN = 500; // Truncate error messages
@@ -53,7 +51,7 @@ function persist(): void {
 // --- ID Generation ---
 
 function generateId(): string {
-  return "k_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return crypto.randomUUID();
 }
 
 // --- Timezone Helpers ---
@@ -108,8 +106,16 @@ function tzDateToUtcMs(year: number, month: number, day: number, hour: number, m
   const guessLocalMs = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0, 0);
   const offsetMs = guessLocalMs - guessUtc;
   // Adjust: subtract the offset to get the true UTC time
-  // Note: DST spring-forward gaps (e.g. 2:30 AM doesn't exist) may produce ±1h drift — acceptable
-  return guessUtc - offsetMs;
+  const result = guessUtc - offsetMs;
+  // Second pass: verify the result maps back to the desired local time.
+  // Needed because DST transitions can shift the offset between guess and result.
+  const check = getPartsInTz(result, tz);
+  if (check.hour !== hour || check.minute !== minute) {
+    const checkLocalMs = Date.UTC(check.year, check.month - 1, check.day, check.hour, check.minute, 0, 0);
+    const desiredLocalMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+    return result + (desiredLocalMs - checkLocalMs);
+  }
+  return result;
 }
 
 /**
@@ -138,7 +144,11 @@ export function getTimezoneAbbr(tz: string): string {
   try {
     const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" });
     const parts = fmt.formatToParts(new Date());
-    return parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+    const abbr = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
+    // Intl returns clean abbreviations for some zones (EST, PST, GMT, UTC)
+    // but ugly GMT+X for most others. Fall back to IANA name for those.
+    if (abbr.startsWith("GMT+") || abbr.startsWith("GMT-")) return tz;
+    return abbr;
   } catch {
     return tz;
   }
@@ -395,40 +405,41 @@ async function executeJob(job: CronJob): Promise<void> {
       .catch(() => {});
   }, 500);
 
+  const provider = getProvider();
+  let cronSessionId: string | null = null;
+
   try {
-    const { text: result, files: collectedFiles } = await withPromptQueue(async () => {
-      const provider = getProvider();
-      const sessionId = await getOrCreateSession();
-      const model = getSelectedModel();
-      const agent = getSelectedAgent();
-      const system = getSystemPrompt();
+    // Create a fully isolated session for this cron run — no shared state with user chat
+    const cronSession = await provider.createSession(`Cron: ${job.name}`);
+    cronSessionId = cronSession.id;
+    cronLogger.info({ jobId: job.id, cronSessionId }, "Created isolated cron session");
 
-      let accumulated = "";
-      const files: ResponseFile[] = [];
-      const stream = provider.promptStream(sessionId, job.prompt, {
-        parts: [{ type: "text" as const, text: job.prompt }],
-        ...(model && { model }),
-        ...(system && { system }),
-        ...(agent && { agent }),
-      });
+    const model = getSelectedModel();
+    const cronPrompt = `[AUTOMATED CRON — Execute directly. Do not ask questions or seek approval.]\n\n${job.prompt}`;
 
-      for await (const chunk of stream) {
-        if (chunk.type === "text") {
-          accumulated += chunk.content;
-        } else if (chunk.type === "file" && chunk.file) {
-          files.push(chunk.file as ResponseFile);
-        } else if (chunk.type === "done") {
-          break;
-        }
-      }
-
-      return { text: accumulated, files };
+    let accumulated = "";
+    const collectedFiles: ResponseFile[] = [];
+    const stream = provider.promptStream(cronSessionId, cronPrompt, {
+      parts: [{ type: "text" as const, text: cronPrompt }],
+      ...(model && { model }),
+      agent: "build",
+      cronMode: true,
     });
+
+    for await (const chunk of stream) {
+      if (chunk.type === "text") {
+        accumulated += chunk.content;
+      } else if (chunk.type === "file" && chunk.file) {
+        collectedFiles.push(chunk.file as ResponseFile);
+      } else if (chunk.type === "done") {
+        break;
+      }
+    }
 
     clearInterval(dotTimer);
 
-    if (result && result.trim()) {
-      const html = markdownToHtml(result);
+    if (accumulated && accumulated.trim()) {
+      const html = markdownToHtml(accumulated);
       const chunks = chunkMessage(html);
       // Edit first chunk into the header message (check combined length)
       const firstWithHeader = `${header}\n\n${chunks[0]}`;
@@ -472,13 +483,7 @@ async function executeJob(job: CronJob): Promise<void> {
     clearInterval(dotTimer);
     cronLogger.info({ jobId: job.id, err: err?.message }, "Cron job error");
 
-    // Clear stale session on session-related errors so the next run gets a fresh one
     const errMsg = (err?.message ?? "").toLowerCase();
-    if (errMsg.includes("session") && (errMsg.includes("not found") || errMsg.includes("404"))) {
-      clearActiveSession();
-      cronLogger.info({ jobId: job.id }, "Cleared stale session after cron error");
-    }
-
     const errText = (err?.message ?? "unknown").slice(0, MAX_ERROR_LEN);
     const isServerError = ["econnrefused", "econnreset", "enotfound", "fetch failed", "server is down"]
       .some(p => errMsg.includes(p));
@@ -488,6 +493,13 @@ async function executeJob(job: CronJob): Promise<void> {
     try {
       await api.editMessageText(chatId, msgId!, alertText, { parse_mode: "HTML" });
     } catch {}
+  } finally {
+    // Always delete the cron session to prevent session sprawl
+    if (cronSessionId) {
+      provider.deleteSession(cronSessionId).catch((err: any) => {
+        cronLogger.info({ jobId: job.id, cronSessionId, err: err?.message }, "Failed to delete cron session");
+      });
+    }
   }
 
   // Update job stats

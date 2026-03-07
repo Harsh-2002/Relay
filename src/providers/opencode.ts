@@ -265,36 +265,26 @@ export class OpenCodeProvider implements Provider {
     const controller = new AbortController();
     const STALL_TIMEOUT = 120_000;
     let pendingQuestion = false;
+    let pendingQuestionId: string | null = null;
     let questionAutoReplyTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Stall detection: abort if no session-relevant events arrive for 120s.
     // There is no global wall-clock timeout — the stream stays open as long as
     // OpenCode is making progress (tool runs, reasoning steps, etc.)
     // Skips abort when a question is pending user input.
-    let stallTimer = setTimeout(() => {
+    const stallAbort = () => {
       if (pendingQuestion) {
-        stallTimer = setTimeout(() => {
-          providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
-          controller.abort();
-        }, STALL_TIMEOUT);
+        // Question is pending — skip this stall check and reschedule
+        stallTimer = setTimeout(stallAbort, STALL_TIMEOUT);
         return;
       }
       providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
       controller.abort();
-    }, STALL_TIMEOUT);
+    };
+    let stallTimer = setTimeout(stallAbort, STALL_TIMEOUT);
     const resetStallTimer = () => {
       clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => {
-        if (pendingQuestion) {
-          stallTimer = setTimeout(() => {
-            providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
-            controller.abort();
-          }, STALL_TIMEOUT);
-          return;
-        }
-        providerLogger.warn({ sessionId }, "Stream stall — no activity for 120s, aborting");
-        controller.abort();
-      }, STALL_TIMEOUT);
+      stallTimer = setTimeout(stallAbort, STALL_TIMEOUT);
     };
 
     const sseResult = await client.event.subscribe();
@@ -449,7 +439,15 @@ export class OpenCodeProvider implements Provider {
           const questionId = questionReq.id;
           if (!questionId) continue;
           resetStallTimer();
+
+          if (options?.cronMode) {
+            providerLogger.info({ sessionId, questionId }, "Cron mode — rejecting question");
+            questionReject(questionId).catch(() => {});
+            continue;
+          }
+
           pendingQuestion = true;
+          pendingQuestionId = questionId;
 
           const items = questionReq.questions ?? [];
           providerLogger.info(
@@ -483,10 +481,12 @@ export class OpenCodeProvider implements Provider {
             }
             try { const { cleanupQuestionFlow } = await import("../commands/question.js"); await cleanupQuestionFlow(questionId, "timeout"); } catch {}
             pendingQuestion = false;
+            pendingQuestionId = null;
           }, 300_000);
 
         } else if (evtType === "question.replied" || evtType === "question.rejected") {
           pendingQuestion = false;
+          pendingQuestionId = null;
           if (questionAutoReplyTimer) { clearTimeout(questionAutoReplyTimer); questionAutoReplyTimer = null; }
           try { const { cleanupQuestionFlow } = await import("../commands/question.js"); await cleanupQuestionFlow(props.requestID, "resolved"); } catch {}
           providerLogger.info({ sessionId, evtType, requestId: props.requestID }, "Question resolved");
@@ -517,6 +517,14 @@ export class OpenCodeProvider implements Provider {
     } finally {
       clearTimeout(stallTimer);
       if (questionAutoReplyTimer) clearTimeout(questionAutoReplyTimer);
+      // Reject any orphaned question so the OpenCode session doesn't stay stuck in "busy"
+      if (pendingQuestion && pendingQuestionId) {
+        providerLogger.info({ sessionId, questionId: pendingQuestionId }, "Rejecting orphaned question on stream teardown");
+        questionReject(pendingQuestionId).catch((err: any) => {
+          providerLogger.warn({ sessionId, questionId: pendingQuestionId, err: err?.message }, "Orphaned question reject failed");
+        });
+        try { const { cleanupQuestionFlow } = await import("../commands/question.js"); await cleanupQuestionFlow(pendingQuestionId, "timeout"); } catch {}
+      }
       providerLogger.info(
         { sessionId, durationMs: Date.now() - startMs, chunkCount, toolEvents, fieldCounts: Object.fromEntries(fieldCounts) },
         "Stream completed"

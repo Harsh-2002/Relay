@@ -105,13 +105,13 @@ server.registerTool("relay_cron_list", {
 server.registerTool("relay_cron_add", {
   title: "Create Cron Job",
   description:
-    "Create a new scheduled cron job. The prompt will be sent to the AI when the job fires. All times are in the user's configured timezone.",
+    "Create a new scheduled cron job. IMPORTANT: hour and minute are in the user's LOCAL timezone — the system handles UTC conversion internally. Do NOT pre-convert to UTC.",
   inputSchema: {
     name: z.string().describe("Short descriptive name for the job"),
     prompt: z.string().describe("The full instruction sent to the AI when the job runs"),
     type: z.enum(["interval", "daily", "weekly", "once"]).describe("Schedule type"),
     interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
-    hour: z.number().optional().describe("Hour of day 0-23 in user's timezone (for daily/weekly/once)"),
+    hour: z.number().optional().describe("Hour 0-23 in user's LOCAL timezone. Pass the user's stated time directly. If user specifies a different timezone, convert to their local timezone first. Never pass UTC values."),
     minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
     days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
   },
@@ -142,14 +142,14 @@ server.registerTool("relay_cron_add", {
 server.registerTool("relay_cron_update", {
   title: "Update Cron Job",
   description:
-    "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields. All times are in the user's configured timezone.",
+    "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields. IMPORTANT: hour and minute are in the user's LOCAL timezone — the system handles UTC conversion internally. Do NOT pre-convert to UTC.",
   inputSchema: {
     id: z.string().describe("The job ID to update"),
     name: z.string().optional().describe("New name for the job"),
     prompt: z.string().optional().describe("New prompt for the job"),
     type: z.enum(["interval", "daily", "weekly", "once"]).optional().describe("New schedule type (also provide associated fields)"),
     interval_minutes: z.number().optional().describe("Minutes between runs (for interval type, minimum 1)"),
-    hour: z.number().optional().describe("Hour of day 0-23 in user's timezone (for daily/weekly/once)"),
+    hour: z.number().optional().describe("Hour 0-23 in user's LOCAL timezone. Pass the user's stated time directly. If user specifies a different timezone, convert to their local timezone first. Never pass UTC values."),
     minute: z.number().optional().describe("Minute of hour 0-59 (for daily/weekly/once)"),
     days: z.array(z.number()).optional().describe("Days of week 0=Sun..6=Sat (for weekly type)"),
   },

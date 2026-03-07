@@ -25,6 +25,7 @@ export interface PromptOptions {
   system?: string;
   parts?: MessagePart[];
   agent?: string;
+  cronMode?: boolean;
 }
 
 export interface PromptResult {

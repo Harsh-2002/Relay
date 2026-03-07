@@ -100,7 +100,9 @@ Relay stores its data in `~/.relay/`:
 ~/.relay/
   config.json         -- Your configuration
   session.json        -- Active session and model
+  cron.json           -- Scheduled task definitions and run history
   SKILL.md            -- Custom system prompt (optional, create manually)
+  RELAY.md            -- Auto-generated assembled system prompt (base + MCP docs)
   memory.jsonl        -- Memory MCP data (created when Memory is enabled)
 ```
 

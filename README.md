@@ -20,7 +20,7 @@ Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](ht
 - **Session management** -- create, switch, fork, delete, rename, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
 - **MCP tools** -- Browser, Fetch, Memory, Filesystem, GitHub, and Context7 via MCP; add custom servers at runtime
-- **Scheduled tasks** -- cron jobs that run AI prompts on a schedule (interval, daily, weekly)
+- **Scheduled tasks** -- cron jobs that run AI prompts on a schedule (interval, daily, weekly, once) with isolated sessions
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, Sarvam, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
@@ -48,7 +48,7 @@ npm install -g @4via6/relay
 relay onboard
 ```
 
-The setup wizard walks through OpenCode installation, bot token, user ID, MCP tools, and voice transcription, then saves everything to `~/.relay/config.json`.
+The setup wizard walks through OpenCode installation, bot token, user ID, timezone, MCP tools (Browser, Fetch, Memory, Filesystem, GitHub, Context7), and voice transcription, then saves everything to `~/.relay/config.json`.
 
 ### With npx (no install)
 
@@ -233,10 +233,11 @@ Additional servers can be added at runtime. All MCP configs persist in OpenCode'
 | `/cron add every Nm Title: prompt` | Schedule a recurring job | `/cron add every 30m Health: Check server health` |
 | `/cron add every Nh Title: prompt` | Schedule hourly recurring job | `/cron add every 2h Status: Report system status` |
 | `/cron add weekly days HH:MM Title: prompt` | Schedule a weekly job | `/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs` |
+| `/cron add once HH:MM Title: prompt` | Schedule a one-time job | `/cron add once 14:30 Reminder: Review the open PR` |
 
-The interactive picker (`/cron` → Add Job) walks through schedule type, time, and days, then prompts for title and prompt text and creates the job automatically.
+The interactive picker (`/cron` → Add Job) walks through schedule type, time, and days, then prompts for title and prompt text and creates the job automatically. All times use the configured timezone (set via `/timezone`).
 
-Each job in the list shows:
+Each job runs in an **isolated session** (created fresh per run, deleted after) so cron output doesn't pollute your conversation. Each job in the list shows:
 - Enable/disable toggle
 - Run now button
 - Delete button
@@ -257,6 +258,7 @@ Jobs are persisted to `cron.json` in the data directory and survive restarts.
 | `/tools` | List available tools | `/tools` |
 | `/project` | Project info (path, VCS, branch) | `/project` |
 | `/git` | Git branch and changed files | `/git` |
+| `/timezone [tz]` | View or set timezone (prompts if no arg) | `/timezone America/New_York` |
 | `/help` | Show all commands | `/help` |
 
 ## Voice / STT

@@ -633,7 +633,9 @@ Use `/cron` to see all jobs with action buttons:
 ### How it works
 
 - The scheduler checks for due jobs every 30 seconds
-- Jobs execute through the same prompt pipeline as regular messages (queued to prevent conflicts)
+- Each job runs in an **isolated session** — a fresh session is created per run and deleted after, so cron output never pollutes your active conversation
+- An animated dots indicator ("Running.", "Running..", "Running...") cycles in the header during execution
+- A pre-flight health check verifies the AI server is alive before executing
 - Results are sent as formatted messages with the job name as a header
 - File attachments (screenshots, generated files) are sent automatically
 - If the bot restarts, missed jobs are skipped and schedules advance to the next future time

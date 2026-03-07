@@ -190,13 +190,22 @@ contents change.
 
 ## Cron Job Prompts
 
-Cron jobs use the same delivery path. When a job fires:
+Cron jobs use the same delivery path but run in **isolated sessions** --
+each job creates a fresh session, executes, and deletes it after completion.
+This prevents cron output from polluting the user's active conversation.
 
 ```
     Cron tick() detects due job
                |
                v
     executeJob(job)
+               |
+               +---> ensureServerAlive()
+               |       Pre-flight health check. Skips execution
+               |       if the AI server is unreachable.
+               |
+               +---> provider.createSession()
+               |       Creates a fresh isolated session for this run.
                |
                +---> getSystemPrompt()
                |       Returns assembled prompt + timestamp in
@@ -206,18 +215,27 @@ Cron jobs use the same delivery path. When a job fires:
                |       the prompt reaches the LLM via instructions.
                |
                +---> promptStream(sessionId, job.prompt, options)
-                          |
-                          v
-                   OpenCode loads RELAY.md
-                   from instructions config
-                          |
-                          v
-                   LLM receives: system prompt + cron job prompt
+               |          |
+               |          v
+               |     OpenCode loads RELAY.md
+               |     from instructions config
+               |          |
+               |          v
+               |     LLM receives: system prompt + cron job prompt
+               |
+               +---> provider.deleteSession(sessionId)
+                       Cleanup: removes the isolated session after
+                       execution completes (success or failure).
 ```
 
 The cron prompt is the `job.prompt` field -- a self-contained instruction
 written at job creation time. The system prompt provides the AI's identity
 and tool instructions. Both reach the LLM together.
+
+Each job runs in isolation so that:
+- Cron output doesn't appear in the user's active session history
+- Multiple concurrent jobs don't interfere with each other
+- Failed jobs don't leave orphan sessions cluttering the session list
 
 ---
 

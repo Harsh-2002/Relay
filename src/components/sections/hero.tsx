@@ -14,12 +14,17 @@ const heroTerminalLines = [
   { type: "success" as const, text: "OpenCode detected" },
   { type: "success" as const, text: "Bot token verified \u2014 @YourBot" },
   { type: "success" as const, text: "User ID saved" },
-  { type: "success" as const, text: "MCP tools: Browser, Fetch, Memory, Filesystem" },
+  { type: "success" as const, text: "Timezone: America/New_York" },
+  { type: "success" as const, text: "MCP tools: Browser, Fetch, Memory, GitHub, Context7" },
   { type: "success" as const, text: "Voice transcription configured" },
   { type: "success" as const, text: "Configuration saved to ~/.relay/config.json" },
 ];
 
-export function Hero() {
+interface HeroProps {
+  version: string;
+}
+
+export function Hero({ version }: HeroProps) {
   return (
     <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 bg-bg-primary overflow-hidden">
       <GridBackground />
@@ -39,7 +44,7 @@ export function Hero() {
               <Badge variant="default">
                 Open Source &middot; MIT Licensed
               </Badge>
-              <Badge variant="accent">v2.2</Badge>
+              <Badge variant="accent">v{version}</Badge>
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
@@ -70,7 +75,7 @@ export function Hero() {
 
             {/* Compact terminal preview */}
             <AnimateIn delay={0.3}>
-              <div className="mt-14 max-w-md mx-auto">
+              <div className="mt-14 max-w-xl mx-auto">
                 <Terminal
                   lines={heroTerminalLines}
                   title="Terminal"

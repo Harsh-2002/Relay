@@ -15,7 +15,7 @@ No command needed — just send a message.
 - Voice notes (requires STT configuration)
 - Photos (sent to vision-capable models)
 - File attachments (text files are embedded, binary files referenced)
-- **Reply to a message** to include it as context in your prompt
+- **Reply to a message** (text, voice, or audio) to include it as context in your prompt
 - **Edit a sent message** to re-prompt with the corrected text
 
 Input limit: 32,000 characters. Send longer content as a file.
@@ -34,23 +34,29 @@ Examples: `/new` or `/new Refactoring auth module`
 
 ### /sessions
 
-List all sessions sorted by last modified date.
+List all sessions sorted by last modified date. Shows inline buttons to switch or delete each session.
 
-### /switch \<id\>
+### /switch [id]
 
-Switch to an existing session. Example: `/switch abc123`
+Switch to an existing session. Without an ID, shows an interactive session picker keyboard.
 
-### /delete \<id\>
+Examples: `/switch` (picker) or `/switch abc123` (direct)
 
-Delete a session. Example: `/delete abc123`
+### /delete [id]
+
+Delete a session. Without an ID, shows a session picker. With an ID, shows a confirmation keyboard (Yes/No).
+
+Examples: `/delete` (picker) or `/delete abc123` (confirmation)
 
 ### /current
 
 Show the active session's ID and title.
 
-### /rename \<title\>
+### /rename [title]
 
-Rename the current session. Example: `/rename Auth refactor`
+Rename the current session. Without a title, prompts for input interactively.
+
+Examples: `/rename` (prompts) or `/rename Auth refactor`
 
 ### /fork [messageId]
 
@@ -64,7 +70,7 @@ Examples: `/fork` or `/fork msg_abc123`
 
 ### /todo
 
-View the AI's task checklist with status icons.
+View the AI's task checklist with status tags: `[done]`, `[wip]`, `[pending]`, `[cancelled]`.
 
 ### /diff
 
@@ -78,35 +84,37 @@ Download the full diff as a text file.
 
 ## File Operations
 
+Commands without arguments prompt for input interactively via `force_reply`.
+
 ### /ls [path]
 
 List files and directories. Defaults to the project root.
 
 Example: `/ls src/`
 
-### /read \<path\>
+### /read [path]
 
-Read a file's contents. Files larger than 15KB are sent as attachments.
+Read a file's contents. Without a path, prompts for input. Files larger than 15KB are sent as attachments.
 
-Example: `/read src/index.ts`
+Examples: `/read` (prompts) or `/read src/index.ts`
 
-### /find \<query\>
+### /find [query]
 
-Find files by name pattern. Shows up to 50 matches.
+Find files by name pattern. Without a query, prompts for input. Shows up to 50 matches.
 
-Example: `/find *.json`
+Examples: `/find` (prompts) or `/find *.json`
 
-### /search \<pattern\>
+### /search [pattern]
 
-Search file contents (regex supported). Shows up to 20 matches with file paths and line numbers.
+Search file contents (regex supported). Without a pattern, prompts for input. Shows up to 20 matches with file paths and line numbers.
 
-Examples: `/search TODO` or `/search function.*auth`
+Examples: `/search` (prompts) or `/search TODO`
 
-### /symbols \<query\>
+### /symbols [query]
 
-Find code symbols by name. Shows up to 30 matches.
+Find code symbols by name. Without a query, prompts for input. Shows up to 30 matches.
 
-Example: `/symbols authenticate`
+Examples: `/symbols` (prompts) or `/symbols authenticate`
 
 ### /status
 
@@ -118,7 +126,7 @@ Show git file status.
 
 ### /history
 
-View the last 10 messages in the current session.
+View the last 10 messages in the current session. Includes "Fork after" buttons for assistant messages.
 
 ### /summarize
 
@@ -148,17 +156,19 @@ Revoke a previously shared session URL.
 
 ## Shell
 
-### /shell \<cmd\>
+### /shell [command]
 
-Run a shell command natively on the OpenCode server.
+Run a shell command natively on the OpenCode server. Without a command, prompts for input interactively.
 
-Examples: `/shell ls -la` or `/shell npm test`
+Examples: `/shell` (prompts) or `/shell ls -la` or `/shell npm test`
+
+Blocked commands: `relay restart`, `relay stop`, `relay start`, and `relay update` are blocked to prevent killing the bot process. Use `/restart` or `/update` instead.
 
 ### /cmd [command]
 
 Run an OpenCode-specific command. Without arguments, shows an interactive picker.
 
-Example: `/cmd compact`
+Available commands: `init`, `review`, `stats`, `version`, `upgrade`, `sessions`
 
 ### /commands
 
@@ -166,27 +176,41 @@ List available OpenCode commands.
 
 ---
 
-## Models
+## Models & Agents
 
 ### /models
 
-Display an interactive inline keyboard of available models with capability badges: `[reasoning]`, `[vision]`, `[free]`. The active model is shown with a `✓` prefix. Tap a button to select a model directly.
+Display an interactive inline keyboard of available models with capability badges: `[reasoning]`, `[vision]`, `[free]`. The active model is shown with a `✓` prefix. Tap a button to select a model directly. Pagination buttons appear when there are more than 8 models.
 
-### /model [id]
+### /model [provider/model]
 
-View or change the current model via text-based selection.
+View or change the current model. Supports partial match.
 
-Examples: `/model` to view current, `/model sonnet` to switch by partial match
+Examples: `/model` to view current, `/model sonnet` or `/model anthropic/claude-sonnet-4-20250514`
+
+### /agent [name|clear]
+
+View or change the current agent mode. Without arguments, shows an interactive picker.
+
+Examples: `/agent` (picker), `/agent build`, `/agent clear` (reset to default)
+
+### /agents
+
+List all available agents with descriptions.
+
+### /stt
+
+View and switch the active speech-to-text provider via an interactive keyboard.
 
 ---
 
 ## MCP
 
-MCP servers extend the AI with additional tools. Relay includes 4 built-in tools (Browser, Fetch, Memory, Filesystem) that can be enabled during setup. You can also add custom servers.
+MCP servers extend the AI with additional tools. Relay includes 7 built-in tools (Browser, Fetch, Memory, Filesystem, GitHub, Context7, Relay) that can be enabled during setup. You can also add custom servers.
 
 ### /mcp
 
-Show MCP server status for all configured servers.
+Show MCP server status for all configured servers with action buttons.
 
 ### /mcp add \<name\> local \<cmd\>
 
@@ -200,23 +224,23 @@ Add a remote MCP server.
 
 Example: `/mcp add api remote https://mcp.example.com/sse`
 
-### /mcp remove \<name\>
+### /mcp remove [name]
 
-Remove and disconnect a server.
+Remove and disconnect a server. Without a name, prompts for input. Shows confirmation before removing.
 
-### /mcp connect \<name\>
+### /mcp connect [name]
 
-Reconnect a disconnected or failed server.
+Reconnect a disconnected or failed server. Without a name, prompts for input.
 
 ---
 
 ## Cron (Scheduled Tasks)
 
-Schedule recurring AI tasks that run automatically. Results are delivered to your chat.
+Schedule recurring AI tasks that run automatically. All times use your configured timezone (set via `/timezone`). Results are delivered to your chat.
 
 ### /cron
 
-Show all scheduled jobs with action buttons: enable/disable, run now, and delete.
+Show all scheduled jobs with action buttons: enable/disable, run now, and delete. Each job shows its schedule, next run time, last run status, and total run count. Includes an **Add Job** button for interactive creation.
 
 ### /cron add daily \<HH:MM\> \<Title: prompt\>
 
@@ -234,37 +258,50 @@ Schedule a weekly job on specific days. Days are comma-separated: `mon`, `tue`, 
 
 Example: `/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs`
 
+### /cron add once \<HH:MM\> \<Title: prompt\>
+
+Schedule a one-time job. It fires once at the specified time, then auto-disables (preserving run history). Toggle to re-enable for another run.
+
+Example: `/cron add once 14:30 Reminder: Time to review the open PR`
+
+### How it works
+
+- Jobs are persisted to `cron.json` and survive restarts
+- The scheduler checks for due jobs every 30 seconds
+- Each job runs in an **isolated session** (created fresh per run, deleted after) so cron output doesn't pollute your conversation
+- An animated dots indicator cycles in the header during execution
+- A pre-flight health check verifies the AI server is alive before executing
+- If the bot restarts, missed jobs are skipped (no avalanche of past runs)
+
 ### Interactive picker
 
-Use `/cron` and tap **Add Job** to build a schedule step by step. The picker walks through type, time, and days, then shows a ready-to-copy `/cron add` command.
+Use `/cron` and tap **Add Job** to build a schedule step by step. The picker walks through schedule type, time, and days, then prompts for a job title and prompt text and creates the job automatically.
 
 ---
 
-## Admin
+## Settings & Info
 
 ### /health
 
-Server status dashboard: provider, model, voice, uptime.
+Server status dashboard: provider, model, voice, system prompt, project details.
 
 ### /config
 
-Show the full provider configuration.
+Show the full provider configuration (sensitive values masked).
 
-### /agent [name]
+### /timezone [tz]
 
-View or change the current agent mode.
+View the current timezone or set a new one. Without an argument, shows the current timezone and prompts for a new IANA timezone interactively.
 
-### /agents
+Examples: `/timezone` (view/set) or `/timezone America/New_York`
 
-List all available agents.
+### /system
 
-### /tools
+View the current system prompt (first 500 characters), its source, and character count.
 
-List all available tools (including MCP tools).
+### /system reload
 
-### /providers
-
-Show configured AI providers.
+Force-reload the system prompt from file.
 
 ### /project
 
@@ -272,15 +309,23 @@ Show current project information.
 
 ### /git
 
-Show git repository status.
+Show git branch and changed files status.
 
-### /stt
+### /providers
 
-Show current speech-to-text provider information.
+Show configured AI providers with status and model count.
 
-### /system
+### /tools
 
-View the current system prompt. Use `/system reload` to force-reload from file.
+List all available tools (including MCP tools).
+
+### /restart
+
+Restart the bot process via pm2.
+
+### /update
+
+Update Relay to the latest npm version and restart.
 
 ### /help
 

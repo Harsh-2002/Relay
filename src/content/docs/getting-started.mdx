@@ -26,13 +26,14 @@ Run the interactive setup wizard to create your config at `~/.relay/config.json`
 relay onboard
 ```
 
-The wizard walks you through 5 steps:
+The wizard walks you through 6 steps:
 
 1. **OpenCode** — Detects your OpenCode installation (installs if missing)
 2. **Bot Token** — Telegram bot token from [@BotFather](https://t.me/BotFather)
 3. **User ID** — Your Telegram user ID (only this user can interact with the bot)
-4. **MCP Tools** — Select built-in tools: Browser (Playwright), Fetch, Memory, Filesystem
-5. **Voice** — Speech-to-text provider configuration
+4. **Timezone** — Select your timezone (affects cron scheduling and timestamps)
+5. **MCP Tools** — Select built-in tools: Browser (Playwright), Fetch, Memory, Filesystem, GitHub, Context7
+6. **Voice** — Speech-to-text provider configuration
 
 Provider API keys are set in OpenCode's environment. See [Providers](/docs/providers) for details.
 
@@ -76,7 +77,9 @@ Relay stores all state in `~/.relay/` (or `./.relay/` in dev mode with `--dev` f
 
 - `config.json` — User configuration
 - `session.json` — Active session ID and selected model
-- `SKILL.md` — Custom system prompt (optional)
+- `cron.json` — Scheduled task definitions and run history
+- `SKILL.md` — Custom system prompt (optional, create manually)
+- `RELAY.md` — Auto-generated assembled system prompt (base + MCP docs)
 - `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ## Next Steps

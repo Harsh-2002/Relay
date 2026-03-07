@@ -13,7 +13,7 @@ Config resolution order: CLI flags > config file > defaults.
 | Command | Description |
 |---------|-------------|
 | `relay` | Start the bot in the foreground |
-| `relay onboard` | Interactive configuration wizard (5-step flow) |
+| `relay onboard` | Interactive configuration wizard (6-step flow) |
 | `relay start` | Start the bot as a background daemon |
 | `relay stop` | Stop the background daemon |
 | `relay restart` | Restart the background daemon |
@@ -41,6 +41,12 @@ Each provider has its own config fields. See [Providers](/docs/providers) for de
 
 Provider API keys are configured in OpenCode's environment, not in Relay. See [Providers](/docs/providers) for details.
 
+## Timezone
+
+- `timezone` — IANA timezone string (default: `"UTC"`)
+
+Set during `relay onboard` (Step 4) or change at runtime with `/timezone America/New_York`. Affects cron job scheduling, next run times, and the timestamp in the system prompt.
+
 ## MCP Tools
 
 Built-in MCP tools are configured during `relay onboard` or directly in the config file:
@@ -50,8 +56,12 @@ Built-in MCP tools are configured during `relay onboard` or directly in the conf
 - `memoryEnabled` — Enable persistent knowledge graph across sessions (default: `false`)
 - `filesystemEnabled` — Enable read/write access to files outside the project (default: `false`)
 - `filesystemPaths` — Allowed directories for Filesystem MCP (default: `[]`)
+- `githubEnabled` — Enable GitHub API access via GitHub MCP (default: `false`)
+- `githubToken` — GitHub Personal Access Token for GitHub MCP
+- `context7Enabled` — Enable library documentation lookup via Context7 MCP (default: `false`)
+- `context7ApiKey` — Optional API key for Context7
 
-When enabled, Relay auto-injects the corresponding MCP server configs into OpenCode's configuration.
+When enabled, Relay auto-injects the corresponding MCP server configs into OpenCode's configuration. The Relay MCP (cron, notifications, health) is always enabled automatically.
 
 You can also add custom MCP servers via `/mcp add` commands. See [Commands](/docs/commands#mcp) for details.
 
@@ -92,7 +102,8 @@ Relay persists session state, model selection, and provider data to disk so they
 - `~/.relay/config.json` — User configuration (0600 permissions)
 - `~/.relay/session.json` — Active session ID and selected model
 - `~/.relay/cron.json` — Scheduled task definitions and run history
-- `~/.relay/SKILL.md` — Custom system prompt (optional)
+- `~/.relay/SKILL.md` — Custom system prompt (optional, create manually)
+- `~/.relay/RELAY.md` — Auto-generated assembled system prompt (base + MCP docs)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 
 ## Streaming
@@ -135,8 +146,12 @@ Use `sarvam-translate` to transcribe and translate non-English voice messages to
   "provider": "opencode",
   "opencodeMode": "start",
   "botMode": "polling",
+  "timezone": "America/New_York",
   "browserEnabled": true,
   "memoryEnabled": true,
+  "githubEnabled": true,
+  "githubToken": "ghp_...",
+  "context7Enabled": true,
   "streamEditIntervalMs": 2000,
   "promptTimeoutMs": 300000,
   "groqApiKey": "gsk_..."

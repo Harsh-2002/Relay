@@ -76,7 +76,7 @@ export function Terminal({
 
       {/* Content */}
       <div className={clsx(
-        "font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto",
+        "font-mono text-xs sm:text-sm leading-relaxed overflow-hidden",
         compact ? "p-3 sm:p-4" : "p-3 sm:p-5"
       )}>
         {lines.map((line, i) => {
@@ -87,7 +87,7 @@ export function Terminal({
           }
 
           const content = (
-            <div key={i} className={clsx("flex whitespace-nowrap", compact ? "py-0.5" : "py-[3px]")}>
+            <div key={i} className={clsx("flex", compact ? "py-0.5" : "py-[3px]")}>
               {style.prefix && (
                 <span
                   className={clsx(

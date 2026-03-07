@@ -5,11 +5,14 @@ import { Voice } from "@/components/sections/voice";
 
 import { Architecture } from "@/components/sections/architecture";
 import { GettingStarted } from "@/components/sections/getting-started";
+import { getLatestVersion } from "@/lib/version";
 
-export default function Home() {
+export default async function Home() {
+  const version = await getLatestVersion();
+
   return (
     <>
-      <Hero />
+      <Hero version={version} />
       <Features />
       <Providers />
 

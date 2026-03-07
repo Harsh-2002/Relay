@@ -17,7 +17,7 @@ A single Telegram message is reused throughout — no new messages are sent unti
 
 - **Update interval**: Every 2 seconds by default (`streamEditIntervalMs` in `~/.relay/config.json`)
 - **Long responses**: Automatically split into multiple messages (4096-character Telegram limit)
-- **Tool indicators**: "Reading file...", "Running command...", etc. appear during processing
+- **Tool indicators**: Tool use shows human-readable labels with emoji indicators (e.g., "🔧 Read File...", "✅ Read File"). MCP server prefixes are stripped and names are title-cased automatically
 
 ---
 
@@ -44,7 +44,7 @@ Send voice notes to the bot and they'll be transcribed and processed as text inp
 }
 ```
 
-Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically.
+Four STT providers are supported: **Groq** (fastest, free tier), **Sarvam AI** (Indian language support), **AssemblyAI**, and **OpenAI**. When `sttProvider` is `auto` (default), the cheapest configured provider is auto-selected. If it fails, other configured providers are tried automatically. Use `/stt` to switch providers manually.
 
 Sarvam AI also supports a **translate mode** (`sttProvider: "sarvam-translate"`) that transcribes non-English voice messages and translates them to English in one step. See [Providers](/docs/providers#translation-sarvam) for details.
 
@@ -58,7 +58,7 @@ Send photos for analysis by vision-capable models. Add a caption to ask specific
 
 ## File Input
 
-Send files as attachments. Text files (`.txt`, `.md`, `.js`, `.py`, `.json`, `.yaml`, `.toml`, `.xml`, `.csv`, `.html`, `.css`, etc.) are read and embedded directly in the message to the AI. Binary files are referenced by name only.
+Send files as attachments. Text files (`.txt`, `.md`, `.js`, `.py`, `.json`, `.yaml`, `.toml`, `.xml`, `.csv`, `.html`, `.css`, etc.) are read and embedded directly in the message to the AI. Binary files are referenced by name only. Text files up to 500KB are fully included; larger files are chunked.
 
 Text messages have a 32,000-character limit. For larger content, send as a file attachment.
 
@@ -66,7 +66,7 @@ Text messages have a 32,000-character limit. For larger content, send as a file 
 
 ## Built-in MCP Tools
 
-Relay includes 4 built-in MCP (Model Context Protocol) tools that can be enabled during setup or in `~/.relay/config.json`. When enabled, Relay auto-configures them in OpenCode.
+Relay includes 7 built-in MCP (Model Context Protocol) tools that can be enabled during setup or in `~/.relay/config.json`. When enabled, Relay auto-configures them in OpenCode.
 
 ### Browser (Playwright MCP)
 
@@ -109,12 +109,41 @@ Read and write files outside the current project directory. The AI can:
 
 Enable: `"filesystemEnabled": true` and set `"filesystemPaths": ["/path/to/dir"]`
 
+### GitHub (GitHub MCP)
+
+GitHub API access for issues, PRs, commits, and repository management. The AI can:
+- List and search issues and pull requests
+- Read PR diffs and commit history
+- Create issues and comments
+
+Enable: `"githubEnabled": true` and set `"githubToken": "ghp_..."`
+
+Requires a GitHub Personal Access Token (PAT).
+
+### Context7 (Documentation MCP)
+
+Version-specific library documentation lookup. The AI can:
+- Look up latest API docs for any library
+- Get version-specific documentation
+- Access up-to-date information beyond training data
+
+Enable: `"context7Enabled": true`
+
+Optional API key: `"context7ApiKey": "..."`
+
+### Relay (Internal MCP)
+
+Always enabled. Provides AI-driven bot management:
+- Cron job scheduling (create, update, toggle, run)
+- Notifications for out-of-band messages
+- Health checks for system diagnostics
+
 ### Custom MCP Servers
 
-You can also add custom MCP servers beyond the 4 built-in tools:
+You can also add custom MCP servers beyond the 7 built-in tools:
 
 **Local servers** — run as subprocesses:
-- `/mcp add memory local npx -y @modelcontextprotocol/server-memory`
+- `/mcp add myserver local npx -y @modelcontextprotocol/server-example`
 
 **Remote servers** — connect via URL:
 - `/mcp add api remote https://mcp.example.com/sse`
@@ -125,7 +154,7 @@ Use `/mcp` to see all server statuses and `/mcp connect <name>` to reconnect a s
 
 ## Model Selection
 
-Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[free]`. The active model is shown with a `✓` prefix. Tap a button to select a model directly.
+Switch between AI models at runtime. `/models` displays an interactive inline keyboard with capability badges: `[reasoning]`, `[vision]`, `[free]`. The active model is shown with a `✓` prefix. Tap a button to select a model directly. Pagination buttons appear when there are more than 8 models.
 
 For text-based selection, use `/model sonnet`, `/model deepseek`, or a full path like `/model anthropic/claude-sonnet-4-20250514`.
 
@@ -160,6 +189,8 @@ When using models that support extended thinking (such as those with reasoning c
 
 Reply to any bot message to reference it in your next prompt. The quoted message text is included as context so the AI knows what you're referring to. Useful for asking follow-up questions about a specific part of a long conversation.
 
+You can also reply to voice notes and audio files — Relay transcribes the audio via STT and includes the transcription as context. Reply context works with all media types: photos, documents, voice, and audio.
+
 ---
 
 ## Edited Messages
@@ -172,13 +203,13 @@ Edit a sent message to re-prompt the AI with the corrected text. The AI processe
 
 Sessions keep conversations organized. Each session maintains its own message history.
 
-Create sessions with `/new` or `/new Refactoring auth module`. Fork a session with `/fork` or `/fork msg_abc123`. Rename with `/rename New title`.
+Create sessions with `/new` or `/new Refactoring auth module`. Fork a session with `/fork` or `/fork msg_abc123`. Rename with `/rename New title`. Use `/switch` and `/delete` without arguments for interactive session picker keyboards.
 
 ---
 
 ## Scheduled Tasks (Cron)
 
-Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, or on specific days of the week. Results are delivered directly to your Telegram chat.
+Automate recurring AI tasks that run on a schedule. Define prompts that execute automatically at intervals, daily, weekly, or as a one-time task. All times use your configured timezone (set via `/timezone`). Results are delivered directly to your Telegram chat.
 
 **Creating jobs:**
 
@@ -186,13 +217,19 @@ Automate recurring AI tasks that run on a schedule. Define prompts that execute 
 /cron add daily 09:00 Git summary: Summarize recent git commits
 /cron add every 30m Health: Check server health
 /cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs
+/cron add once 14:30 Reminder: Time to review the open PR
 ```
 
 The format is always: `/cron add <schedule> Title: prompt`
 
 Use `/cron` to see all jobs with action buttons to enable/disable, run now, or delete. The **Add Job** button walks you through building a schedule step by step via an interactive picker.
 
-Jobs are persisted to `cron.json` and survive restarts. The scheduler checks for due jobs every 30 seconds. If the bot restarts, missed jobs are skipped (no avalanche of past runs).
+- Jobs are persisted to `cron.json` and survive restarts
+- The scheduler checks for due jobs every 30 seconds
+- Each job runs in an **isolated session** (created fresh per run, deleted after) so cron output doesn't pollute your conversation
+- An animated dots indicator ("Running.", "Running..", "Running...") cycles in the header during execution
+- A pre-flight health check verifies the AI server is alive before executing
+- If the bot restarts, missed jobs are skipped (no avalanche of past runs)
 
 ---
 
@@ -204,6 +241,7 @@ Relay persists critical state to disk so it survives restarts:
 - `~/.relay/session.json` — Current session ID and selected model
 - `~/.relay/cron.json` — Scheduled task definitions and run history
 - `~/.relay/SKILL.md` — Custom system prompt (optional)
+- `~/.relay/RELAY.md` — Auto-generated assembled system prompt (base + MCP docs)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data
 
 State is written atomically (temp file + rename) to prevent corruption.

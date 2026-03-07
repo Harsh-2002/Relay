@@ -69,7 +69,7 @@ function getTimezone(): string {
  * Get date/time parts in a specific timezone.
  * Returns { year, month (1-based), day, hour, minute, weekday (0=Sun) }.
  */
-function getPartsInTz(utcMs: number, tz: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
+export function getPartsInTz(utcMs: number, tz: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     year: "numeric",
@@ -139,14 +139,32 @@ export function formatInTimezone(utcMs: number, tz: string, style: "time" | "dat
 
 /**
  * Get the short timezone abbreviation (e.g. "IST", "EST", "UTC").
+ * Intl returns "GMT+X" for most non-US/EU zones, so we use a hardcoded map
+ * for well-known abbreviations.
  */
+const TIMEZONE_ABBRS: Record<string, string> = {
+  "Asia/Kolkata": "IST",
+  "Asia/Tokyo": "JST",
+  "Asia/Shanghai": "CST",
+  "Asia/Hong_Kong": "HKT",
+  "Asia/Singapore": "SGT",
+  "Asia/Dubai": "GST",
+  "Asia/Seoul": "KST",
+  "Asia/Karachi": "PKT",
+  "Asia/Dhaka": "BST",
+  "Asia/Bangkok": "ICT",
+  "Asia/Jakarta": "WIB",
+  "Australia/Sydney": "AEST",
+  "Australia/Perth": "AWST",
+  "Pacific/Auckland": "NZST",
+};
+
 export function getTimezoneAbbr(tz: string): string {
+  if (TIMEZONE_ABBRS[tz]) return TIMEZONE_ABBRS[tz];
   try {
     const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" });
     const parts = fmt.formatToParts(new Date());
     const abbr = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
-    // Intl returns clean abbreviations for some zones (EST, PST, GMT, UTC)
-    // but ugly GMT+X for most others. Fall back to IANA name for those.
     if (abbr.startsWith("GMT+") || abbr.startsWith("GMT-")) return tz;
     return abbr;
   } catch {
@@ -208,16 +226,14 @@ export function formatSchedule(s: CronSchedule): string {
     if (mins >= 60 && mins % 60 === 0) return `every ${mins / 60}h`;
     return `every ${mins}m`;
   }
-  const tz = getTimezone();
-  const abbr = getTimezoneAbbr(tz);
   const hh = String(s.hour ?? 9).padStart(2, "0");
   const mm = String(s.minute ?? 0).padStart(2, "0");
-  if (s.type === "once") return `once ${hh}:${mm} ${abbr}`;
-  if (s.type === "daily") return `daily ${hh}:${mm} ${abbr}`;
+  if (s.type === "once") return `once at ${hh}:${mm}`;
+  if (s.type === "daily") return `daily ${hh}:${mm}`;
   if (s.type === "weekly") {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const days = (s.days ?? [1]).map(d => dayNames[d]).join(",");
-    return `${days} ${hh}:${mm} ${abbr}`;
+    return `${days} ${hh}:${mm}`;
   }
   return "unknown";
 }

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, watchFile, unwatchFile, mkdirS
 import { resolve, join } from "path";
 import { getConfig } from "../config/index.js";
 import { getDataDir } from "./store.js";
+import { getTimezoneAbbr } from "../cron.js";
 
 const DEFAULT_SYSTEM_PROMPT = `You assist a developer with coding, debugging, architecture, code review, research, and technical problem-solving.
 
@@ -168,13 +169,7 @@ function getCurrentTimestamp(): string {
     tz = "UTC";
   }
 
-  // Get timezone abbreviation
-  let abbr = tz;
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(now);
-    const raw = parts.find(p => p.type === "timeZoneName")?.value ?? tz;
-    abbr = (raw.startsWith("GMT+") || raw.startsWith("GMT-")) ? tz : raw;
-  } catch {}
+  const abbr = getTimezoneAbbr(tz);
 
   const formatted = new Intl.DateTimeFormat("en-IN", {
     timeZone: tz,

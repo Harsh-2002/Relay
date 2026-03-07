@@ -15,6 +15,7 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const todos = await provider.getTodos(sessionId);
 
@@ -25,9 +26,9 @@ export function registerMonitorCommands(bot: Bot): void {
 
       let text = `<b>Todo List</b>  (${todos.length} item${todos.length === 1 ? "" : "s"})\n`;
       for (const t of todos) {
-        const icon = statusIcon(t.status);
+        const tag = statusTag(t.status);
         const priority = t.priority ? `  <i>[${escapeHtml(t.priority)}]</i>` : "";
-        text += `\n${icon}  ${escapeHtml(t.content)}${priority}\n`;
+        text += `\n${tag}  ${escapeHtml(t.content)}${priority}\n`;
       }
 
       const chunks = chunkMessage(text);
@@ -47,6 +48,7 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const diffs = await provider.getDiff(sessionId);
 
@@ -116,6 +118,7 @@ export function registerMonitorCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const messageID = ctx.match?.trim() || undefined;
       const provider = getProvider();
       const forked = await provider.forkSession(sessionId, messageID);
@@ -141,17 +144,17 @@ export function registerMonitorCommands(bot: Bot): void {
   });
 }
 
-function statusIcon(status: string): string {
+function statusTag(status: string): string {
   switch (status) {
     case "completed":
-      return "\u2705";
+      return "[done]";
     case "in_progress":
-      return "\u23f3";
+      return "[wip]";
     case "cancelled":
-      return "\u274c";
+      return "[cancelled]";
     case "pending":
     default:
-      return "\u2b1c";
+      return "[pending]";
   }
 }
 

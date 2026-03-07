@@ -4,11 +4,12 @@ import { getProvider } from "../providers/index.js";
 import type { McpServerStatus } from "../providers/types.js";
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
 
-function mcpStatusIcon(status: string): string {
-  if (status === "connected") return "\u{1f7e2}";
-  if (status === "connecting") return "\u{1f7e1}";
-  return "\u{1f534}";
+function mcpStatusTag(status: string): string {
+  if (status === "connected") return "[ON]";
+  if (status === "connecting") return "[...]";
+  return "[OFF]";
 }
 
 function buildMcpStatus(servers: McpServerStatus[]): { text: string; keyboard: InlineKeyboard } {
@@ -16,11 +17,10 @@ function buildMcpStatus(servers: McpServerStatus[]): { text: string; keyboard: I
 
   servers.forEach((srv, i) => {
     const num = i + 1;
-    const icon = mcpStatusIcon(srv.status);
-    text += `\n${icon} <b>${num}. ${escapeHtml(srv.name)}</b>`;
-    text += `\n    ${escapeHtml(srv.status)}`;
+    const tag = mcpStatusTag(srv.status);
+    text += `\n<b>${num}. ${escapeHtml(srv.name)}</b>  ${tag}`;
     if (srv.error) {
-      text += `\n    <i>${escapeHtml(srv.error)}</i>`;
+      text += `\n   <i>${escapeHtml(srv.error)}</i>`;
     }
     text += "\n";
   });
@@ -48,14 +48,14 @@ export function registerMcpCommands(bot: Bot): void {
       return;
     }
 
-    // /mcp remove <name>
-    if (input.startsWith("remove ")) {
+    // /mcp remove [name]
+    if (input === "remove" || input.startsWith("remove ")) {
       await handleMcpRemove(ctx, input.slice(7).trim());
       return;
     }
 
-    // /mcp connect <name>
-    if (input.startsWith("connect ")) {
+    // /mcp connect [name]
+    if (input === "connect" || input.startsWith("connect ")) {
       await handleMcpConnect(ctx, input.slice(8).trim());
       return;
     }
@@ -91,6 +91,23 @@ export function registerMcpCommands(bot: Bot): void {
   bot.callbackQuery(/^mcp_rm:(.+)$/, async (ctx) => {
     try {
       const name = ctx.match[1];
+      const kb = new InlineKeyboard()
+        .text("Yes, remove", `mcp_rm_yes:${name}`)
+        .text("No", `mcp_rm_no:${name}`);
+
+      await ctx.editMessageText(
+        `Remove MCP server <b>${escapeHtml(name)}</b>?`,
+        { parse_mode: "HTML", reply_markup: kb },
+      );
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to show confirmation" });
+    }
+  });
+
+  bot.callbackQuery(/^mcp_rm_yes:(.+)$/, async (ctx) => {
+    try {
+      const name = ctx.match[1];
       const provider = getProvider();
       await provider.removeMcpServer(name);
 
@@ -119,10 +136,40 @@ export function registerMcpCommands(bot: Bot): void {
       await ctx.answerCallbackQuery({ text: "Failed to remove server" });
     }
   });
+
+  bot.callbackQuery(/^mcp_rm_no:(.+)$/, async (ctx) => {
+    try {
+      const provider = getProvider();
+      const servers = await provider.getMcpStatus();
+
+      if (!servers || servers.length === 0) {
+        try {
+          await ctx.editMessageText(
+            `<b>MCP Servers</b>\n\nNo MCP servers configured.\n\n` +
+            `<i>Use /mcp add &lt;name&gt; local &lt;command&gt; or /mcp add &lt;name&gt; remote &lt;url&gt;</i>`,
+            { parse_mode: "HTML" }
+          );
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      } else {
+        const { text, keyboard } = buildMcpStatus(servers);
+        try {
+          await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      }
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to load servers" });
+    }
+  });
 }
 
 async function handleMcpStatus(ctx: any): Promise<void> {
   try {
+    await ctx.replyWithChatAction("typing");
     const provider = getProvider();
     const servers = await provider.getMcpStatus();
 
@@ -164,6 +211,7 @@ async function handleMcpAdd(ctx: any, input: string): Promise<void> {
   const type = parts[1];
 
   try {
+    await ctx.replyWithChatAction("typing");
     const provider = getProvider();
 
     if (type === "local") {
@@ -193,14 +241,14 @@ async function handleMcpAdd(ctx: any, input: string): Promise<void> {
 
 async function handleMcpConnect(ctx: any, name: string): Promise<void> {
   if (!name) {
-    await ctx.reply(
-      `<b>Usage:</b>  <code>/mcp connect name</code>`,
-      { parse_mode: "HTML" }
-    );
+    await promptForInput(ctx, "Type the MCP server name to connect:", async (text, replyCtx) => {
+      await handleMcpConnect(replyCtx, text.trim());
+    });
     return;
   }
 
   try {
+    await ctx.replyWithChatAction("typing");
     const provider = getProvider();
     const ok = await provider.connectMcpServer(name);
 
@@ -222,14 +270,14 @@ async function handleMcpConnect(ctx: any, name: string): Promise<void> {
 
 async function handleMcpRemove(ctx: any, name: string): Promise<void> {
   if (!name) {
-    await ctx.reply(
-      `<b>Usage:</b>  <code>/mcp remove name</code>`,
-      { parse_mode: "HTML" }
-    );
+    await promptForInput(ctx, "Type the MCP server name to remove:", async (text, replyCtx) => {
+      await handleMcpRemove(replyCtx, text.trim());
+    });
     return;
   }
 
   try {
+    await ctx.replyWithChatAction("typing");
     const provider = getProvider();
     const removed = await provider.removeMcpServer(name);
 

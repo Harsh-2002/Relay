@@ -28,6 +28,22 @@ import { exec } from "child_process";
 import { createServer } from "net";
 import { getConfig } from "../config/index.js";
 import { providerLogger } from "../utils/logger.js";
+
+/** Strip known MCP server prefix and convert to title case */
+function formatToolName(name: string): string {
+  const prefixes = ["relay_", "playwright_", "fetch_", "memory_", "filesystem_", "github_", "context7_"];
+  let stripped = name;
+  for (const p of prefixes) {
+    if (stripped.startsWith(p)) {
+      stripped = stripped.slice(p.length);
+      break;
+    }
+  }
+  return stripped
+    .split("_")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 import { spawnAsync } from "../utils/shell.js";
 
 let client: OpencodeClient;
@@ -267,6 +283,7 @@ export class OpenCodeProvider implements Provider {
     let pendingQuestion = false;
     let pendingQuestionId: string | null = null;
     let questionAutoReplyTimer: ReturnType<typeof setTimeout> | null = null;
+    let sessionDeleted = false;
 
     // Stall detection: abort if no session-relevant events arrive for 120s.
     // There is no global wall-clock timeout — the stream stays open as long as
@@ -392,9 +409,11 @@ export class OpenCodeProvider implements Provider {
               "Tool event"
             );
             if (status === "running") {
-              yield { type: "tool_use", content: `[${part.state.title || toolName}...]` };
+              const label = part.state.title || formatToolName(toolName);
+              yield { type: "tool_use", content: `🔧 ${label}...` };
             } else if (status === "completed") {
-              yield { type: "tool_use", content: `[${part.state.title || toolName} done]` };
+              const label = part.state.title || formatToolName(toolName);
+              yield { type: "tool_use", content: `✅ ${label}` };
               // Yield tool attachments (e.g. Playwright screenshots) as file chunks
               if (part.state?.attachments?.length) {
                 for (let ai = 0; ai < part.state.attachments.length; ai++) {
@@ -411,7 +430,7 @@ export class OpenCodeProvider implements Provider {
                 }
               }
             } else if (status === "error") {
-              yield { type: "tool_use", content: `[${toolName} error]` };
+              yield { type: "tool_use", content: `❌ ${formatToolName(toolName)}` };
             }
           }
 
@@ -505,14 +524,35 @@ export class OpenCodeProvider implements Provider {
             yield { type: "done", content: "" };
             break;
           }
+        } else if (evtType === "session.deleted") {
+          if (props?.info?.id === sessionId) {
+            providerLogger.info({ sessionId }, "Session deleted during stream — ending gracefully");
+            sessionDeleted = true;
+            yield { type: "done", content: "" };
+            break;
+          }
         } else if (evtType === "session.error") {
           if (!matchesSession(evt, sessionId)) continue;
           const rawError = props.error ?? "Unknown session error";
+          // If the session was deleted or this is a FOREIGN KEY error from a deleted session,
+          // end gracefully instead of surfacing a confusing error to the user.
+          const errStr = typeof rawError === "string" ? rawError : JSON.stringify(rawError);
+          if (sessionDeleted || errStr.includes("FOREIGN KEY")) {
+            providerLogger.info({ sessionId, error: rawError }, "session.error after deletion — ignoring");
+            yield { type: "done", content: "" };
+            break;
+          }
           providerLogger.warn({ sessionId, error: rawError }, "session.error");
           throw sdkError(rawError);
         } else {
           providerLogger.info({ sessionId, evtType, props }, "SSE event");
         }
+      }
+
+      // If stream ended due to stall with zero output, throw so streamPromptWithRetry
+      // can detect stale sessions and retry with a new one.
+      if (controller.signal.aborted && chunkCount === 0 && toolEvents === 0) {
+        throw new Error("Session not found or timed out — no response received after 120 seconds");
       }
     } finally {
       clearTimeout(stallTimer);

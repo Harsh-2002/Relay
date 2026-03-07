@@ -1,4 +1,4 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { getProvider } from "../providers/index.js";
 import type { SessionInfo } from "../providers/types.js";
@@ -9,6 +9,7 @@ import {
 } from "../session.js";
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
 
 function buildSessionList(
   sessions: SessionInfo[],
@@ -48,9 +49,33 @@ function buildSessionList(
   return { text, keyboard: kb };
 }
 
+async function executeRename(title: string, ctx: Context): Promise<void> {
+  const activeId = getActiveSessionId();
+  if (!activeId) {
+    await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
+    return;
+  }
+
+  try {
+    await ctx.replyWithChatAction("typing");
+    const provider = getProvider();
+    const ok = await provider.renameSession(activeId, title);
+
+    if (!ok) {
+      await ctx.reply("Could not rename this session.", { parse_mode: "HTML" });
+      return;
+    }
+
+    await ctx.reply(`Session renamed to <b>${escapeHtml(title)}</b>`, { parse_mode: "HTML" });
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "renaming session"), { parse_mode: "HTML" });
+  }
+}
+
 export function registerSessionCommands(bot: Bot): void {
   bot.command("new", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const title = ctx.match || "Telegram Session";
       const provider = getProvider();
       const session = await provider.createSession(title);
@@ -67,6 +92,7 @@ export function registerSessionCommands(bot: Bot): void {
 
   bot.command("sessions", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const [sessions, statuses] = await Promise.all([
         provider.listSessions(),
@@ -122,6 +148,27 @@ export function registerSessionCommands(bot: Bot): void {
     try {
       const id = ctx.match[1];
       const provider = getProvider();
+      const session = await provider.getSession(id);
+      const title = session?.title ?? "Untitled";
+
+      const kb = new InlineKeyboard()
+        .text("Yes, delete", `ses_del_yes:${id}`)
+        .text("No", `ses_del_no:${id}`);
+
+      await ctx.editMessageText(
+        `Delete session <b>${escapeHtml(title)}</b>?`,
+        { parse_mode: "HTML", reply_markup: kb },
+      );
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to show confirmation" });
+    }
+  });
+
+  bot.callbackQuery(/^ses_del_yes:(.+)$/, async (ctx) => {
+    try {
+      const id = ctx.match[1];
+      const provider = getProvider();
       const deleted = await provider.deleteSession(id);
 
       if (!deleted) {
@@ -159,6 +206,34 @@ export function registerSessionCommands(bot: Bot): void {
     }
   });
 
+  bot.callbackQuery(/^ses_del_no:(.+)$/, async (ctx) => {
+    try {
+      const provider = getProvider();
+      const [sessions, statuses] = await Promise.all([
+        provider.listSessions(),
+        provider.getSessionStatuses(),
+      ]);
+
+      if (sessions.length === 0) {
+        try {
+          await ctx.editMessageText("No sessions found.", { parse_mode: "HTML" });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      } else {
+        const { text, keyboard } = buildSessionList(sessions, statuses, getActiveSessionId());
+        try {
+          await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+        } catch (err: any) {
+          if (!isNotModified(err)) throw err;
+        }
+      }
+      await ctx.answerCallbackQuery();
+    } catch (err: any) {
+      await ctx.answerCallbackQuery({ text: "Failed to load sessions" });
+    }
+  });
+
   bot.callbackQuery("ses_noop", async (ctx) => {
     await ctx.answerCallbackQuery({ text: "This is the active session" });
   });
@@ -166,11 +241,29 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("switch", async (ctx) => {
     const id = ctx.match?.trim();
     if (!id) {
-      await ctx.reply("Usage: <code>/switch &lt;session-id&gt;</code>", { parse_mode: "HTML" });
+      // Show sessions picker
+      try {
+        await ctx.replyWithChatAction("typing");
+        const provider = getProvider();
+        const [sessions, statuses] = await Promise.all([
+          provider.listSessions(),
+          provider.getSessionStatuses(),
+        ]);
+        if (sessions.length === 0) {
+          await ctx.reply("No sessions found.", { parse_mode: "HTML" });
+          return;
+        }
+        const activeId = getActiveSessionId();
+        const { text, keyboard } = buildSessionList(sessions, statuses, activeId);
+        await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+      } catch (err: any) {
+        await ctx.reply(formatCatchError(err, "listing sessions"), { parse_mode: "HTML" });
+      }
       return;
     }
 
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const session = await provider.getSession(id);
 
@@ -192,23 +285,40 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("delete", async (ctx) => {
     const id = ctx.match?.trim();
     if (!id) {
-      await ctx.reply("Usage: <code>/delete &lt;session-id&gt;</code>", { parse_mode: "HTML" });
+      // Show sessions picker
+      try {
+        await ctx.replyWithChatAction("typing");
+        const provider = getProvider();
+        const [sessions, statuses] = await Promise.all([
+          provider.listSessions(),
+          provider.getSessionStatuses(),
+        ]);
+        if (sessions.length === 0) {
+          await ctx.reply("No sessions found.", { parse_mode: "HTML" });
+          return;
+        }
+        const activeId = getActiveSessionId();
+        const { text, keyboard } = buildSessionList(sessions, statuses, activeId);
+        await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+      } catch (err: any) {
+        await ctx.reply(formatCatchError(err, "listing sessions"), { parse_mode: "HTML" });
+      }
       return;
     }
 
+    // Show confirmation
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
-      const deleted = await provider.deleteSession(id);
-
-      if (!deleted) {
-        await ctx.reply("Could not delete this session.", { parse_mode: "HTML" });
-        return;
-      }
-
-      if (getActiveSessionId() === id) {
-        clearActiveSession();
-      }
-      await ctx.reply(`Session <code>${escapeHtml(id)}</code> deleted.`, { parse_mode: "HTML" });
+      const session = await provider.getSession(id);
+      const title = session?.title ?? "Untitled";
+      const kb = new InlineKeyboard()
+        .text("Yes, delete", `ses_del_yes:${id}`)
+        .text("No", `ses_del_no:${id}`);
+      await ctx.reply(
+        `Delete session <b>${escapeHtml(title)}</b>?`,
+        { parse_mode: "HTML", reply_markup: kb },
+      );
     } catch (err: any) {
       await ctx.reply(formatCatchError(err, "deleting session"), { parse_mode: "HTML" });
     }
@@ -217,29 +327,17 @@ export function registerSessionCommands(bot: Bot): void {
   bot.command("rename", async (ctx) => {
     const title = ctx.match?.trim();
     if (!title) {
-      await ctx.reply("Usage: <code>/rename &lt;new title&gt;</code>", { parse_mode: "HTML" });
-      return;
-    }
-
-    const activeId = getActiveSessionId();
-    if (!activeId) {
-      await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
-      return;
-    }
-
-    try {
-      const provider = getProvider();
-      const ok = await provider.renameSession(activeId, title);
-
-      if (!ok) {
-        await ctx.reply("Could not rename this session.", { parse_mode: "HTML" });
+      const activeId = getActiveSessionId();
+      if (!activeId) {
+        await ctx.reply("No active session — use /new to start one.", { parse_mode: "HTML" });
         return;
       }
-
-      await ctx.reply(`Session renamed to <b>${escapeHtml(title)}</b>`, { parse_mode: "HTML" });
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "renaming session"), { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the new session title:", async (text, replyCtx) => {
+        await executeRename(text.trim(), replyCtx);
+      });
+      return;
     }
+    await executeRename(title, ctx);
   });
 
   bot.command("current", async (ctx) => {
@@ -250,6 +348,7 @@ export function registerSessionCommands(bot: Bot): void {
     }
 
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const [session, statuses] = await Promise.all([
         provider.getSession(activeId),

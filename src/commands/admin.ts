@@ -9,6 +9,7 @@ import { isSttAvailable, getSttProvider, listSttProviders } from "../utils/stt.j
 import { getSystemPrompt, reloadSystemPrompt, isUsingCustomPrompt } from "../utils/system-prompt.js";
 import { formatCatchError, isNotModified } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
 import { isServerDown } from "../lifecycle.js";
 import { getConfig, setConfig, saveConfig } from "../config/index.js";
 import { exec } from "child_process";
@@ -300,6 +301,7 @@ function buildSttPicker(
 export function registerAdminCommands(bot: Bot): void {
   bot.command("health", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const health = await provider.getHealth();
 
@@ -359,6 +361,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("config", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const config = await provider.getConfig();
       const text = formatConfigResponse(config);
@@ -373,6 +376,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("providers", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const providers = await provider.getProviders();
       const text = formatProvidersResponse(providers);
@@ -387,6 +391,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("agents", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const agents = await provider.getAgents();
 
@@ -404,6 +409,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("project", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const proj = await provider.getProjectInfo();
 
@@ -428,6 +434,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("git", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
 
       // Use provider's file status and project info for git data
@@ -471,6 +478,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("tools", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const tools = await provider.getTools();
 
@@ -500,6 +508,7 @@ export function registerAdminCommands(bot: Bot): void {
 
   bot.command("models", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const models = await provider.listModels();
       const selected = getSelectedModel();
@@ -707,6 +716,7 @@ export function registerAdminCommands(bot: Bot): void {
 
     if (!input) {
       try {
+        await ctx.replyWithChatAction("typing");
         const provider = getProvider();
         const agents = await provider.getAgents();
         if (!agents || agents.length === 0) {
@@ -882,11 +892,26 @@ export function registerAdminCommands(bot: Bot): void {
     const input = ctx.match?.trim();
 
     if (!input) {
-      await ctx.reply(
-        `<b>Timezone:</b>  <code>${escapeHtml(config.timezone || "UTC")}</code>\n\n` +
-        `<b>Usage:</b>  <code>/timezone Asia/Kolkata</code>\n` +
-        `Use any IANA timezone identifier.`,
-        { parse_mode: "HTML" },
+      await promptForInput(
+        ctx,
+        `<b>Current timezone:</b>  <code>${escapeHtml(config.timezone || "UTC")}</code>\n\nType a new IANA timezone (e.g. <code>Asia/Kolkata</code>, <code>America/New_York</code>):`,
+        async (text, replyCtx) => {
+          const tz = text.trim();
+          try {
+            Intl.DateTimeFormat("en", { timeZone: tz });
+          } catch {
+            await replyCtx.reply(
+              `Invalid timezone: <code>${escapeHtml(tz)}</code>\n\nUse IANA format, e.g. <code>Asia/Kolkata</code>, <code>America/New_York</code>, <code>UTC</code>`,
+              { parse_mode: "HTML" },
+            );
+            return;
+          }
+          const cfg = getConfig();
+          cfg.timezone = tz;
+          saveConfig(cfg, cfg.dataDir);
+          setConfig(cfg);
+          await replyCtx.reply(`Timezone updated to <code>${escapeHtml(tz)}</code>`, { parse_mode: "HTML" });
+        },
       );
       return;
     }

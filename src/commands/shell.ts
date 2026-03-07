@@ -2,13 +2,14 @@ import { exec } from "child_process";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { getProvider } from "../providers/index.js";
 import { getOrCreateSession } from "../session.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
 import { execCmd } from "../utils/shell.js";
 
 // ── OpenCode binary detection ──────────────────────────────────────
@@ -88,42 +89,47 @@ const BLOCKED_PATTERNS = [
   /\brelay\s+(restart|stop|start|update)\b/i,
 ];
 
+async function executeShell(command: string, ctx: Context): Promise<void> {
+  if (BLOCKED_PATTERNS.some(p => p.test(command))) {
+    await ctx.reply(
+      `<b>Blocked:</b> This command would kill the bot process.\n\nUse /restart or /update instead.`,
+      { parse_mode: "HTML" },
+    );
+    return;
+  }
+
+  try {
+    await ctx.replyWithChatAction("typing");
+    const sessionId = await getOrCreateSession();
+    const provider = getProvider();
+
+    const result = await provider.shell(sessionId, command);
+
+    if (result === null) {
+      await ctx.reply("Shell command returned no output.", { parse_mode: "HTML" });
+      return;
+    }
+
+    const formatted = `<b>$ ${escapeHtml(command)}</b>\n\n<pre>${escapeHtml(result)}</pre>`;
+    const chunks = chunkMessage(formatted);
+    for (const chunk of chunks) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "running shell command"), { parse_mode: "HTML" });
+  }
+}
+
 export function registerShellCommands(bot: Bot): void {
   bot.command("shell", async (ctx) => {
     const command = ctx.match?.trim();
     if (!command) {
-      await ctx.reply("Usage: <code>/shell &lt;command&gt;</code>", { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the command to run:", async (text, replyCtx) => {
+        await executeShell(text.trim(), replyCtx);
+      });
       return;
     }
-
-    if (BLOCKED_PATTERNS.some(p => p.test(command))) {
-      await ctx.reply(
-        `<b>Blocked:</b> This command would kill the bot process.\n\nUse /restart or /update instead.`,
-        { parse_mode: "HTML" },
-      );
-      return;
-    }
-
-    try {
-      await ctx.replyWithChatAction("typing");
-      const sessionId = await getOrCreateSession();
-      const provider = getProvider();
-
-      const result = await provider.shell(sessionId, command);
-
-      if (result === null) {
-        await ctx.reply("Shell command returned no output.", { parse_mode: "HTML" });
-        return;
-      }
-
-      const formatted = `<b>$ ${escapeHtml(command)}</b>\n\n<pre>${escapeHtml(result)}</pre>`;
-      const chunks = chunkMessage(formatted);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "running shell command"), { parse_mode: "HTML" });
-    }
+    await executeShell(command, ctx);
   });
 
   // ── /cmd — inline picker or direct execution ──
@@ -232,6 +238,7 @@ export function registerShellCommands(bot: Bot): void {
 
   bot.command("commands", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const commands = await provider.getCommands();
 

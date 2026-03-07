@@ -16,6 +16,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const messages = await provider.getHistory(sessionId);
 
@@ -127,6 +128,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       await provider.abort(sessionId);
       await ctx.reply("Operation aborted.", { parse_mode: "HTML" });
@@ -143,6 +145,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const shareUrl = await provider.share(sessionId);
 
@@ -167,6 +170,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const ok = await provider.unshare(sessionId);
 
@@ -189,6 +193,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const reverted = await provider.revert(sessionId);
 
@@ -211,6 +216,7 @@ export function registerHistoryCommands(bot: Bot): void {
         return;
       }
 
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const ok = await provider.unrevert(sessionId);
 

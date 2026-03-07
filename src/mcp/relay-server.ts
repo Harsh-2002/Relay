@@ -78,9 +78,9 @@ const server = new McpServer(
   },
 );
 
-// --- Tool: relay_cron_list ---
+// --- Tool: cron_list ---
 
-server.registerTool("relay_cron_list", {
+server.registerTool("cron_list", {
   title: "List Cron Jobs",
   description: "List all scheduled cron jobs with their status, schedule, and next run time. All times are shown in the user's configured timezone.",
 }, async () => {
@@ -100,9 +100,9 @@ server.registerTool("relay_cron_list", {
   return { content: [{ type: "text", text: header + lines.join("\n\n") }] };
 });
 
-// --- Tool: relay_cron_add ---
+// --- Tool: cron_add ---
 
-server.registerTool("relay_cron_add", {
+server.registerTool("cron_add", {
   title: "Create Cron Job",
   description:
     "Create a new scheduled cron job. IMPORTANT: hour and minute are in the user's LOCAL timezone — the system handles UTC conversion internally. Do NOT pre-convert to UTC.",
@@ -137,9 +137,9 @@ server.registerTool("relay_cron_add", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_cron_update ---
+// --- Tool: cron_update ---
 
-server.registerTool("relay_cron_update", {
+server.registerTool("cron_update", {
   title: "Update Cron Job",
   description:
     "Update an existing cron job. Only provided fields are changed; omitted fields stay the same. To change schedule, provide type and its associated fields. IMPORTANT: hour and minute are in the user's LOCAL timezone — the system handles UTC conversion internally. Do NOT pre-convert to UTC.",
@@ -176,9 +176,9 @@ server.registerTool("relay_cron_update", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_cron_remove ---
+// --- Tool: cron_remove ---
 
-server.registerTool("relay_cron_remove", {
+server.registerTool("cron_remove", {
   title: "Remove Cron Job",
   description: "Delete a scheduled cron job by ID.",
   inputSchema: {
@@ -192,9 +192,9 @@ server.registerTool("relay_cron_remove", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_cron_toggle ---
+// --- Tool: cron_toggle ---
 
-server.registerTool("relay_cron_toggle", {
+server.registerTool("cron_toggle", {
   title: "Toggle Cron Job",
   description: "Enable or disable a cron job without deleting it.",
   inputSchema: {
@@ -214,9 +214,9 @@ server.registerTool("relay_cron_toggle", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_cron_run ---
+// --- Tool: cron_run ---
 
-server.registerTool("relay_cron_run", {
+server.registerTool("cron_run", {
   title: "Run Cron Job Now",
   description: "Trigger a cron job to run immediately, outside its regular schedule.",
   inputSchema: {
@@ -230,9 +230,9 @@ server.registerTool("relay_cron_run", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_notify ---
+// --- Tool: notify ---
 
-server.registerTool("relay_notify", {
+server.registerTool("notify", {
   title: "Send Notification",
   description: "Send a notification message to the user on Telegram. Use sparingly — only for important alerts or when the user explicitly asks to be notified.",
   inputSchema: {
@@ -246,9 +246,9 @@ server.registerTool("relay_notify", {
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });
 
-// --- Tool: relay_health ---
+// --- Tool: health ---
 
-server.registerTool("relay_health", {
+server.registerTool("health", {
   title: "Health Check",
   description: "Check the health status of Relay bot and OpenCode server.",
 }, async () => {

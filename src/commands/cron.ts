@@ -2,10 +2,11 @@ import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import {
   listJobs, addJob, removeJob, toggleJob, runJobNow,
-  formatSchedule, formatInTimezone, getTimezoneAbbr,
+  formatSchedule, formatInTimezone, getTimezoneAbbr, getPartsInTz,
   type CronSchedule,
 } from "../cron.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
 import { getConfig } from "../config/index.js";
 
 const MAX_JOBS_DISPLAY = 30; // Cap keyboard buttons (30 jobs × 3 buttons + 1 = 91 < 100 limit)
@@ -19,6 +20,34 @@ function relativeTime(ms: number): string {
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
   return `${Math.floor(diff / 86400_000)}d ago`;
+}
+
+function formatNextRun(nextRunAt: number, tz: string): string {
+  const now = Date.now();
+  const nowParts = getPartsInTz(now, tz);
+  const nextParts = getPartsInTz(nextRunAt, tz);
+  const time = formatInTimezone(nextRunAt, tz);
+
+  // Same day
+  if (nowParts.year === nextParts.year && nowParts.month === nextParts.month && nowParts.day === nextParts.day) {
+    return `today ${time}`;
+  }
+
+  // Tomorrow
+  const tomorrowMs = now + 86400_000;
+  const tomParts = getPartsInTz(tomorrowMs, tz);
+  if (tomParts.year === nextParts.year && tomParts.month === nextParts.month && tomParts.day === nextParts.day) {
+    return `tomorrow ${time}`;
+  }
+
+  // Within 7 days — show day name
+  if (nextRunAt - now < 7 * 86400_000) {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return `${dayNames[nextParts.weekday]} ${time}`;
+  }
+
+  // Farther out — show date
+  return formatInTimezone(nextRunAt, tz, "datetime");
 }
 
 function buildCronList(): { text: string; keyboard: InlineKeyboard } {
@@ -39,21 +68,21 @@ function buildCronList(): { text: string; keyboard: InlineKeyboard } {
 
   const tz = getConfig().timezone || "UTC";
   const tzAbbr = getTimezoneAbbr(tz);
-  let text = `<b>Cron Jobs</b>  (${allJobs.length})\n`;
+  let text = `<b>Cron Jobs (${allJobs.length})</b>  \u00b7  ${escapeHtml(tzAbbr)}\n`;
   for (let i = 0; i < displayJobs.length; i++) {
     const j = displayJobs[i];
     const num = i + 1;
-    const status = j.enabled ? "\u2705" : "\u274c";
+    const status = j.enabled ? "[ON]" : "[OFF]";
     const name = j.name.length > MAX_NAME_DISPLAY ? j.name.slice(0, MAX_NAME_DISPLAY) + "..." : j.name;
-    text += `\n${status} <b>${num}. ${escapeHtml(name)}</b>\n`;
-    text += `    ${escapeHtml(formatSchedule(j.schedule))}`;
+    text += `\n<b>${num}. ${escapeHtml(name)}</b>  ${status}\n`;
+    text += `   ${escapeHtml(formatSchedule(j.schedule))}`;
     if (j.enabled) {
-      text += ` \u2014 next ${formatInTimezone(j.nextRunAt, tz)} ${tzAbbr}`;
+      text += ` \u2014 next: ${formatNextRun(j.nextRunAt, tz)}`;
     }
     text += `\n`;
     if (j.lastRunAt) {
-      const okStr = j.lastRunOk ? "\u2713" : "\u2717";
-      text += `    Last: ${relativeTime(j.lastRunAt)} ${okStr}  \u00b7  Runs: ${j.runCount}\n`;
+      const okStr = j.lastRunOk ? "(ok)" : "(failed)";
+      text += `   Last: ${relativeTime(j.lastRunAt)} ${okStr}  \u00b7  ${j.runCount} runs\n`;
     }
   }
   if (overflow) {
@@ -171,6 +200,8 @@ interface AddFlowState {
   hour?: number;
   minute?: number;
   days?: number[];
+  schedule?: CronSchedule;
+  name?: string;
 }
 
 const addFlows = new Map<number, AddFlowState>();
@@ -183,6 +214,32 @@ function getFlow(chatId: number): AddFlowState {
 
 function clearFlow(chatId: number): void {
   addFlows.delete(chatId);
+}
+
+/** Start interactive title+prompt collection after schedule is picked. */
+async function startTextCollection(ctx: Context, schedule: CronSchedule): Promise<void> {
+  const chatId = ctx.chat!.id;
+  const flow = getFlow(chatId);
+  flow.schedule = schedule;
+
+  await promptForInput(ctx, `<b>Schedule:</b>  ${escapeHtml(formatSchedule(schedule))}\n\nType the job title:`, async (title, titleCtx) => {
+    flow.name = title.trim();
+    await promptForInput(titleCtx, "Type the prompt (what the AI should do):", async (prompt, promptCtx) => {
+      const job = addJob(flow.name!, prompt.trim(), flow.schedule!);
+      clearFlow(chatId);
+      const tz = getConfig().timezone || "UTC";
+      const nextRunStr = formatInTimezone(job.nextRunAt, tz);
+      const tzAbbr = getTimezoneAbbr(tz);
+      await promptCtx.reply(
+        `<b>Job created!</b>\n\n` +
+        `<b>Name:</b>  ${escapeHtml(job.name)}\n` +
+        `<b>Schedule:</b>  ${escapeHtml(formatSchedule(job.schedule))}\n` +
+        `<b>Next run:</b>  ${nextRunStr} ${tzAbbr}\n\n` +
+        `<b>Prompt:</b>\n<code>${escapeHtml(job.prompt)}</code>`,
+        { parse_mode: "HTML" },
+      );
+    });
+  });
 }
 
 /** Safe edit: swallows "not modified" and "message not found" errors. */
@@ -208,35 +265,6 @@ const USAGE_TEXT =
   `<code>/cron add once 14:30 Title: prompt</code>\n\n` +
   `<b>Example:</b>\n` +
   `<code>/cron add daily 9:00 Git summary: Summarize recent git commits</code>`;
-
-/** Build the ready-to-copy /cron add command for a schedule picked via inline keyboard. */
-function buildAddHint(schedule: CronSchedule): string {
-  let schedPart = "";
-  if (schedule.type === "interval") {
-    const mins = schedule.intervalMinutes ?? 60;
-    schedPart = mins >= 60 && mins % 60 === 0 ? `every ${mins / 60}h` : `every ${mins}m`;
-  } else if (schedule.type === "daily") {
-    const hh = String(schedule.hour ?? 9).padStart(2, "0");
-    const mm = String(schedule.minute ?? 0).padStart(2, "0");
-    schedPart = `daily ${hh}:${mm}`;
-  } else if (schedule.type === "once") {
-    const hh = String(schedule.hour ?? 9).padStart(2, "0");
-    const mm = String(schedule.minute ?? 0).padStart(2, "0");
-    schedPart = `once ${hh}:${mm}`;
-  } else if (schedule.type === "weekly") {
-    const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const days = (schedule.days ?? [1]).map(d => dayNames[d]).join(",");
-    const hh = String(schedule.hour ?? 9).padStart(2, "0");
-    const mm = String(schedule.minute ?? 0).padStart(2, "0");
-    schedPart = `weekly ${days} ${hh}:${mm}`;
-  }
-
-  return `<b>Schedule:</b>  ${escapeHtml(formatSchedule(schedule))}\n\n` +
-    `Now send this command with your title and prompt:\n` +
-    `<code>/cron add ${schedPart} Title: What you want the AI to do</code>\n\n` +
-    `<b>Example:</b>\n` +
-    `<code>/cron add ${schedPart} Git summary: Summarize recent git commits</code>`;
-}
 
 // --- Registration ---
 
@@ -325,14 +353,14 @@ export function registerCronCommands(bot: Bot): void {
     await ctx.answerCallbackQuery();
   });
 
-  // Step 3: Interval selected → show /cron add command
+  // Step 3: Interval selected → collect title and prompt
   bot.callbackQuery(/^cron_int:(\d+)$/, async (ctx) => {
     const mins = parseInt(ctx.match[1]);
     const schedule: CronSchedule = { type: "interval", intervalMinutes: mins };
-    clearFlow(ctx.chat!.id);
 
-    await safeEdit(ctx, `<b>New Cron Job</b>\n\n${buildAddHint(schedule)}`);
+    await safeEdit(ctx, `<b>New Cron Job</b>\n\nInterval: every ${mins >= 60 && mins % 60 === 0 ? `${mins / 60}h` : `${mins}m`}`);
     await ctx.answerCallbackQuery();
+    await startTextCollection(ctx, schedule);
   });
 
   // Step 4: Hour selected — pick minute
@@ -376,13 +404,15 @@ export function registerCronCommands(bot: Bot): void {
       return;
     }
 
-    // Daily/Once → show /cron add command
+    // Daily/Once → collect title and prompt
     const schedType = flow.type === "once" ? "once" as const : "daily" as const;
     const schedule: CronSchedule = { type: schedType, hour: flow.hour, minute };
-    clearFlow(ctx.chat!.id);
+    const hh = String(flow.hour ?? 0).padStart(2, "0");
+    const mm = String(minute).padStart(2, "0");
 
-    await safeEdit(ctx, `<b>New Cron Job</b>\n\n${buildAddHint(schedule)}`);
+    await safeEdit(ctx, `<b>New Cron Job</b>\n\n${schedType === "once" ? "Once" : "Daily"} at ${hh}:${mm}`);
     await ctx.answerCallbackQuery();
+    await startTextCollection(ctx, schedule);
   });
 
   // Day toggling
@@ -429,10 +459,10 @@ export function registerCronCommands(bot: Bot): void {
       minute: flow.minute,
       days: flow.days,
     };
-    clearFlow(ctx.chat!.id);
 
-    await safeEdit(ctx, `<b>New Cron Job</b>\n\n${buildAddHint(schedule)}`);
+    await safeEdit(ctx, `<b>New Cron Job</b>\n\n${escapeHtml(formatSchedule(schedule))}`);
     await ctx.answerCallbackQuery();
+    await startTextCollection(ctx, schedule);
   });
 
   // --- Action callbacks ---

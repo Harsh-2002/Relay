@@ -62,8 +62,21 @@ export async function withPromptQueue<T>(fn: () => Promise<T>): Promise<T> {
 
 export async function getOrCreateSession(): Promise<string> {
   if (activeSessionId) {
-    sessionLogger.info({ sessionId: activeSessionId }, "Using existing session");
-    return activeSessionId;
+    // Verify the session still exists in OpenCode (may be stale after server restart)
+    try {
+      const provider = getProvider();
+      const session = await provider.getSession(activeSessionId);
+      if (session) {
+        sessionLogger.info({ sessionId: activeSessionId }, "Using existing session");
+        return activeSessionId;
+      }
+      sessionLogger.info({ sessionId: activeSessionId }, "Session stale — no longer exists in OpenCode");
+    } catch (err: any) {
+      sessionLogger.info({ sessionId: activeSessionId, err: err?.message }, "Session validation failed");
+    }
+    // Session is stale — clear and create a new one
+    activeSessionId = null;
+    persist();
   }
 
   // If another call is already creating a session, wait for it

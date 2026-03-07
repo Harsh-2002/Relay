@@ -16,6 +16,21 @@ function getBotToken(): string {
   return getConfig().botToken;
 }
 
+/**
+ * Extract text/caption reply context from the reply target (synchronous, no transcription).
+ * Returns a prefix string like `[Replying to: "..."]\\n\\n` or empty string.
+ */
+function getTextReplyContext(ctx: any): string {
+  const reply = ctx.message?.reply_to_message;
+  if (!reply) return "";
+  const replyText = reply.text || reply.caption;
+  if (!replyText) return "";
+  const maxQuoteLen = 2000;
+  const quote = replyText.length > maxQuoteLen
+    ? replyText.slice(0, maxQuoteLen) + "..." : replyText;
+  return `[Replying to: "${quote}"]\n\n`;
+}
+
 export function registerMediaHandlers(bot: Bot): void {
   bot.on("message:document", async (ctx) => {
     try {
@@ -44,7 +59,8 @@ export function registerMediaHandlers(bot: Bot): void {
       // Fire-and-forget so /abort can be processed while streaming
       withPromptQueue(async () => {
         try {
-          const caption = ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`;
+          const replyPrefix = getTextReplyContext(ctx);
+          const caption = replyPrefix + (ctx.message.caption ?? `I've shared a file: ${fileName}. Please review it.`);
 
           const isTextFile = isTextMime(doc.mime_type) || isTextExtension(fileName);
           let promptText: string;
@@ -176,7 +192,8 @@ export function registerMediaHandlers(bot: Bot): void {
             return;
           }
 
-          const caption = ctx.message.caption ?? "I've shared a photo. Please review it.";
+          const replyPrefix = getTextReplyContext(ctx);
+          const caption = replyPrefix + (ctx.message.caption ?? "I've shared a photo. Please review it.");
 
           const base64 = buffer.toString("base64");
           const dataUrl = `data:image/jpeg;base64,${base64}`;
@@ -251,7 +268,8 @@ export function registerMediaHandlers(bot: Bot): void {
         const model = getSelectedModel();
         const agent = getSelectedAgent();
         const system = getSystemPrompt();
-        const promptParts = [{ type: "text" as const, text: result.text }];
+        const replyPrefix = getTextReplyContext(ctx);
+        const promptParts = [{ type: "text" as const, text: replyPrefix + result.text }];
 
         await streamPromptWithRetry({ ctx, sessionId, parts: promptParts, model, system, agent });
       } finally {
@@ -290,6 +308,8 @@ export function registerMediaHandlers(bot: Bot): void {
           "Audio received"
         );
 
+        const replyPrefix = getTextReplyContext(ctx);
+
         if (sttAvailable) {
           const buffer = await downloadTelegramFileBuffer(getBotToken(), file.file_path);
           const duration = ctx.message.audio.duration;
@@ -303,7 +323,7 @@ export function registerMediaHandlers(bot: Bot): void {
 
             await streamPromptWithRetry({
               ctx, sessionId,
-              parts: [{ type: "text", text: result.text }],
+              parts: [{ type: "text", text: replyPrefix + result.text }],
               model, system, agent,
             });
             return;
@@ -319,7 +339,7 @@ export function registerMediaHandlers(bot: Bot): void {
         const agent = getSelectedAgent();
         const system = getSystemPrompt();
 
-        const promptText = `${caption}\n\n(Audio file: ${fileName})`;
+        const promptText = `${replyPrefix}${caption}\n\n(Audio file: ${fileName})`;
         await streamPromptWithRetry({
           ctx,
           sessionId,

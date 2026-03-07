@@ -1,9 +1,129 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import { InputFile } from "grammy";
 import { getProvider } from "../providers/index.js";
 import { chunkMessage } from "../utils/chunker.js";
 import { formatCatchError } from "../utils/errors.js";
 import { escapeHtml } from "../utils/html.js";
+import { promptForInput } from "../utils/input.js";
+
+async function executeRead(filePath: string, ctx: Context): Promise<void> {
+  try {
+    await ctx.replyWithChatAction("typing");
+    const provider = getProvider();
+    const content = await provider.readFile(filePath);
+
+    if (content === null) {
+      await ctx.reply("Could not read this file.", { parse_mode: "HTML" });
+      return;
+    }
+
+    const header = `<b>${escapeHtml(filePath)}</b>\n\n`;
+
+    if (content.length > 15000) {
+      const buffer = Buffer.from(content, "utf-8");
+      const fileName = filePath.split("/").pop() ?? "file.txt";
+      await ctx.replyWithDocument(new InputFile(buffer, fileName));
+      return;
+    }
+
+    const formatted = header + "<pre>" + escapeHtml(content) + "</pre>";
+    const chunks = chunkMessage(formatted);
+    for (const chunk of chunks) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "reading file"), { parse_mode: "HTML" });
+  }
+}
+
+async function executeSearch(pattern: string, ctx: Context): Promise<void> {
+  try {
+    await ctx.replyWithChatAction("typing");
+    const provider = getProvider();
+    const matches = await provider.searchText(pattern);
+
+    if (matches === null) {
+      await ctx.reply("Search returned no results.", { parse_mode: "HTML" });
+      return;
+    }
+
+    if (matches.length === 0) {
+      await ctx.reply(`No matches found for: <code>${escapeHtml(pattern)}</code>`, { parse_mode: "HTML" });
+      return;
+    }
+
+    const shown = matches.slice(0, 20);
+    const text = shown
+      .map((m) => `<b>${escapeHtml(m.file)}${m.line ? `:${m.line}` : ""}</b>\n<code>${escapeHtml(m.text ?? "")}</code>`)
+      .join("\n\n");
+
+    const header = `Found ${matches.length} match(es) for <code>${escapeHtml(pattern)}</code>:\n\n`;
+    const footer = matches.length > 20 ? `\n\n<i>...and ${matches.length - 20} more</i>` : "";
+    const chunks = chunkMessage(header + text + footer);
+    for (const chunk of chunks) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "searching files"), { parse_mode: "HTML" });
+  }
+}
+
+async function executeFind(query: string, ctx: Context): Promise<void> {
+  try {
+    await ctx.replyWithChatAction("typing");
+    const provider = getProvider();
+    const files = await provider.findFiles(query);
+
+    if (files === null) {
+      await ctx.reply("File search returned no results.", { parse_mode: "HTML" });
+      return;
+    }
+
+    if (files.length === 0) {
+      await ctx.reply(`No files found matching: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
+      return;
+    }
+
+    const shown = files.slice(0, 50);
+    const text = shown.map((f) => `<code>${escapeHtml(f)}</code>`).join("\n");
+    const header = `Found ${files.length} file(s) matching <code>${escapeHtml(query)}</code>:\n\n`;
+    const footer = files.length > 50 ? `\n\n<i>...and ${files.length - 50} more</i>` : "";
+    const chunks = chunkMessage(header + text + footer);
+    for (const chunk of chunks) {
+      await ctx.reply(chunk, { parse_mode: "HTML" });
+    }
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "finding files"), { parse_mode: "HTML" });
+  }
+}
+
+async function executeSymbols(query: string, ctx: Context): Promise<void> {
+  try {
+    await ctx.replyWithChatAction("typing");
+    const provider = getProvider();
+    const symbols = await provider.findSymbols(query);
+
+    if (symbols === null) {
+      await ctx.reply("Symbol search returned no results.", { parse_mode: "HTML" });
+      return;
+    }
+
+    if (symbols.length === 0) {
+      await ctx.reply(`No symbols found for: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
+      return;
+    }
+
+    const shown = symbols.slice(0, 30);
+    const text = shown
+      .map((s: any) => `<code>${escapeHtml(s.name)}</code> in <code>${escapeHtml(s.location?.path ?? "unknown")}</code>`)
+      .join("\n");
+
+    const footer = symbols.length > 30 ? `\n\n<i>...and ${symbols.length - 30} more</i>` : "";
+    await ctx.reply(`Found ${symbols.length} symbol(s):\n\n${text}${footer}`, { parse_mode: "HTML" });
+  } catch (err: any) {
+    await ctx.reply(formatCatchError(err, "searching symbols"), { parse_mode: "HTML" });
+  }
+}
 
 export function registerFileCommands(bot: Bot): void {
   bot.command("ls", async (ctx) => {
@@ -33,10 +153,10 @@ export function registerFileCommands(bot: Bot): void {
 
       let text = `<b>${escapeHtml(dirPath)}</b>  (${visible.length})\n\n`;
       for (const d of dirs) {
-        text += `\ud83d\udcc1 ${escapeHtml(d.name)}/\n`;
+        text += `${escapeHtml(d.name)}/\n`;
       }
       for (const f of files) {
-        text += `\ud83d\udcc4 ${escapeHtml(f.name)}\n`;
+        text += `${escapeHtml(f.name)}\n`;
       }
 
       const chunks = chunkMessage(text);
@@ -51,147 +171,50 @@ export function registerFileCommands(bot: Bot): void {
   bot.command("read", async (ctx) => {
     const filePath = ctx.match?.trim();
     if (!filePath) {
-      await ctx.reply("Usage: <code>/read &lt;file-path&gt;</code>", { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the file path:", async (text, replyCtx) => {
+        await executeRead(text.trim(), replyCtx);
+      });
       return;
     }
-
-    try {
-      await ctx.replyWithChatAction("typing");
-      const provider = getProvider();
-      const content = await provider.readFile(filePath);
-
-      if (content === null) {
-        await ctx.reply("Could not read this file.", { parse_mode: "HTML" });
-        return;
-      }
-
-      const header = `<b>${escapeHtml(filePath)}</b>\n\n`;
-
-      if (content.length > 15000) {
-        const buffer = Buffer.from(content, "utf-8");
-        const fileName = filePath.split("/").pop() ?? "file.txt";
-        await ctx.replyWithDocument(new InputFile(buffer, fileName));
-        return;
-      }
-
-      const formatted = header + "<pre>" + escapeHtml(content) + "</pre>";
-      const chunks = chunkMessage(formatted);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "reading file"), { parse_mode: "HTML" });
-    }
+    await executeRead(filePath, ctx);
   });
 
   bot.command("search", async (ctx) => {
     const pattern = ctx.match?.trim();
     if (!pattern) {
-      await ctx.reply("Usage: <code>/search &lt;pattern&gt;</code>", { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the search pattern:", async (text, replyCtx) => {
+        await executeSearch(text.trim(), replyCtx);
+      });
       return;
     }
-
-    try {
-      await ctx.replyWithChatAction("typing");
-      const provider = getProvider();
-      const matches = await provider.searchText(pattern);
-
-      if (matches === null) {
-        await ctx.reply("Search returned no results.", { parse_mode: "HTML" });
-        return;
-      }
-
-      if (matches.length === 0) {
-        await ctx.reply(`No matches found for: <code>${escapeHtml(pattern)}</code>`, { parse_mode: "HTML" });
-        return;
-      }
-
-      const shown = matches.slice(0, 20);
-      const text = shown
-        .map((m) => `<b>${escapeHtml(m.file)}${m.line ? `:${m.line}` : ""}</b>\n<code>${escapeHtml(m.text ?? "")}</code>`)
-        .join("\n\n");
-
-      const header = `Found ${matches.length} match(es) for <code>${escapeHtml(pattern)}</code>:\n\n`;
-      const footer = matches.length > 20 ? `\n\n<i>...and ${matches.length - 20} more</i>` : "";
-      const chunks = chunkMessage(header + text + footer);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "searching files"), { parse_mode: "HTML" });
-    }
+    await executeSearch(pattern, ctx);
   });
 
   bot.command("find", async (ctx) => {
     const query = ctx.match?.trim();
     if (!query) {
-      await ctx.reply("Usage: <code>/find &lt;filename-pattern&gt;</code>", { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the filename pattern:", async (text, replyCtx) => {
+        await executeFind(text.trim(), replyCtx);
+      });
       return;
     }
-
-    try {
-      await ctx.replyWithChatAction("typing");
-      const provider = getProvider();
-      const files = await provider.findFiles(query);
-
-      if (files === null) {
-        await ctx.reply("File search returned no results.", { parse_mode: "HTML" });
-        return;
-      }
-
-      if (files.length === 0) {
-        await ctx.reply(`No files found matching: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
-        return;
-      }
-
-      const shown = files.slice(0, 50);
-      const text = shown.map((f) => `<code>${escapeHtml(f)}</code>`).join("\n");
-      const header = `Found ${files.length} file(s) matching <code>${escapeHtml(query)}</code>:\n\n`;
-      const footer = files.length > 50 ? `\n\n<i>...and ${files.length - 50} more</i>` : "";
-      const chunks = chunkMessage(header + text + footer);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: "HTML" });
-      }
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "finding files"), { parse_mode: "HTML" });
-    }
+    await executeFind(query, ctx);
   });
 
   bot.command("symbols", async (ctx) => {
     const query = ctx.match?.trim();
     if (!query) {
-      await ctx.reply("Usage: <code>/symbols &lt;query&gt;</code>", { parse_mode: "HTML" });
+      await promptForInput(ctx, "Type the symbol query:", async (text, replyCtx) => {
+        await executeSymbols(text.trim(), replyCtx);
+      });
       return;
     }
-
-    try {
-      const provider = getProvider();
-      const symbols = await provider.findSymbols(query);
-
-      if (symbols === null) {
-        await ctx.reply("Symbol search returned no results.", { parse_mode: "HTML" });
-        return;
-      }
-
-      if (symbols.length === 0) {
-        await ctx.reply(`No symbols found for: <code>${escapeHtml(query)}</code>`, { parse_mode: "HTML" });
-        return;
-      }
-
-      const shown = symbols.slice(0, 30);
-      const text = shown
-        .map((s: any) => `<code>${escapeHtml(s.name)}</code> in <code>${escapeHtml(s.location?.path ?? "unknown")}</code>`)
-        .join("\n");
-
-      const footer = symbols.length > 30 ? `\n\n<i>...and ${symbols.length - 30} more</i>` : "";
-      await ctx.reply(`Found ${symbols.length} symbol(s):\n\n${text}${footer}`, { parse_mode: "HTML" });
-    } catch (err: any) {
-      await ctx.reply(formatCatchError(err, "searching symbols"), { parse_mode: "HTML" });
-    }
+    await executeSymbols(query, ctx);
   });
 
   bot.command("status", async (ctx) => {
     try {
+      await ctx.replyWithChatAction("typing");
       const provider = getProvider();
       const files = await provider.getFileStatus();
 

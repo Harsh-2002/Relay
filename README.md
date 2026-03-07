@@ -12,14 +12,14 @@ Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](ht
 - **Interactive setup** -- `relay onboard` wizard for first-time configuration
 - **Structured logging** -- pino-based JSON logging with full visibility
 - **Text, voice, photo, and file input** -- send messages in any format
-- **Reply context** -- reply to any bot message to reference it in your next prompt
+- **Reply context** -- reply to any bot message (text, voice, or audio) to reference it in your next prompt
 - **Edited messages** -- edit a sent message to re-prompt the AI with the correction
 - **Reasoning display** -- AI thinking is shown in collapsible blockquotes, separate from the answer
 - **File output** -- receive screenshots, generated files, and artifacts as Telegram attachments
 - **Streaming responses** -- live-streamed via `editMessageText` with smooth animation
 - **Session management** -- create, switch, fork, delete, rename, and list sessions
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
-- **MCP tools** -- Browser, Fetch, Memory, and Filesystem via MCP; add custom servers at runtime
+- **MCP tools** -- Browser, Fetch, Memory, Filesystem, GitHub, and Context7 via MCP; add custom servers at runtime
 - **Scheduled tasks** -- cron jobs that run AI prompts on a schedule (interval, daily, weekly)
 - **Shell access** -- run commands on the coding agent's machine
 - **Voice transcription** -- Groq, Sarvam, OpenAI, or AssemblyAI speech-to-text
@@ -121,7 +121,7 @@ Re-running `relay onboard` on an existing config enters update mode — shows cu
 
 Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed. Install OpenCode with `npm i -g opencode-ai@latest`.
 
-Supports both `start` mode (spawns local server) and `connect` mode (remote URL). See [Providers](docs/providers.md) for detailed setup.
+See [Providers](docs/providers.md) for detailed setup.
 
 ## Commands
 
@@ -129,7 +129,7 @@ Supports both `start` mode (spawns local server) and `connect` mode (remote URL)
 
 Send any text message, voice note, photo, or file to chat with the AI. File attachments from the AI (screenshots, generated files) are automatically sent back as Telegram documents or photos.
 
-- **Reply context** -- reply to any bot message to include it as context in your prompt
+- **Reply context** -- reply to any bot message (including voice/audio) to include it as context
 - **Edit to re-prompt** -- edit a sent message to re-prompt with the corrected text
 - **Voice notes** -- automatically transcribed to text using the configured STT provider
 - **Photos** -- sent as image attachments to the AI (supports vision-capable models)
@@ -141,10 +141,10 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 |---------|-------------|---------|
 | `/new [title]` | Create a new session | `/new Bug fix session` |
 | `/sessions` | List all sessions (interactive picker) | `/sessions` |
-| `/switch <id>` | Switch to a session by ID | `/switch abc123` |
-| `/delete <id>` | Delete a session by ID | `/delete abc123` |
+| `/switch [id]` | Switch to a session (picker if no ID) | `/switch abc123` |
+| `/delete [id]` | Delete a session (picker + confirmation) | `/delete abc123` |
 | `/current` | Show active session info | `/current` |
-| `/rename <title>` | Rename active session | `/rename API refactor` |
+| `/rename [title]` | Rename active session (prompts if no title) | `/rename API refactor` |
 | `/fork [messageId]` | Fork session (optionally from a message) | `/fork` |
 
 ### Monitor
@@ -160,10 +160,10 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 | Command | Description | Example |
 |---------|-------------|---------|
 | `/ls [path]` | List directory contents | `/ls src/utils` |
-| `/read <path>` | Read a file (code block or document) | `/read src/index.ts` |
-| `/find <pattern>` | Find files by name | `/find *.ts` |
-| `/search <pattern>` | Search file contents | `/search TODO` |
-| `/symbols <query>` | Find code symbols | `/symbols handleMessage` |
+| `/read [path]` | Read a file (prompts if no path) | `/read src/index.ts` |
+| `/find [pattern]` | Find files by name (prompts if no pattern) | `/find *.ts` |
+| `/search [pattern]` | Search file contents (prompts if no pattern) | `/search TODO` |
+| `/symbols [query]` | Find code symbols (prompts if no query) | `/symbols handleMessage` |
 | `/status` | Git file status | `/status` |
 
 ### History
@@ -182,7 +182,7 @@ Send any text message, voice note, photo, or file to chat with the AI. File atta
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/shell <command>` | Run a shell command on the server | `/shell git log --oneline -5` |
+| `/shell [command]` | Run a shell command (prompts if no command) | `/shell git log --oneline -5` |
 | `/cmd [command]` | Run OpenCode command (picker if no args) | `/cmd stats` |
 | `/commands` | List available OpenCode commands | `/commands` |
 
@@ -207,10 +207,10 @@ Models show capability badges: `[reasoning]` for thinking support, `[vision]` fo
 | `/mcp` | Show MCP server status with action buttons | `/mcp` |
 | `/mcp add <name> local <cmd>` | Add a local MCP server | `/mcp add myserver local npx my-mcp` |
 | `/mcp add <name> remote <url>` | Add a remote MCP server | `/mcp add api remote https://mcp.example.com` |
-| `/mcp remove <name>` | Remove an MCP server | `/mcp remove myserver` |
-| `/mcp connect <name>` | Reconnect an MCP server | `/mcp connect myserver` |
+| `/mcp remove [name]` | Remove an MCP server (confirmation) | `/mcp remove myserver` |
+| `/mcp connect [name]` | Reconnect an MCP server | `/mcp connect myserver` |
 
-Four built-in MCP tools are available via `relay onboard`:
+Seven built-in MCP tools are available via `relay onboard`:
 
 | Tool | Description |
 |------|-------------|
@@ -218,6 +218,9 @@ Four built-in MCP tools are available via `relay onboard`:
 | **Fetch** | Fetch web pages as markdown |
 | **Memory** | Persistent knowledge graph (`memory.jsonl`) |
 | **Filesystem** | Read/write access to specified directories |
+| **GitHub** | GitHub API access (issues, PRs, commits) |
+| **Context7** | Library documentation lookup |
+| **Relay** | Internal bot management (cron, notifications, health) |
 
 Additional servers can be added at runtime. All MCP configs persist in OpenCode's configuration.
 
@@ -231,7 +234,7 @@ Additional servers can be added at runtime. All MCP configs persist in OpenCode'
 | `/cron add every Nh Title: prompt` | Schedule hourly recurring job | `/cron add every 2h Status: Report system status` |
 | `/cron add weekly days HH:MM Title: prompt` | Schedule a weekly job | `/cron add weekly mon,wed,fri 14:30 Review: Summarize open PRs` |
 
-The interactive picker (`/cron` → Add Job) walks through schedule type, time, and days, then shows a ready-to-copy `/cron add` command.
+The interactive picker (`/cron` → Add Job) walks through schedule type, time, and days, then prompts for title and prompt text and creates the job automatically.
 
 Each job in the list shows:
 - Enable/disable toggle
@@ -298,6 +301,7 @@ src/
     markdown.ts    -- Markdown to Telegram HTML conversion
     errors.ts      -- Error formatting
     html.ts        -- HTML escaping for Telegram
+    input.ts       -- Interactive command input utility
     media.ts       -- File upload/download
     stt.ts         -- Speech-to-text with provider fallback
     system-prompt.ts -- System prompt loading with MCP tool instructions

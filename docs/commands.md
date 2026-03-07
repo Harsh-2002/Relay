@@ -11,7 +11,7 @@ No command needed -- just send a message.
 - Voice notes (requires STT configuration)
 - Photos (sent to vision-capable models)
 - File attachments (text files are embedded, binary files referenced)
-- **Reply to a message** to include it as context in your prompt
+- **Reply to a message** (text, voice, or audio) to include it as context in your prompt
 - **Edit a sent message** to re-prompt with the corrected text
 
 **Input limit:** 32,000 characters for text messages. Send longer content as a file.
@@ -37,32 +37,35 @@ The new session becomes the active session. All subsequent messages go to this s
 
 List all sessions, sorted by last modified date. Shows the session ID, title, and a marker for the active session. Includes inline buttons to switch or delete each session.
 
-### `/switch <id>`
+### `/switch [id]`
 
-Switch to an existing session by its ID.
-
-```
-/switch abc123
-```
-
-### `/delete <id>`
-
-Delete a session. If you delete the active session, it is cleared.
+Switch to an existing session. Without an ID, shows an interactive session picker keyboard.
 
 ```
-/delete abc123
+/switch              # Shows session picker
+/switch abc123       # Switch directly by ID
+```
+
+### `/delete [id]`
+
+Delete a session. Without an ID, shows a session picker. With an ID, shows a confirmation keyboard (Yes/No). If you delete the active session, it is cleared.
+
+```
+/delete              # Shows session picker
+/delete abc123       # Shows confirmation for abc123
 ```
 
 ### `/current`
 
 Show the currently active session's ID and title.
 
-### `/rename <title>`
+### `/rename [title]`
 
-Rename the current session.
+Rename the current session. Without a title, prompts for input interactively.
 
 ```
-/rename Auth refactoring
+/rename                    # Prompts for new title
+/rename Auth refactoring   # Rename directly
 ```
 
 ### `/fork [messageId]`
@@ -82,12 +85,12 @@ The forked session becomes the active session.
 
 ### `/todo`
 
-View the AI's task checklist. Shows each task with a status icon:
+View the AI's task checklist. Shows each task with a status tag:
 
-- Completed
-- In progress
-- Pending
-- Cancelled
+- `[done]` — Completed
+- `[wip]` — In progress
+- `[pending]` — Pending
+- `[cancelled]` — Cancelled
 
 ### `/diff`
 
@@ -110,44 +113,48 @@ List files and directories. Defaults to the project root.
 /ls src/utils
 ```
 
-### `/read <path>`
+### `/read [path]`
 
-Read a file and display its contents.
+Read a file and display its contents. Without a path, prompts for input interactively.
 
 ```
+/read                  # Prompts for file path
 /read src/index.ts
 /read package.json
 ```
 
 Files larger than 15KB are sent as a downloadable attachment.
 
-### `/find <query>`
+### `/find [query]`
 
-Find files by name pattern.
+Find files by name pattern. Without a query, prompts for input interactively.
 
 ```
+/find                  # Prompts for search query
 /find index.ts
 /find *.json
 ```
 
 Shows up to 50 matching files.
 
-### `/search <pattern>`
+### `/search [pattern]`
 
-Search file contents with a text pattern (regex supported).
+Search file contents with a text pattern (regex supported). Without a pattern, prompts for input interactively.
 
 ```
+/search                # Prompts for search pattern
 /search TODO
 /search function.*auth
 ```
 
 Shows up to 20 matching lines with file paths and line numbers.
 
-### `/symbols <query>`
+### `/symbols [query]`
 
-Find code symbols (functions, classes, variables) by name.
+Find code symbols (functions, classes, variables) by name. Without a query, prompts for input interactively.
 
 ```
+/symbols               # Prompts for symbol name
 /symbols authenticate
 /symbols UserService
 ```
@@ -194,11 +201,12 @@ Revoke the shared URL for the current session.
 
 ## Shell
 
-### `/shell <command>`
+### `/shell [command]`
 
-Run a shell command on the coding agent's machine.
+Run a shell command on the coding agent's machine. Without a command, prompts for input interactively.
 
 ```
+/shell                 # Prompts for command
 /shell ls -la
 /shell git log --oneline -5
 /shell npm test
@@ -307,12 +315,10 @@ Example output:
 ```
 MCP Servers (2)
 
-🟢 1. memory
-    connected
+1. memory  [ON]
 
-🔴 2. browser
-    disconnected
-    Connection refused
+2. browser  [OFF]
+   Connection refused
 ```
 
 ### `/mcp add <name> local <command...>`
@@ -333,20 +339,22 @@ Add a remote MCP server by URL.
 /mcp add api remote https://mcp.example.com/sse
 ```
 
-### `/mcp connect <name>`
+### `/mcp connect [name]`
 
-Reconnect a disconnected MCP server.
+Reconnect a disconnected MCP server. Without a name, prompts for input interactively.
 
 ```
+/mcp connect           # Prompts for server name
 /mcp connect browser
 ```
 
-### `/mcp remove <name>`
+### `/mcp remove [name]`
 
-Remove and disconnect an MCP server.
+Remove and disconnect an MCP server. Without a name, prompts for input interactively. Shows a confirmation keyboard before removing.
 
 ```
-/mcp remove browser
+/mcp remove            # Prompts for server name
+/mcp remove browser    # Shows confirmation
 ```
 
 Servers persist in the OpenCode configuration across restarts.
@@ -407,19 +415,23 @@ Schedule a one-time job. It fires once at the specified time, then auto-disables
 
 ### Interactive picker
 
-The `/cron` command also includes an **Add Job** button that walks you through schedule selection step by step:
+The `/cron` command also includes an **Add Job** button that walks you through creating a job step by step:
 
 1. Pick schedule type (interval, daily, weekly, once)
 2. Pick interval duration or hour
 3. Pick minute
 4. Pick days (for weekly)
-5. Shows a ready-to-copy `/cron add` command
+5. Prompts for a job title
+6. Prompts for the job prompt text
+7. Creates the job automatically
 
 ### How it works
 
 - Jobs are persisted to `cron.json` in the data directory and survive restarts
 - The scheduler checks for due jobs every 30 seconds
-- Job execution uses the same prompt pipeline as regular messages (queued, streamed)
+- Each job runs in an **isolated session** (created fresh per run, deleted after) so cron output doesn't pollute your conversation
+- An animated dots indicator ("Running.", "Running..", "Running...") cycles in the header during execution
+- A pre-flight health check verifies the AI server is alive before executing
 - Results are sent to your chat with a header showing the job name
 - File attachments from job execution (screenshots, etc.) are sent automatically
 - If the bot restarts, missed jobs are skipped (no avalanche of past runs)
@@ -456,14 +468,13 @@ Show project information: ID, worktree, VCS type, branch, and directory.
 
 Show git branch and changed files status. Shows up to 30 changed files with their status codes.
 
-### `/timezone [timezone]`
+### `/timezone [tz]`
 
-View or set the timezone used for cron scheduling and timestamps.
+View the current timezone or set a new one. Without an argument, shows the current timezone and prompts for a new IANA timezone interactively.
 
 ```
-/timezone                    # Show current timezone
-/timezone Asia/Kolkata       # Set timezone
-/timezone America/New_York   # Any IANA timezone
+/timezone                    # Shows current, prompts for new
+/timezone America/New_York   # Set directly
 ```
 
 The timezone affects cron job scheduling, next run times, and the timestamp in the system prompt.

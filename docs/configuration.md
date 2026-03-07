@@ -103,11 +103,19 @@ Built-in MCP tools are configured during `relay onboard` (Step 5). Each runs as 
 | `memoryEnabled` | -- | `false` | Persistent knowledge graph across sessions |
 | `filesystemEnabled` | -- | `false` | Read/write files outside the project directory |
 | `filesystemPaths` | -- | `[]` | Allowed directories for Filesystem MCP (comma-separated in wizard) |
+| `githubEnabled` | -- | `false` | GitHub API access via MCP (requires PAT) |
+| `githubPat` | -- | -- | GitHub Personal Access Token |
+| `context7Enabled` | -- | `false` | Context7 library documentation MCP |
+| `context7ApiKey` | -- | -- | Context7 API key (optional) |
+| `relayMcpPort` | -- | `39149` | Port for Relay's internal MCP API (localhost-only) |
 
 - **Browser** -- navigate URLs, take screenshots, fill forms. See [Features](features.md#headless-browser-playwright-mcp).
 - **Fetch** -- read web pages as clean markdown. Requires `uvx` (Python package runner); the wizard offers to install it.
 - **Memory** -- persistent knowledge graph stored in `~/.relay/memory.jsonl`. The AI stores user preferences, project facts, and decisions across sessions.
 - **Filesystem** -- read/write files outside the project. Restricted to paths listed in `filesystemPaths`.
+- **GitHub** -- GitHub API access for issues, PRs, commits, and more. Requires a Personal Access Token.
+- **Context7** -- library documentation lookup for up-to-date API reference. Optional API key for higher rate limits.
+- **Relay** -- internal MCP for AI-driven bot management (cron scheduling, notifications, health checks). Always enabled when Relay is running.
 
 ## Streaming
 

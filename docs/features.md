@@ -18,7 +18,7 @@ Relay live-streams AI responses in real time. You see the text appear as the AI 
 ### Streaming behavior
 
 - Very long responses are split into multiple messages automatically
-- Tool use indicators (e.g., "Reading file...", "Running command...") appear during processing
+- Tool use indicators appear with emoji status (e.g., "🔧 Read File...", "✅ Read File") during processing. Tool names are auto-formatted: MCP server prefixes are stripped and names are title-cased (e.g., `relay_cron_list` → "Cron List")
 - For long responses, the most recent content is shown during streaming
 
 ### Configuration
@@ -266,7 +266,7 @@ Text messages have a 32,000-character limit. For larger content, send it as a fi
 
 MCP (Model Context Protocol) servers extend the AI's capabilities with additional tools.
 
-Four built-in MCP tools are configurable during `relay onboard`: **Browser**, **Fetch**, **Memory**, and **Filesystem** (see sections above). You can also add custom MCP servers at runtime.
+Seven built-in MCP tools are configurable during `relay onboard`: **Browser**, **Fetch**, **Memory**, **Filesystem**, **GitHub**, **Context7**, and **Relay** (see sections above and [Configuration](configuration.md)). You can also add custom MCP servers at runtime.
 
 ### Adding a local MCP server
 
@@ -291,19 +291,19 @@ Use `/mcp` to see all configured servers and their connection status. Servers ar
 ```
 MCP Servers (2)
 
-🟢 1. memory
-    connected
+1. memory  [ON]
 
-🔴 2. browser
-    disconnected
-    Connection refused
+2. browser  [OFF]
+   Connection refused
 ```
 
 ### Removing a server
 
 ```
-/mcp remove browser
+/mcp remove browser    # Shows confirmation before removing
 ```
+
+Commands without arguments (`/mcp remove`, `/mcp connect`) prompt for the server name interactively.
 
 MCP servers are managed through the OpenCode API and persist across restarts.
 
@@ -417,7 +417,8 @@ Shows all sessions sorted by last modified date, with the active session marked.
 ### Switching sessions
 
 ```
-/switch abc123
+/switch              # Shows interactive session picker
+/switch abc123       # Switch directly by ID
 ```
 
 ### Forking sessions
@@ -434,7 +435,8 @@ The forked session becomes the active session.
 ### Deleting sessions
 
 ```
-/delete abc123
+/delete              # Shows session picker, then confirmation
+/delete abc123       # Shows confirmation for abc123
 ```
 
 ---
@@ -449,7 +451,7 @@ View the AI's task checklist:
 /todo
 ```
 
-Shows tasks with status icons for completed, in progress, pending, and cancelled items.
+Shows tasks with status tags: `[done]`, `[wip]`, `[pending]`, `[cancelled]`.
 
 ### Code diffs
 
@@ -486,6 +488,7 @@ Redo a reverted change:
 Run commands on the coding agent's machine:
 
 ```
+/shell                 # Prompts for command interactively
 /shell ls -la
 /shell git log --oneline -5
 /shell npm test
@@ -560,6 +563,15 @@ Reply to any bot message to reference it in your next prompt. The quoted message
 
 This is useful for asking follow-up questions about a specific part of a long conversation, or for saying "fix the code in this message" while pointing to a particular response.
 
+### Voice/audio replies
+
+You can also reply to voice notes and audio files. Relay transcribes the audio via STT and includes the transcription as context:
+
+- `[Replying to voice message: "..."]` for voice notes
+- `[Replying to audio: "..."]` for audio files
+
+Reply context also works when sending photos, documents, voice notes, and audio — the quoted text is prepended to the caption or transcription.
+
 ---
 
 ## Edited Messages
@@ -608,7 +620,7 @@ The format is always: `/cron add <schedule> Title: prompt`
 
 ### Interactive picker
 
-Use `/cron` and tap **Add Job** to build a schedule step by step through an inline keyboard. At the end, it shows a ready-to-copy `/cron add` command.
+Use `/cron` and tap **Add Job** to build a schedule step by step through an inline keyboard. After selecting the schedule, Relay prompts for the job title and prompt text, then creates the job automatically.
 
 ### Managing jobs
 

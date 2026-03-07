@@ -32,12 +32,13 @@ Run the interactive setup wizard:
 relay onboard
 ```
 
-The wizard walks through 5 steps:
-1. **OpenCode** -- detects installation, offers to install via npm, selects connection mode (start or connect)
+The wizard walks through 6 steps:
+1. **OpenCode** -- detects installation, offers to install via npm
 2. **Bot Token** -- Telegram bot token from @BotFather (validated on entry)
 3. **User ID** -- your Telegram user ID (validated on entry)
-4. **MCP Tools** -- enable Browser (Playwright), Fetch (web pages), Memory (knowledge graph), Filesystem (external file access)
-5. **Voice Transcription** -- optional STT provider (Groq, OpenAI, AssemblyAI, Sarvam)
+4. **Timezone** -- select your timezone from common options or type any IANA timezone
+5. **MCP Tools** -- enable Browser (Playwright), Fetch (web pages), Memory (knowledge graph), Filesystem (external file access), GitHub (requires PAT), Context7 (library docs)
+6. **Voice Transcription** -- optional STT provider (Groq, OpenAI, AssemblyAI, Sarvam)
 
 Re-run `relay onboard` anytime to update settings — existing values are shown and can be kept by pressing Enter.
 

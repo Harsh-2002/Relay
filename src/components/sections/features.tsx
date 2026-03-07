@@ -1,6 +1,8 @@
 import {
   Zap,
   Radio,
+  MessageSquareReply,
+  ImagePlus,
   Mic,
   GitBranch,
   FileSearch,
@@ -30,6 +32,22 @@ const features = [
       "Watch AI responses appear in real-time with progressive message editing.",
     accent: "text-accent",
     glow: "bg-accent/10 ring-accent/20",
+  },
+  {
+    icon: MessageSquareReply,
+    title: "Interactive Chat",
+    description:
+      "Reply to messages for context, edit to re-prompt, and see AI reasoning in collapsible blockquotes.",
+    accent: "text-blue-400",
+    glow: "bg-blue-400/10 ring-blue-400/20",
+  },
+  {
+    icon: ImagePlus,
+    title: "Photo & File Input",
+    description:
+      "Send photos for vision analysis and files as attachments. Text files up to 500KB embedded directly.",
+    accent: "text-orange-400",
+    glow: "bg-orange-400/10 ring-orange-400/20",
   },
   {
     icon: Mic,
@@ -65,9 +83,9 @@ const features = [
   },
   {
     icon: Puzzle,
-    title: "Built-in MCP Tools",
+    title: "7 Built-in MCP Tools",
     description:
-      "Browser, Fetch, Memory, and Filesystem tools built in. Add custom MCP servers too.",
+      "Browser, Fetch, Memory, Filesystem, GitHub, Context7, and Relay tools built in. Add custom servers too.",
     accent: "text-purple-400",
     glow: "bg-purple-400/10 ring-purple-400/20",
   },
@@ -75,7 +93,7 @@ const features = [
     icon: Clock,
     title: "Scheduled Tasks",
     description:
-      "Automate recurring AI prompts with cron jobs \u2014 run daily, hourly, or on specific days.",
+      "Cron jobs with isolated sessions \u2014 daily, hourly, weekly, or one-time. Each runs in a fresh context.",
     accent: "text-teal-400",
     glow: "bg-teal-400/10 ring-teal-400/20",
   },

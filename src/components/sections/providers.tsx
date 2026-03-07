@@ -6,19 +6,19 @@ import { Check } from "lucide-react";
 const capabilities = [
   "Streaming responses",
   "File output (screenshots, artifacts)",
-  "Browser automation (Playwright)",
-  "Web page fetching",
-  "Persistent memory",
-  "Filesystem access",
+  "7 built-in MCP tools",
+  "Voice transcription",
+  "Reply context (text, voice, audio)",
+  "Scheduled tasks (cron)",
   "Dynamic model listing",
-  "Todo tracking",
-  "Code diffs",
-  "Session forking",
-  "Revert changes",
+  "Session management",
+  "Code diffs & revert",
   "File operations",
   "Shell commands",
-  "Custom commands",
-  "Session sharing",
+  "GitHub integration",
+  "Timezone-aware scheduling",
+  "Interactive AI questions",
+  "Photo & file input",
   "State persistence",
 ];
 
@@ -37,7 +37,7 @@ export function Providers() {
       <SectionHeader
         overline="Providers"
         title="Powered by OpenCode"
-        subtitle="One interface, 75+ AI providers. OpenCode handles the backend so you get the full feature set with any model."
+        subtitle="One interface, 75+ AI providers. OpenCode handles the backend — every feature works with every model."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-16">

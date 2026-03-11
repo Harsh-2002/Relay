@@ -1,24 +1,22 @@
 import { Hero } from "@/components/sections/hero";
 import { Features } from "@/components/sections/features";
-import { UseCases } from "@/components/sections/use-cases";
 import { Providers } from "@/components/sections/providers";
 import { Voice } from "@/components/sections/voice";
-
-import { Architecture } from "@/components/sections/architecture";
 import { GettingStarted } from "@/components/sections/getting-started";
 import { getLatestVersion } from "@/lib/version";
+import { getGitHubStars } from "@/lib/github";
 
 export default async function Home() {
-  const version = await getLatestVersion();
+  const [version, stars] = await Promise.all([
+    getLatestVersion(),
+    getGitHubStars(),
+  ]);
 
   return (
     <>
-      <Hero version={version} />
+      <Hero version={version} stars={stars} />
       <Features />
-      <UseCases />
       <Providers />
-
-      <Architecture />
       <Voice />
       <GettingStarted />
     </>

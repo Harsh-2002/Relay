@@ -120,7 +120,7 @@ export function Features() {
     <Section id="features" background="secondary" gridOpacity={0.4}>
       <SectionHeader
         overline="Features"
-        title="Everything you need"
+        title="What Relay can do"
         subtitle="A complete AI assistant accessible from anywhere through Telegram"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

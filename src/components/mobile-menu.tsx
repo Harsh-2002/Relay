@@ -7,9 +7,9 @@ import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
-  { label: "Providers", href: "/#providers" },
-
+  { label: "Voice", href: "/#voice" },
   { label: "Docs", href: "/docs/getting-started" },
+  { label: "Get Started", href: "/docs/getting-started" },
 ];
 
 export function MobileMenu() {

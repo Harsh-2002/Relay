@@ -31,31 +31,16 @@ const terminalLines = [
   { type: "command" as const, text: "npm install -g @4via6/relay" },
   { type: "command" as const, text: "relay onboard" },
   { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 1/6 \u2014 OpenCode" },
   { type: "success" as const, text: "OpenCode detected" },
-  { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 2/6 \u2014 Telegram Bot" },
-  { type: "prompt" as const, text: "Bot token: 123456:ABC-DEF..." },
-  { type: "success" as const, text: "Bot token verified \u2014 @YourBot" },
-  { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 3/6 \u2014 User ID" },
-  { type: "prompt" as const, text: "Your Telegram user ID: 987654321" },
+  { type: "success" as const, text: "Bot token verified" },
   { type: "success" as const, text: "User ID saved" },
-  { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 4/6 \u2014 Timezone" },
-  { type: "prompt" as const, text: "Timezone: America/New_York" },
   { type: "success" as const, text: "Timezone saved" },
-  { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 5/6 \u2014 MCP Tools" },
-  { type: "prompt" as const, text: "Select tools: Browser, Fetch, Memory, GitHub, Context7" },
   { type: "success" as const, text: "MCP tools configured" },
-  { type: "blank" as const, text: "" },
-  { type: "info" as const, text: "Step 6/6 \u2014 Voice" },
-  { type: "prompt" as const, text: "Speech-to-text provider: Auto (recommended)" },
-  { type: "success" as const, text: "Configuration saved to ~/.relay/config.json" },
+  { type: "success" as const, text: "Voice configured" },
+  { type: "success" as const, text: "Config saved" },
   { type: "blank" as const, text: "" },
   { type: "command" as const, text: "relay start" },
-  { type: "success" as const, text: "Relay is running \u2014 send a message in Telegram!" },
+  { type: "success" as const, text: "Relay is running!" },
 ];
 
 export function GettingStarted() {
@@ -63,7 +48,7 @@ export function GettingStarted() {
     <Section id="getting-started" background="primary">
       <SectionHeader
         overline="Quick start"
-        title="Get started in 60 seconds"
+        title="Up and running in under 5 minutes"
         subtitle="Three steps to your personal AI agent on Telegram"
       />
 

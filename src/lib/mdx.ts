@@ -34,6 +34,15 @@ export function getAllDocs(): DocPage[] {
     .sort((a, b) => a.frontmatter.order - b.frontmatter.order);
 }
 
+export function getDocNavigation(slug: string): { prev: DocPage | null; next: DocPage | null } {
+  const docs = getAllDocs();
+  const index = docs.findIndex((d) => d.slug === slug);
+  return {
+    prev: index > 0 ? docs[index - 1] : null,
+    next: index < docs.length - 1 ? docs[index + 1] : null,
+  };
+}
+
 export function extractToc(content: string): TocEntry[] {
   const headingRegex = /^(#{2,3})\s+(.+)$/gm;
   const entries: TocEntry[] = [];

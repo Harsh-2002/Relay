@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { Logo } from "./logo";
 import { MobileMenu } from "./mobile-menu";
+import { Button } from "./ui/button";
 import { Github } from "lucide-react";
 import { siteConfig } from "@/lib/metadata";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
-  { label: "Providers", href: "/#providers" },
-
+  { label: "Voice", href: "/#voice" },
   { label: "Docs", href: "/docs/getting-started" },
 ];
 
@@ -43,6 +43,14 @@ export function Nav() {
           >
             <Github size={20} />
           </a>
+          <Button
+            href="/docs/getting-started"
+            variant="primary"
+            size="sm"
+            className="hidden lg:inline-flex"
+          >
+            Get Started
+          </Button>
           <MobileMenu />
         </div>
       </div>

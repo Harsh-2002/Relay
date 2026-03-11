@@ -7,7 +7,7 @@ import { AnimateIn } from "@/components/ui/animate-in";
 import { Terminal } from "@/components/ui/terminal";
 import { GridBackground } from "@/components/ui/grid-background";
 import { siteConfig } from "@/lib/metadata";
-import { ArrowRight, Star } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 
 const heroTerminalLines = [
   { type: "prompt" as const, text: "Schedule standup at 9am daily" },
@@ -25,10 +25,10 @@ const heroTerminalLines = [
 
 interface HeroProps {
   version: string;
-  stars: number | null;
+  downloads: number | null;
 }
 
-export function Hero({ version, stars }: HeroProps) {
+export function Hero({ version, downloads }: HeroProps) {
   return (
     <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 bg-bg-primary overflow-hidden">
       <GridBackground />
@@ -49,10 +49,10 @@ export function Hero({ version, stars }: HeroProps) {
                 Open Source &middot; MIT Licensed
               </Badge>
               <Badge variant="accent">v{version}</Badge>
-              {stars !== null && stars > 0 && (
+              {downloads !== null && downloads > 0 && (
                 <Badge variant="default">
-                  <Star size={12} className="text-amber-400 fill-amber-400" />
-                  <span>{stars.toLocaleString()}</span>
+                  <Download size={12} className="text-accent" />
+                  <span>{downloads.toLocaleString()} downloads</span>
                 </Badge>
               )}
             </div>

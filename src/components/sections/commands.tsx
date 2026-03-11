@@ -161,10 +161,10 @@ export function Commands() {
       <SectionHeader
         overline="Commands"
         title="40+ commands at your fingertips"
-        subtitle="Organized command system covering every aspect of your coding workflow"
+        subtitle="Organized command system covering every aspect of your AI workflow"
       />
       <AnimateIn>
-        <Tabs tabs={tabs} defaultTab="sessions" />
+        <Tabs tabs={tabs} defaultTab="chat" />
       </AnimateIn>
     </Section>
   );

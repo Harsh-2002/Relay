@@ -10,14 +10,17 @@ import { siteConfig } from "@/lib/metadata";
 import { ArrowRight } from "lucide-react";
 
 const heroTerminalLines = [
-  { type: "command" as const, text: "relay onboard" },
-  { type: "success" as const, text: "OpenCode detected" },
-  { type: "success" as const, text: "Bot token verified \u2014 @YourBot" },
-  { type: "success" as const, text: "User ID saved" },
-  { type: "success" as const, text: "Timezone: America/New_York" },
-  { type: "success" as const, text: "MCP tools: Browser, Fetch, Memory, GitHub, Context7" },
-  { type: "success" as const, text: "Voice transcription configured" },
-  { type: "success" as const, text: "Configuration saved to ~/.relay/config.json" },
+  { type: "prompt" as const, text: "Schedule standup at 9am daily" },
+  { type: "success" as const, text: "Cron job created: daily 09:00" },
+  { type: "blank" as const, text: "" },
+  { type: "prompt" as const, text: "Browse news.ycombinator.com" },
+  { type: "success" as const, text: "Top 5 stories extracted" },
+  { type: "blank" as const, text: "" },
+  { type: "prompt" as const, text: "[voice] Check my GitHub PRs" },
+  { type: "success" as const, text: "Transcribed. 3 open PRs found" },
+  { type: "blank" as const, text: "" },
+  { type: "prompt" as const, text: "Find TODOs in the project" },
+  { type: "success" as const, text: "12 TODOs across 8 files" },
 ];
 
 interface HeroProps {
@@ -48,13 +51,13 @@ export function Hero({ version }: HeroProps) {
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
-              Your AI coding agent, always on —{" "}
-              <span className="text-accent">always in Telegram.</span>
+              Your personal AI agent &mdash;{" "}
+              <span className="text-accent">powered by Telegram.</span>
             </h1>
 
             <p className="mt-6 text-lg text-text-secondary/80 max-w-2xl mx-auto leading-relaxed">
-              Open-source Telegram interface for AI coding agents &mdash; powered
-              by OpenCode with 75+ providers.
+              Open-source AI assistant that browses the web, automates tasks,
+              writes code, and speaks your language. 75+ AI providers.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -78,7 +81,7 @@ export function Hero({ version }: HeroProps) {
               <div className="mt-14 max-w-xl mx-auto">
                 <Terminal
                   lines={heroTerminalLines}
-                  title="Terminal"
+                  title="Relay on Telegram"
                   compact
                 />
               </div>

@@ -44,7 +44,7 @@ export function Footer() {
               Relay
             </Link>
             <p className="mt-3 text-sm text-text-tertiary leading-relaxed max-w-xs">
-              Your AI coding agent, always on — always in Telegram.
+              Your personal AI agent — powered by Telegram.
             </p>
           </div>
 

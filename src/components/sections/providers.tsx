@@ -4,22 +4,22 @@ import { AnimateIn } from "@/components/ui/animate-in";
 import { Check } from "lucide-react";
 
 const capabilities = [
-  "Streaming responses",
-  "File output (screenshots, artifacts)",
-  "7 built-in MCP tools",
   "Voice transcription",
-  "Reply context (text, voice, audio)",
+  "Web browsing",
+  "7 built-in MCP tools",
+  "Streaming responses",
   "Scheduled tasks (cron)",
+  "Shell commands",
+  "File operations",
+  "GitHub integration",
+  "Photo & file input",
+  "Reply context (text, voice, audio)",
   "Dynamic model listing",
   "Session management",
-  "Code diffs & revert",
-  "File operations",
-  "Shell commands",
-  "GitHub integration",
+  "File output (screenshots, artifacts)",
   "Timezone-aware scheduling",
   "Interactive AI questions",
-  "Photo & file input",
-  "State persistence",
+  "Custom system prompts",
 ];
 
 const aiProviders = [

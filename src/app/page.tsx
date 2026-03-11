@@ -1,5 +1,6 @@
 import { Hero } from "@/components/sections/hero";
 import { Features } from "@/components/sections/features";
+import { UseCases } from "@/components/sections/use-cases";
 import { Providers } from "@/components/sections/providers";
 import { Voice } from "@/components/sections/voice";
 
@@ -14,6 +15,7 @@ export default async function Home() {
     <>
       <Hero version={version} />
       <Features />
+      <UseCases />
       <Providers />
 
       <Architecture />

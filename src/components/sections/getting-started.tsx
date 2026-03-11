@@ -22,7 +22,7 @@ const steps = [
   {
     step: 3,
     title: "Chat",
-    description: "Start Relay and send a message to your bot in Telegram.",
+    description: "Start Relay and chat with your AI agent in Telegram.",
     code: "relay start",
   },
 ];
@@ -64,7 +64,7 @@ export function GettingStarted() {
       <SectionHeader
         overline="Quick start"
         title="Get started in 60 seconds"
-        subtitle="Three steps to control your AI coding agent from Telegram"
+        subtitle="Three steps to your personal AI agent on Telegram"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">

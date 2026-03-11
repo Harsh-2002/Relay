@@ -16,7 +16,7 @@ export function Architecture() {
       <SectionHeader
         overline="Architecture"
         title="How it works"
-        subtitle="A clean pipeline from your phone to the AI and back"
+        subtitle="From your chat to AI action and back — in real time"
       />
 
       {/* Vertical layered stack */}
@@ -73,10 +73,10 @@ export function Architecture() {
               <Pill>Sessions</Pill>
               <Pill>Agents</Pill>
               <Pill>Tool Dispatch</Pill>
-              <Pill>Code Analysis</Pill>
+              <Pill>Task Execution</Pill>
             </div>
             <p className="text-[11px] text-text-tertiary text-center">
-              AI orchestrator — 75+ provider support
+              AI orchestrator — sessions, agents, 75+ providers
             </p>
           </div>
 

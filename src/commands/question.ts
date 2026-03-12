@@ -19,7 +19,7 @@ interface QuestionFlowState {
 }
 
 const questionFlows = new Map<string, QuestionFlowState>();
-const pendingTextQuestions = new Map<number, { requestId: string; msgId?: number }>();
+const pendingTextQuestions = new Map<number, { requestId: string; msgId?: number; forceReplyMsgId?: number }>();
 
 // --- Public API ---
 
@@ -34,6 +34,11 @@ export async function startQuestionFlow(
     if (flow.chatId === chatId) {
       questionFlows.delete(reqId);
     }
+  }
+  // Delete stale force_reply message if any
+  const stalePending = pendingTextQuestions.get(chatId);
+  if (stalePending?.forceReplyMsgId) {
+    try { await ctx.api.deleteMessage(chatId, stalePending.forceReplyMsgId); } catch {}
   }
   pendingTextQuestions.delete(chatId);
 
@@ -87,6 +92,10 @@ export async function cleanupQuestionFlow(requestId: string, reason?: "timeout" 
     }
     const pending = pendingTextQuestions.get(flow.chatId);
     if (pending?.requestId === requestId) {
+      // Delete the force_reply message so it doesn't re-activate later
+      if (pending.forceReplyMsgId && flow.api) {
+        try { await flow.api.deleteMessage(flow.chatId, pending.forceReplyMsgId); } catch {}
+      }
       pendingTextQuestions.delete(flow.chatId);
     }
     questionFlows.delete(requestId);
@@ -105,10 +114,16 @@ export function consumePendingTextQuestion(
   if (!pending) return null;
   pendingTextQuestions.delete(chatId);
 
-  const { requestId, msgId } = pending;
+  const { requestId, msgId, forceReplyMsgId } = pending;
 
   return {
     handle: async (text: string, ctx: Context) => {
+      // Delete the "Type your answer:" force_reply message to prevent it
+      // from re-activating the reply prompt when future messages arrive
+      if (forceReplyMsgId) {
+        try { await ctx.api.deleteMessage(chatId, forceReplyMsgId); } catch {}
+      }
+
       const flow = questionFlows.get(requestId);
       if (flow) {
         // Multi-question: push answer and advance
@@ -393,11 +408,11 @@ export function registerQuestionHandlers(bot: Bot): void {
     const msgId = ctx.callbackQuery.message?.message_id;
     if (!chatId) return;
 
-    pendingTextQuestions.set(chatId, { requestId, msgId });
     await ctx.answerCallbackQuery({ text: "Type your answer below" });
-    await ctx.api.sendMessage(chatId, "Type your answer:", {
+    const forceReplyMsg = await ctx.api.sendMessage(chatId, "Type your answer:", {
       reply_markup: { force_reply: true, selective: true },
     });
+    pendingTextQuestions.set(chatId, { requestId, msgId, forceReplyMsgId: forceReplyMsg.message_id });
   });
 
   // No-options: Yes
@@ -506,11 +521,11 @@ export function registerQuestionHandlers(bot: Bot): void {
       return;
     }
 
-    pendingTextQuestions.set(flow.chatId, { requestId, msgId: flow.msgId });
     await ctx.answerCallbackQuery({ text: "Type your answer below" });
-    await ctx.api.sendMessage(flow.chatId, "Type your answer:", {
+    const forceReplyMsg = await ctx.api.sendMessage(flow.chatId, "Type your answer:", {
       reply_markup: { force_reply: true, selective: true },
     });
+    pendingTextQuestions.set(flow.chatId, { requestId, msgId: flow.msgId, forceReplyMsgId: forceReplyMsg.message_id });
   });
 
   // Multi-select: toggle option

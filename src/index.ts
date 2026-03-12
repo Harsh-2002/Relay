@@ -82,8 +82,12 @@ async function main() {
 
   const bot = createBot(config.botToken);
 
-  // Register commands with Telegram for autocomplete menu
-  await bot.api.setMyCommands(getBotCommands());
+  // Register commands with Telegram for autocomplete menu (non-critical)
+  try {
+    await bot.api.setMyCommands(getBotCommands());
+  } catch (err: any) {
+    logger.info({ err: err?.message }, "Failed to set bot commands (will retry on next restart)");
+  }
 
   // Start Relay MCP (internal API + register in OpenCode) — always on
   try {

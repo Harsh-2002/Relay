@@ -42,6 +42,34 @@ function isPm2Available(): boolean {
   }
 }
 
+function pm2Save(): void {
+  try {
+    execCmd("pm2", ["save"], { stdio: "ignore" });
+  } catch {
+    // non-critical — don't block on save failure
+  }
+}
+
+function printStartupHint(): void {
+  if (process.platform === "win32") return;
+
+  try {
+    // `pm2 startup` outputs a "sudo ..." command when NOT configured.
+    // When already configured, it prints status info with no sudo line.
+    // Works cross-platform — pm2 auto-detects the init system.
+    const result = execCmd("pm2", ["startup"], {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }) as string;
+    const sudoLine = result.split("\n").find(l => l.trim().startsWith("sudo "));
+    if (sudoLine) {
+      console.log(`  To survive system reboots, run:\n\n    ${sudoLine.trim()}\n`);
+    }
+  } catch {
+    // ignore — non-critical hint
+  }
+}
+
 function ensurePm2(): void {
   if (isPm2Available()) return;
 
@@ -170,12 +198,18 @@ export function daemonStart(): void {
   // Brief pause for pm2 to register the process
   sleepSync(1);
 
+  // Save process list so pm2 can restore after reboot
+  pm2Save();
+
   const newInfo = getProcessInfo();
   if (newInfo) {
     printStatus(newInfo);
   } else {
     console.log("\n  Daemon started. Run `relay status` to check.\n");
   }
+
+  // Hint about pm2 startup if not configured
+  printStartupHint();
 }
 
 export function daemonStop(): void {
@@ -219,6 +253,9 @@ export function daemonRestart(): void {
   }
 
   sleepSync(1);
+
+  // Save process list so pm2 can restore after reboot
+  pm2Save();
 
   const newInfo = getProcessInfo();
   if (newInfo) {

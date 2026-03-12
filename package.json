@@ -1,7 +1,7 @@
 {
   "name": "@4via6/relay",
   "version": "2.4.0",
-  "description": "Your AI coding agent, always on — always in Telegram.",
+  "description": "Your personal AI agent — powered by Telegram.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

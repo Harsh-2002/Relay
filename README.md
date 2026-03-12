@@ -4,11 +4,11 @@
 [![npm downloads](https://img.shields.io/npm/dm/@4via6/relay)](https://www.npmjs.com/package/@4via6/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](https://github.com/opencode-ai/opencode) with 75+ AI providers including Anthropic, OpenAI, Google, and local models.
+Your personal AI agent — powered by Telegram. Browse the web, schedule tasks, run shell commands, and talk in your language. Powered by [OpenCode](https://github.com/opencode-ai/opencode) with 75+ AI providers including Anthropic, OpenAI, Google, DeepSeek, Mistral, and local models.
 
 ## Features
 
-- **75+ AI providers** -- Anthropic, OpenAI, Google, local models, and more via OpenCode
+- **75+ AI providers** -- Anthropic (Claude 4.6), OpenAI (GPT-5.4), Google (Gemini 3.1), DeepSeek, Mistral, local models, and more via OpenCode
 - **Interactive setup** -- `relay onboard` wizard for first-time configuration
 - **Structured logging** -- pino-based JSON logging with full visibility
 - **Text, voice, photo, and file input** -- send messages in any format
@@ -21,7 +21,7 @@ Your AI coding agent, always on — always in Telegram. Powered by [OpenCode](ht
 - **Dynamic model selection** -- models fetched from provider APIs, always up to date
 - **MCP tools** -- Browser, Fetch, Memory, Filesystem, GitHub, and Context7 via MCP; add custom servers at runtime
 - **Scheduled tasks** -- cron jobs that run AI prompts on a schedule (interval, daily, weekly, once) with isolated sessions
-- **Shell access** -- run commands on the coding agent's machine
+- **Shell access** -- run commands on your machine directly from Telegram
 - **Voice transcription** -- Groq, Sarvam, OpenAI, or AssemblyAI speech-to-text
 - **Custom system prompts** -- load from `.relay/SKILL.md`, hot-reload on change
 - **File operations** -- list, read, find, search, and browse project files
@@ -119,7 +119,7 @@ Re-running `relay onboard` on an existing config enters update mode — shows cu
 
 ## Backend
 
-Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed. Install OpenCode with `npm i -g opencode-ai@latest`.
+Relay is powered by [OpenCode](https://github.com/opencode-ai/opencode), which supports 75+ AI providers (Anthropic, OpenAI, Google, DeepSeek, Mistral, local models, etc.) through a single unified interface. The OpenCode SDK (`@opencode-ai/sdk`) is bundled — no extra installation needed. Install OpenCode with `npm i -g opencode-ai@latest`.
 
 See [Providers](docs/providers.md) for detailed setup.
 
@@ -193,7 +193,7 @@ Available `/cmd` commands: `init`, `review`, `stats`, `version`, `upgrade`, `ses
 | Command | Description | Example |
 |---------|-------------|---------|
 | `/models` | Interactive model picker (grouped by provider) | `/models` |
-| `/model [provider/model]` | View or set model (supports partial match) | `/model anthropic/claude-sonnet-4-20250514` |
+| `/model [provider/model]` | View or set model (supports partial match) | `/model anthropic/claude-sonnet-4-6` |
 | `/agent [name\|clear]` | View or change agent (picker if no args) | `/agent clear` |
 | `/agents` | List all agents with descriptions | `/agents` |
 | `/stt` | Switch voice transcription provider (picker) | `/stt` |
@@ -273,6 +273,15 @@ The bot loads a system prompt from `~/.relay/SKILL.md` (or `./SKILL.md` in cwd f
 
 ```
 src/
+  bot.ts           -- Telegram bot setup (grammY)
+  cli.ts           -- CLI entry point and flag parsing
+  auth.ts          -- User authentication middleware
+  session.ts       -- Prompt queue and session state
+  cron.ts          -- Cron scheduler engine, job execution, storage
+  relay-api.ts     -- Relay MCP server API
+  daemon.ts        -- PM2 daemon management
+  lifecycle.ts     -- Graceful shutdown handling
+  update.ts        -- Self-update logic
   config/
     schema.ts      -- Config type definitions
     loader.ts      -- Config resolution (CLI > file > defaults)
@@ -293,7 +302,8 @@ src/
     shell.ts       -- Shell and OpenCode command execution
     mcp.ts         -- MCP server management
     cron.ts        -- Scheduled task commands and UI
-  cron.ts          -- Cron scheduler engine, job execution, storage
+    question.ts    -- Interactive AI question handling
+  mcp/             -- MCP server implementations
   utils/
     logger.ts      -- Pino-based structured logging
     store.ts       -- JSON file-backed persistence (data directory)
@@ -305,9 +315,11 @@ src/
     html.ts        -- HTML escaping for Telegram
     input.ts       -- Interactive command input utility
     media.ts       -- File upload/download
+    shell.ts       -- Shell command execution
     stt.ts         -- Speech-to-text with provider fallback
     system-prompt.ts -- System prompt loading with MCP tool instructions
     opencode-config.ts -- MCP injection into OpenCode config
+    relay-server.ts -- Relay MCP server runtime
 ```
 
 The provider implements the `Provider` interface with sessions, prompts, streaming, file operations, and MCP management. Messages are processed through a serial prompt queue to prevent interleaved responses.

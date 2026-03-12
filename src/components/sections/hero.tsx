@@ -80,7 +80,7 @@ export function Hero({ version, downloads }: HeroProps) {
 
             {/* Compact terminal preview */}
             <AnimateIn delay={0.3}>
-              <div className="mt-14 w-fit min-w-[380px] sm:min-w-[422px] mx-auto">
+              <div className="mt-14 w-full sm:w-fit sm:min-w-[422px] mx-auto">
                 <Terminal
                   lines={heroTerminalLines}
                   title="Relay on Telegram"

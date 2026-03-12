@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { Logo } from "./logo";
-import { MobileMenu } from "./mobile-menu";
-import { Button } from "./ui/button";
 import { Github } from "lucide-react";
 import { siteConfig } from "@/lib/metadata";
-
-const navLinks = [
-  { label: "Features", href: "/#features" },
-  { label: "Voice", href: "/#voice" },
-  { label: "Docs", href: "/docs/getting-started" },
-];
 
 export function Nav() {
   return (
@@ -21,38 +13,15 @@ export function Nav() {
           <Logo size="md" />
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <a
-            href={siteConfig.github}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:flex p-2 text-text-secondary hover:text-text-primary transition-colors"
-            aria-label="GitHub"
-          >
-            <Github size={20} />
-          </a>
-          <Button
-            href="/docs/getting-started"
-            variant="primary"
-            size="sm"
-            className="hidden lg:inline-flex"
-          >
-            Get Started
-          </Button>
-          <MobileMenu />
-        </div>
+        <a
+          href={siteConfig.github}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+          aria-label="GitHub"
+        >
+          <Github size={20} />
+        </a>
       </div>
     </header>
   );

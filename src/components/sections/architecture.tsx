@@ -89,7 +89,7 @@ export function Architecture() {
           <ArrowDown size={24} className="text-text-tertiary shrink-0 lg:hidden mt-3" />
 
           {/* Layer 4: AI Provider + MCP Tools + Cron Engine */}
-          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-xs lg:max-w-2xl">
+          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-md lg:max-w-2xl">
             {/* AI Provider */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-xl p-6 w-full lg:flex-1">
               <Cpu size={32} className="text-amber-400" />

@@ -131,14 +131,14 @@ function CommandContent({ commands, isInputTypes }: { commands: Command[]; isInp
       {commands.map((cmd) => (
         <div
           key={cmd.name}
-          className="flex items-start gap-3 rounded-lg border border-border-primary bg-bg-card/80 backdrop-blur-xl px-4 py-3 transition-colors duration-200 hover:border-border-hover hover:bg-bg-card-hover/80"
+          className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 rounded-lg border border-border-primary bg-bg-card/80 backdrop-blur-xl px-4 py-3 transition-colors duration-200 hover:border-border-hover hover:bg-bg-card-hover/80"
         >
           {isInputTypes ? (
-            <span className="text-sm font-medium text-text-primary whitespace-nowrap shrink-0">
+            <span className="text-sm font-medium text-text-primary sm:whitespace-nowrap sm:shrink-0">
               {cmd.name}
             </span>
           ) : (
-            <code className="text-sm font-mono text-accent whitespace-nowrap shrink-0">
+            <code className="text-sm font-mono text-accent sm:whitespace-nowrap sm:shrink-0">
               {cmd.name}
             </code>
           )}
@@ -161,10 +161,10 @@ export function Commands() {
       <SectionHeader
         overline="Commands"
         title="40+ commands at your fingertips"
-        subtitle="Organized command system covering every aspect of your coding workflow"
+        subtitle="Organized command system covering every aspect of your AI workflow"
       />
       <AnimateIn>
-        <Tabs tabs={tabs} defaultTab="sessions" />
+        <Tabs tabs={tabs} defaultTab="chat" />
       </AnimateIn>
     </Section>
   );

@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
-import { getDocBySlug, getDocSlugs, extractToc } from "@/lib/mdx";
+import { getDocBySlug, getDocSlugs, extractToc, getDocNavigation } from "@/lib/mdx";
 import { mdxComponents } from "@/components/docs/mdx-components";
 import { Toc } from "@/components/docs/toc";
 import { siteConfig } from "@/lib/metadata";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 
 interface Props {
@@ -50,6 +52,7 @@ export default async function DocPage({ params }: Props) {
   if (!doc) notFound();
 
   const toc = extractToc(doc.content);
+  const { prev, next } = getDocNavigation(slug);
 
   return (
     <div className="flex gap-4 lg:gap-8">
@@ -68,6 +71,32 @@ export default async function DocPage({ params }: Props) {
         <div className="prose prose-invert max-w-none">
           <MDXRemote source={doc.content} components={mdxComponents} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
         </div>
+
+        {/* Prev / Next navigation */}
+        <nav className="mt-16 pt-8 border-t border-border-primary flex items-center justify-between gap-4">
+          {prev ? (
+            <Link
+              href={`/docs/${prev.slug}`}
+              className="group flex items-center gap-2 text-sm text-text-tertiary hover:text-text-primary transition-colors"
+            >
+              <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+              <span>{prev.frontmatter.title}</span>
+            </Link>
+          ) : (
+            <span />
+          )}
+          {next ? (
+            <Link
+              href={`/docs/${next.slug}`}
+              className="group flex items-center gap-2 text-sm text-text-tertiary hover:text-text-primary transition-colors ml-auto"
+            >
+              <span>{next.frontmatter.title}</span>
+              <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
       </article>
 
       {/* TOC - xl screens only */}

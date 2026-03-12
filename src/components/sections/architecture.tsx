@@ -16,7 +16,7 @@ export function Architecture() {
       <SectionHeader
         overline="Architecture"
         title="How it works"
-        subtitle="A clean pipeline from your phone to the AI and back"
+        subtitle="From your chat to AI action and back — in real time"
       />
 
       {/* Vertical layered stack */}
@@ -73,10 +73,10 @@ export function Architecture() {
               <Pill>Sessions</Pill>
               <Pill>Agents</Pill>
               <Pill>Tool Dispatch</Pill>
-              <Pill>Code Analysis</Pill>
+              <Pill>Task Execution</Pill>
             </div>
             <p className="text-[11px] text-text-tertiary text-center">
-              AI orchestrator — 75+ provider support
+              AI orchestrator — sessions, agents, 75+ providers
             </p>
           </div>
 
@@ -89,7 +89,7 @@ export function Architecture() {
           <ArrowDown size={24} className="text-text-tertiary shrink-0 lg:hidden mt-3" />
 
           {/* Layer 4: AI Provider + MCP Tools + Cron Engine */}
-          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-xs lg:max-w-2xl">
+          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-4 w-full max-w-md lg:max-w-2xl">
             {/* AI Provider */}
             <div className="flex flex-col items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-xl p-6 w-full lg:flex-1">
               <Cpu size={32} className="text-amber-400" />

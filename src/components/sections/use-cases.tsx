@@ -8,7 +8,7 @@ const useCases = [
     icon: Search,
     title: "Research Assistant",
     description:
-      "Browse the web, fetch documentation, and summarize findings through chat.",
+      "Deep multi-step research with /research. AI breaks topics into sub-questions, gathers sources, and delivers structured reports.",
     accent: "text-blue-400",
     glow: "bg-blue-400/10 ring-blue-400/20",
   },
@@ -16,7 +16,7 @@ const useCases = [
     icon: Clock,
     title: "Task Automation",
     description:
-      "Schedule daily reports, monitoring alerts, and recurring workflows with cron.",
+      "Schedule cron jobs, monitor URLs for changes with /watch, and automate recurring workflows — all from Telegram.",
     accent: "text-teal-400",
     glow: "bg-teal-400/10 ring-teal-400/20",
   },

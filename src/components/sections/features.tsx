@@ -11,6 +11,8 @@ import {
   Terminal,
   Settings,
   Clock,
+  Eye,
+  Search,
 } from "lucide-react";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { Card } from "@/components/ui/card";
@@ -40,6 +42,22 @@ const features = [
       "Browse websites, take screenshots, fill forms, and extract content via the Playwright MCP tool.",
     accent: "text-blue-400",
     glow: "bg-blue-400/10 ring-blue-400/20",
+  },
+  {
+    icon: Eye,
+    title: "Web Monitoring",
+    description:
+      "Monitor any URL for changes. AI analyzes diffs and notifies you only when something relevant happens.",
+    accent: "text-rose-400",
+    glow: "bg-rose-400/10 ring-rose-400/20",
+  },
+  {
+    icon: Search,
+    title: "Deep Research",
+    description:
+      "Multi-step research with source citations. The AI breaks topics into sub-questions and delivers structured reports.",
+    accent: "text-indigo-400",
+    glow: "bg-indigo-400/10 ring-indigo-400/20",
   },
   {
     icon: Clock,

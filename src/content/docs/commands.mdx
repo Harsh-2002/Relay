@@ -279,6 +279,65 @@ Use `/cron` and tap **Add Job** to build a schedule step by step. The picker wal
 
 ---
 
+## Web Monitoring
+
+Monitor URLs for changes with AI-powered analysis. Relay fetches the page, detects changes via SHA-256 hash comparison, and sends AI-analyzed notifications when something relevant changes.
+
+### /watch
+
+Show all watches with inline action buttons (Enable/Disable, Check Now, Delete) and an `+ Add Watch` button to start the interactive creation flow.
+
+### /watch \<url\>
+
+Start the interactive watch creation flow with the URL pre-filled. Skips straight to the interval picker.
+
+Example: `/watch https://example.com/pricing`
+
+### /watch add \<url\> \<intervalM\> \<Name: task\>
+
+Create a watch directly with all parameters.
+
+Example: `/watch add https://example.com/pricing 30 Pricing: Watch for price changes`
+
+### Interactive creation flow
+
+Both `/watch` → `+ Add Watch` and `/watch <url>` lead to the same flow:
+
+1. **URL** — type the URL to monitor (skipped if provided via `/watch <url>`)
+2. **Interval** — pick check frequency from a keyboard (5m to 24h)
+3. **Task** — describe what changes matter
+
+The watch name is auto-derived from the URL hostname.
+
+### Upfront validation
+
+When creating a watch, Relay immediately fetches the URL:
+
+- **Fetch fails** (timeout, HTTP error) → watch is not created, error shown
+- **Thin content** (< 50 words) → watch is created with a warning (possible SPA or bot protection)
+- **Success** → baseline snapshot captured, so the first scheduled check can detect changes immediately
+
+### How change detection works
+
+- Plain HTTP fetch → HTML converted to readable text → SHA-256 hash comparison
+- If content changed → AI analyzes old vs new in an isolated session, filtered by your task description
+- Relevant changes are sent to Telegram; irrelevant ones (timestamps, ads) are silently ignored
+- Error handling: notifies on errors #1 and #3, auto-disables after 5 consecutive errors
+
+---
+
+## Deep Research
+
+### /research [topic]
+
+Run deep multi-step research on a topic. Without arguments, prompts for the topic interactively.
+
+Examples: `/research` (prompts) or `/research quantum computing advances`
+
+The AI creates an isolated session, breaks the topic into sub-questions, gathers information from multiple sources, cross-references findings, and delivers a structured report with key findings, analysis, and sources. Results stream live to Telegram. The session is deleted after completion.
+
+---
+
 ## Settings & Info
 
 ### /health

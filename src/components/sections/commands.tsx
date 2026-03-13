@@ -106,6 +106,23 @@ const categories: { id: string; label: string; commands: Command[] }[] = [
     ],
   },
   {
+    id: "watch",
+    label: "Watch",
+    commands: [
+      { name: "/watch", description: "View all watches with action buttons (+ Add Watch)" },
+      { name: "/watch <url>", description: "Start interactive watch creation with URL pre-filled" },
+      { name: "/watch add <url> <interval> Name: task", description: "Create a watch directly" },
+    ],
+  },
+  {
+    id: "research",
+    label: "Research",
+    commands: [
+      { name: "/research", description: "Prompts for a topic, then runs deep multi-step research" },
+      { name: "/research <topic>", description: "Run deep research on a topic with source citations" },
+    ],
+  },
+  {
     id: "admin",
     label: "Admin",
     commands: [
@@ -160,7 +177,7 @@ export function Commands() {
     <Section id="commands" background="secondary" gridOpacity={0.4}>
       <SectionHeader
         overline="Commands"
-        title="40+ commands at your fingertips"
+        title="45+ commands at your fingertips"
         subtitle="Organized command system covering every aspect of your AI workflow"
       />
       <AnimateIn>

@@ -233,6 +233,51 @@ Use `/cron` to see all jobs with action buttons to enable/disable, run now, or d
 
 ---
 
+## Web Monitoring
+
+Monitor any URL for changes and get AI-analyzed notifications when something relevant happens.
+
+**Creating a watch:**
+
+```
+/watch                                    # Shows list → tap + Add Watch
+/watch https://example.com/pricing        # Start with URL pre-filled
+/watch add https://example.com/pricing 30 Pricing: Watch for price changes
+```
+
+Both interactive paths lead to a step-by-step flow: URL → interval → task description. The watch name is auto-derived from the URL hostname.
+
+**How change detection works:**
+
+1. **HTTP fetch** — retrieves the page, converts HTML to readable text (strips scripts, styles, tags)
+2. **Hash comparison** — SHA-256 hash compared against previous snapshot. If identical, done
+3. **AI analysis** — only when content changes, the AI compares old and new content in an isolated session, filtered by your task description. Irrelevant changes (timestamps, ads, layout) are silently ignored
+
+**Upfront validation** — when creating a watch, Relay immediately fetches the URL. If the fetch fails, the watch is not created. If the page returns very little content (< 50 words), a warning is shown (possible SPA or bot protection). On success, a baseline snapshot is captured so the first scheduled check can already detect changes.
+
+Use `/watch` to see all watches with inline buttons to enable/disable, check now, or delete.
+
+**Limitations:**
+- JavaScript-rendered pages (SPAs) return only the HTML shell — the upfront validation warns about this
+- Sites with Cloudflare bot protection will be blocked — caught at creation time
+- Content is capped at 50KB per snapshot; AI analysis receives up to 3KB
+
+---
+
+## Deep Research
+
+Run thorough multi-step research on any topic:
+
+```
+/research quantum computing advances
+```
+
+The AI creates an isolated session, breaks the topic into 3-5 sub-questions, gathers information from multiple sources, cross-references findings, and delivers a structured report with key findings, analysis, and sources. Results stream live to Telegram. The session is deleted after completion.
+
+Without arguments, `/research` prompts for the topic interactively.
+
+---
+
 ## State Persistence
 
 Relay persists critical state to disk so it survives restarts:
@@ -240,6 +285,7 @@ Relay persists critical state to disk so it survives restarts:
 - `~/.relay/config.json` — User configuration
 - `~/.relay/session.json` — Current session ID and selected model
 - `~/.relay/cron.json` — Scheduled task definitions and run history
+- `~/.relay/watch.json` — Web monitoring definitions, snapshots, and check history
 - `~/.relay/SKILL.md` — Custom system prompt (optional)
 - `~/.relay/RELAY.md` — Auto-generated assembled system prompt (base + MCP docs)
 - `~/.relay/memory.jsonl` — Memory MCP knowledge graph data

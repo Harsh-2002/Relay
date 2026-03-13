@@ -139,6 +139,26 @@ pm2 stores logs in `~/.pm2/logs/`. View them with `relay logs` or access the raw
 
 ---
 
+## Web Monitoring
+
+### "Cannot monitor this URL"
+
+The URL failed upfront validation. Common causes: DNS resolution failed, HTTP 403/401 (authentication or bot blocking), or timeout (> 30 seconds). Check the URL is correct and publicly accessible.
+
+### "Page returned very little content"
+
+The page returned fewer than 50 words of text. This usually means a JavaScript-rendered SPA (the page uses React/Vue and renders client-side — plain HTTP only gets the HTML shell) or Cloudflare bot protection ("Just a moment..." challenge page). Try monitoring the underlying API endpoint instead of the rendered page.
+
+### Watch never detects changes
+
+Check the watch is enabled (`/watch` → verify `[ON]`). If the page content is thin (SPA/bot protection), every check returns the same empty content. Use the "Check Now" button to trigger an immediate check.
+
+### Watch auto-disabled
+
+After 5 consecutive fetch errors, the watch is automatically disabled. Re-enable via `/watch`. If the URL is permanently unreachable, delete the watch.
+
+---
+
 ## General
 
 ### Bot is slow

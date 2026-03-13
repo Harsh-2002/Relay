@@ -225,6 +225,40 @@ Or access the raw files directly:
 
 ---
 
+## Web Monitoring
+
+### "Cannot monitor this URL"
+
+The URL failed the upfront validation fetch. Common causes:
+
+- **DNS resolution failed**: The domain doesn't exist or isn't reachable
+- **HTTP 403/401**: The site requires authentication or blocks bots
+- **Timeout**: The site took longer than 30 seconds to respond
+
+Check the URL is correct and publicly accessible. Some sites block requests without a browser — Relay uses a plain HTTP fetch with `User-Agent: Relay-Watch/1.0`.
+
+### "Page returned very little content (X words)"
+
+The URL returned fewer than 50 words of text content. This usually means:
+
+- **JavaScript-rendered page (SPA)**: The page uses React/Vue/Angular and renders content client-side. Plain HTTP only gets the HTML shell. Try monitoring the API endpoint the page fetches instead
+- **Cloudflare bot protection**: The page returned a "Just a moment..." challenge page. These cannot be bypassed with plain HTTP
+
+The watch is still created (with a warning) so you can test it, but it likely won't detect meaningful changes.
+
+### Watch never reports changes
+
+- Check the watch is enabled (`/watch` → verify `[ON]` status)
+- The first fetch after creation is the baseline — changes are only detected from the second check onward. With upfront validation, the baseline is captured at creation time
+- If the page content is thin (SPA/bot protection), every check returns the same empty content — no change detected. Check for the low word count warning
+- Use the "Check Now" button to trigger an immediate check
+
+### Watch auto-disabled
+
+After 5 consecutive fetch errors, the watch is automatically disabled to prevent noise. Use `/watch` to re-enable it. If the URL is permanently unreachable, delete the watch.
+
+---
+
 ## General
 
 ### Bot is slow to respond

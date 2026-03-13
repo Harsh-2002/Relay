@@ -1,6 +1,7 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "http";
 import type { Api, RawApi } from "grammy";
 import { listJobs, addJob, removeJob, toggleJob, updateJob, runJobNow, formatSchedule, formatInTimezone, getTimezoneAbbr, type CronSchedule } from "./cron.js";
+import { listWatches, addWatch, removeWatch, toggleWatch, updateWatch, runWatchNow, validateWatchUrl, type WatchJob } from "./watch.js";
 import { isServerDown } from "./lifecycle.js";
 import { getProvider } from "./providers/index.js";
 import { relayApiLogger } from "./utils/logger.js";
@@ -274,6 +275,121 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const result = await runJobNow(id);
       if (result === "not_found") { json(res, 404, { error: "Job not found" }); return; }
       if (result === "no_scheduler") { json(res, 503, { error: "Cron scheduler not running" }); return; }
+      json(res, 200, { triggered: true });
+      return;
+    }
+
+    // --- Watch routes ---
+    if (url === "/watch/jobs" && method === "GET") {
+      const { tz, abbr } = getTzInfo();
+      const jobs = listWatches().map((w) => ({
+        id: w.id,
+        name: w.name,
+        url: w.url,
+        task: w.task,
+        intervalMinutes: w.intervalMinutes,
+        enabled: w.enabled,
+        lastCheckAt: w.lastCheckAt ? `${formatInTimezone(w.lastCheckAt, tz, "datetime")} ${abbr}` : null,
+        lastCheckOk: w.lastCheckOk,
+        lastChangedAt: w.lastChangedAt ? `${formatInTimezone(w.lastChangedAt, tz, "datetime")} ${abbr}` : null,
+        nextCheckAt: `${formatInTimezone(w.nextCheckAt, tz, "datetime")} ${abbr}`,
+        checkCount: w.checkCount,
+        changeCount: w.changeCount,
+        consecutiveErrors: w.consecutiveErrors,
+      }));
+      json(res, 200, { timezone: tz, watches: jobs });
+      return;
+    }
+
+    if (url === "/watch/jobs" && method === "POST") {
+      const body = parseJson(await readBody(req)) as any;
+      if (!body?.name || !body?.url || !body?.task) {
+        json(res, 400, { error: "Missing required fields: name, url, task" });
+        return;
+      }
+      const intervalMinutes = body.interval_minutes ?? 30;
+      if (typeof intervalMinutes !== "number" || intervalMinutes < 5) {
+        json(res, 400, { error: "interval_minutes must be >= 5" });
+        return;
+      }
+      const validation = await validateWatchUrl(body.url);
+      if (!validation.ok) {
+        json(res, 400, { error: `Cannot fetch URL: ${validation.error}` });
+        return;
+      }
+
+      const watch = addWatch(body.name, body.url, body.task, intervalMinutes, validation.snapshot);
+      const { tz, abbr } = getTzInfo();
+      json(res, 201, {
+        id: watch.id,
+        name: watch.name,
+        url: watch.url,
+        task: watch.task,
+        intervalMinutes: watch.intervalMinutes,
+        nextCheckAt: `${formatInTimezone(watch.nextCheckAt, tz, "datetime")} ${abbr}`,
+        baseline: { wordCount: validation.wordCount, warning: validation.warning ?? null },
+      });
+      return;
+    }
+
+    if (url.startsWith("/watch/jobs/") && !url.includes("/toggle") && !url.includes("/run") && method === "PATCH") {
+      const id = extractId(url, "/watch/jobs/");
+      if (!id) { json(res, 400, { error: "Missing watch ID" }); return; }
+      const body = parseJson(await readBody(req)) as any;
+      if (!body || typeof body !== "object") {
+        json(res, 400, { error: "Invalid request body" });
+        return;
+      }
+      const updates: { name?: string; url?: string; task?: string; intervalMinutes?: number } = {};
+      if (body.name !== undefined) updates.name = String(body.name);
+      if (body.url !== undefined) updates.url = String(body.url);
+      if (body.task !== undefined) updates.task = String(body.task);
+      if (body.interval_minutes !== undefined) {
+        if (typeof body.interval_minutes !== "number" || body.interval_minutes < 5) {
+          json(res, 400, { error: "interval_minutes must be >= 5" });
+          return;
+        }
+        updates.intervalMinutes = body.interval_minutes;
+      }
+      const watch = updateWatch(id, updates);
+      if (!watch) { json(res, 404, { error: "Watch not found" }); return; }
+      const { tz, abbr } = getTzInfo();
+      json(res, 200, {
+        id: watch.id,
+        name: watch.name,
+        url: watch.url,
+        task: watch.task,
+        intervalMinutes: watch.intervalMinutes,
+        enabled: watch.enabled,
+        nextCheckAt: `${formatInTimezone(watch.nextCheckAt, tz, "datetime")} ${abbr}`,
+      });
+      return;
+    }
+
+    if (url.startsWith("/watch/jobs/") && method === "DELETE") {
+      const id = extractId(url, "/watch/jobs/");
+      if (!id) { json(res, 400, { error: "Missing watch ID" }); return; }
+      const ok = removeWatch(id);
+      json(res, ok ? 200 : 404, ok ? { removed: true } : { error: "Watch not found" });
+      return;
+    }
+
+    if (url.startsWith("/watch/jobs/") && url.endsWith("/toggle") && method === "POST") {
+      const id = extractId(url, "/watch/jobs/");
+      if (!id) { json(res, 400, { error: "Missing watch ID" }); return; }
+      const watch = toggleWatch(id);
+      if (!watch) { json(res, 404, { error: "Watch not found" }); return; }
+      const { tz, abbr } = getTzInfo();
+      json(res, 200, { id: watch.id, enabled: watch.enabled, nextCheckAt: `${formatInTimezone(watch.nextCheckAt, tz, "datetime")} ${abbr}` });
+      return;
+    }
+
+    if (url.startsWith("/watch/jobs/") && url.endsWith("/run") && method === "POST") {
+      const id = extractId(url, "/watch/jobs/");
+      if (!id) { json(res, 400, { error: "Missing watch ID" }); return; }
+      const result = await runWatchNow(id);
+      if (result === "not_found") { json(res, 404, { error: "Watch not found" }); return; }
+      if (result === "no_scheduler") { json(res, 503, { error: "Watch scheduler not running" }); return; }
       json(res, 200, { triggered: true });
       return;
     }

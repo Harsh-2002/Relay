@@ -498,6 +498,88 @@ Commands are executed natively on the OpenCode server.
 
 ---
 
+## Web Monitoring
+
+Monitor any URL for changes and get AI-analyzed notifications when something relevant happens.
+
+### Setup
+
+No additional configuration needed. Web monitoring is built-in.
+
+### Creating a watch
+
+**Interactive flow (recommended):**
+```
+/watch                                    # Shows list → tap + Add Watch
+/watch https://example.com/pricing        # Start with URL pre-filled
+```
+
+Both paths lead to a step-by-step flow: URL → interval → task description. The watch name is auto-derived from the URL hostname.
+
+**Direct command:**
+```
+/watch add https://example.com/pricing 30 Pricing: Watch for price changes
+```
+
+### How change detection works
+
+The system uses a two-step approach to avoid unnecessary AI calls:
+
+1. **HTTP fetch** — plain `fetch()` retrieves the page, converts HTML to readable text via `htmlToReadableText()` (strips scripts, styles, tags, normalizes whitespace)
+2. **Hash comparison** — SHA-256 hash of the text is compared against the previous snapshot. If identical, no further action
+3. **AI analysis** — only when content changes, the AI compares old and new content in an isolated session, filtered by the user's task description. Irrelevant changes (timestamps, ads, layout shifts) are ignored
+
+### Upfront validation
+
+When creating a watch, Relay immediately fetches the URL:
+
+- **Fetch fails** → watch is not created, error message shown
+- **Thin content** (< 50 words) → watch is created with a warning (possible SPA or bot protection)
+- **Success** → baseline snapshot captured immediately, so the first scheduled check can already detect changes
+
+### Managing watches
+
+Use `/watch` to see all watches with inline buttons:
+
+- **Enable/Disable** — toggle a watch on or off
+- **Check Now** — run an immediate check outside the schedule
+- **Delete** — remove a watch
+
+### Limitations
+
+- **JavaScript-rendered pages (SPAs)**: Plain HTTP fetch only gets server-rendered HTML. Pure client-side SPAs will return an empty shell. The upfront validation warns about this (< 50 words detected)
+- **Bot protection**: Sites behind Cloudflare challenges or CAPTCHAs will be blocked. The validation catches this at creation time
+- **Content cap**: Page text is capped at 50KB per snapshot; AI analysis receives up to 3KB of old and new content
+
+### Error handling
+
+- Notifies on error #1 and #3 (gives transient issues a chance to recover)
+- Auto-disables the watch after 5 consecutive fetch errors
+- Ring buffer stores the last 3 snapshots per watch
+
+---
+
+## Deep Research
+
+Run thorough multi-step research on any topic with AI-powered analysis and source citations.
+
+### How it works
+
+```
+/research quantum computing advances
+```
+
+1. An isolated session is created for the research
+2. The AI breaks the topic into 3-5 sub-questions
+3. Uses available tools (web fetch, browser, etc.) to gather information
+4. Cross-references findings for accuracy
+5. Delivers a structured report: Key Findings → Analysis → Sources
+6. The session is deleted after completion
+
+Results stream live to Telegram. Without arguments, `/research` prompts for the topic interactively.
+
+---
+
 ## State Persistence
 
 Relay automatically persists critical state to disk so it survives bot restarts and crashes.
@@ -508,6 +590,7 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 |------|------|-------------|
 | Active session | `~/.relay/session.json` | Current session ID and selected model |
 | Scheduled tasks | `~/.relay/cron.json` | Cron job definitions, schedules, and run history |
+| Web watches | `~/.relay/watch.json` | Watch definitions, snapshots, and check history |
 
 ### How it works
 

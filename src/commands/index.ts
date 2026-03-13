@@ -11,6 +11,8 @@ import { registerChat } from "./chat.js";
 import { registerMcpCommands } from "./mcp.js";
 import { registerCronCommands } from "./cron.js";
 import { registerQuestionHandlers } from "./question.js";
+import { registerResearchCommands } from "./research.js";
+import { registerWatchCommands } from "./watch.js";
 
 export function getBotCommands(): BotCommand[] {
   return [
@@ -61,6 +63,12 @@ export function getBotCommands(): BotCommand[] {
     // Cron
     { command: "cron", description: "Scheduled tasks" },
 
+    // Watch
+    { command: "watch", description: "Web monitors" },
+
+    // Research
+    { command: "research", description: "Deep research on a topic" },
+
     // Admin
     { command: "timezone", description: "View or set timezone" },
     { command: "health", description: "Server status" },
@@ -86,6 +94,8 @@ export function registerCommands(bot: Bot): void {
   registerHistoryCommands(bot);
   registerMcpCommands(bot);
   registerCronCommands(bot);
+  registerWatchCommands(bot);
+  registerResearchCommands(bot);
   registerQuestionHandlers(bot);
   registerMediaHandlers(bot);
   registerChat(bot);

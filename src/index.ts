@@ -7,6 +7,7 @@ import { getBotCommands } from "./commands/index.js";
 import { initAuth } from "./auth.js";
 import { startUploadCleanup, stopUploadCleanup } from "./utils/media.js";
 import { startCronScheduler, stopCronScheduler } from "./cron.js";
+import { startWatchScheduler, stopWatchScheduler } from "./watch.js";
 import { unwatchSystemPrompt, writeSystemPromptFile } from "./utils/system-prompt.js";
 import { startLifecycleMonitor, stopLifecycleMonitor } from "./lifecycle.js";
 import { ensurePlaywrightMcp, ensureFetchMcp, ensureMemoryMcp, ensureFilesystemMcp, ensureGithubMcp, ensureContext7Mcp, ensureRelayMcp, ensureInstructions } from "./utils/opencode-config.js";
@@ -116,6 +117,7 @@ async function main() {
     stopLifecycleMonitor();
     shutdownProvider();
     stopCronScheduler();
+    stopWatchScheduler();
     stopUploadCleanup();
     unwatchSystemPrompt();
     process.exit(0);
@@ -150,6 +152,7 @@ async function main() {
     httpServer.listen(config.webhookPort, () => {
       logger.info({ port: config.webhookPort, url: config.webhookUrl }, "Webhook server listening");
       startCronScheduler(bot.api, config.allowedUserId);
+      startWatchScheduler(bot.api, config.allowedUserId);
       startLifecycleMonitor();
     });
   } else {
@@ -161,6 +164,7 @@ async function main() {
       onStart: (info) => {
         logger.info({ username: info.username }, "Bot is running");
         startCronScheduler(bot.api, config.allowedUserId);
+        startWatchScheduler(bot.api, config.allowedUserId);
         startLifecycleMonitor();
       },
     });

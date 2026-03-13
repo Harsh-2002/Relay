@@ -1036,6 +1036,13 @@ export function registerAdminCommands(bot: Bot): void {
       `/cron add every <code>Nm</code> <code>Title: prompt</code>\n` +
       `/cron add weekly <code>days</code> <code>HH:MM</code> <code>Title: prompt</code>\n\n` +
 
+      `<b>Watch</b>\n` +
+      `/watch  —  Web monitors (picker)\n` +
+      `/watch add <code>url</code> <code>Nm</code> <code>Name: task</code>\n\n` +
+
+      `<b>Research</b>\n` +
+      `/research <code>topic</code>  —  Deep research on a topic\n\n` +
+
       `<b>Settings</b>\n` +
       `/model <code>provider/model</code>  —  Change model\n` +
       `/models  —  List available models\n` +

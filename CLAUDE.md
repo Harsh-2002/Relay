@@ -59,6 +59,8 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 - **`shell.ts`** — `/shell`, `/cmd`, `/commands`. Blocks `relay restart/stop/start/update` in `/shell` to prevent killing the bot process (directs users to `/restart` or `/update` instead). `/shell` without arguments uses `promptForInput()` for interactive input
 - **`media.ts`** — Handles photos, voice notes, audio, and file uploads. Supports reply context for all media types (prepends quoted text to captions/transcriptions)
 - **`mcp.ts`** — `/mcp add`, `/mcp remove`, `/mcp connect`. Remove shows confirmation keyboard. Commands without arguments use `promptForInput()` for interactive input
+- **`watch.ts`** — `/watch` command: list with inline keyboard (Enable/Disable, Check Now, Delete buttons). `/watch add <url> <intervalM> Name: task` for direct creation. `/watch <url>` starts interactive flow (interval picker → task description). Interactive `+ Add Watch` button flow: URL prompt → interval picker → task description. Name auto-derived from URL hostname. All creation paths validate the URL upfront (fetch + content check) before creating the watch
+- **`research.ts`** — `/research <topic>` command: runs deep multi-step research in an isolated session with live streaming to Telegram. Without arguments, prompts for topic via `promptForInput()`
 
 ### Key Utilities (`src/utils/`)
 
@@ -75,6 +77,14 @@ Commands are registered in `src/commands/index.ts` in a specific order. Each mod
 - **`media.ts`** — Downloads Telegram files to `./uploads/`, auto-cleans files older than 1 hour
 - **`errors.ts`** — Maps provider errors to user-friendly HTML-formatted Telegram messages
 - **`opencode-config.ts`** — Auto-injects MCP server configs into OpenCode's config (`~/.config/opencode/opencode.json`). Supports 7 MCPs: Playwright, Fetch (uvx), Memory (with `MEMORY_FILE_PATH` env var pointing to `dataDir/memory.jsonl`), Filesystem (with user-specified paths), GitHub (npx, requires PAT), Context7 (npx, optional API key via `CONTEXT7_API_KEY` env var), and Relay (internal MCP for AI-driven bot management). Provides `ensure*Mcp()` and `remove*Mcp()` for each. Also provides `ensureInstructions(filePath)` / `removeInstructions(filePath)` to manage OpenCode's `instructions` array for system prompt delivery. Idempotent — skips if already configured
+
+### Web Monitoring (`src/watch.ts`)
+
+URL change detection and AI-analyzed notifications. Stores `WatchJob` data in `~/.relay/watch.json` via `JsonStore`. Scheduler ticks every 30s, plain HTTP fetches URLs, converts HTML to text via `htmlToReadableText()`, compares SHA-256 hashes. On change: creates isolated AI session, sends previous+current content with user's task description, AI analyzes relevance, sends notification to Telegram. Ring buffer of 3 snapshots per watch. Error handling: notifies on errors #1 and #3, auto-disables at 5. `runningChecks` Set prevents double-fire. MCP tools: `watch_list`, `watch_add`, `watch_update`, `watch_remove`, `watch_toggle`, `watch_run`. Upfront URL validation via `validateWatchUrl()`: fetches the URL at creation time, rejects on HTTP errors, warns if content has fewer than 50 words (possible SPA or bot protection), and stores a baseline snapshot so the first scheduled check can already detect changes.
+
+### Deep Research (`src/commands/research.ts`)
+
+`/research <topic>` creates an isolated session, prepends a multi-step research instruction prefix, runs `streamPromptWithRetry()` inside `withPromptQueue()` for live streaming, and deletes the session in a finally block. Uses `promptForInput()` when invoked without arguments.
 
 ### Daemon Management (`src/daemon.ts`)
 
@@ -103,6 +113,7 @@ State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
 - `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
 - `SKILL.md` — Custom user system prompt override (optional). If present, replaces the default base prompt. Hot-reloaded — edits trigger `RELAY.md` regeneration
 - `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
+- `watch.json` — Web monitoring watch definitions, snapshots, and check history
 
 ### Bot Modes
 

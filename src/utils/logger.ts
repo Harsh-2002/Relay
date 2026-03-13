@@ -21,3 +21,5 @@ export const streamLogger = logger.child({ component: "stream" });
 export const cronLogger = logger.child({ component: "cron" });
 export const lifecycleLogger = logger.child({ component: "lifecycle" });
 export const relayApiLogger = logger.child({ component: "relay-api" });
+export const researchLogger = logger.child({ component: "research" });
+export const watchLogger = logger.child({ component: "watch" });

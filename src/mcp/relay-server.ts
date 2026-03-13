@@ -74,7 +74,7 @@ const server = new McpServer(
   {
     capabilities: { tools: {} },
     instructions:
-      "Relay MCP server — manage the Relay Telegram bot: scheduled tasks (cron), notifications, and health checks.",
+      "Relay MCP server — manage the Relay Telegram bot: scheduled tasks (cron), web monitoring (watch), notifications, and health checks.",
   },
 );
 
@@ -226,6 +226,145 @@ server.registerTool("cron_run", {
   const { status, data } = await apiCall("POST", `/cron/jobs/${encodeURIComponent(args.id)}/run`);
   if (status === 200) {
     return { content: [{ type: "text", text: `Job ${args.id} triggered. It will run shortly.` }] };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: watch_list ---
+
+server.registerTool("watch_list", {
+  title: "List Web Watches",
+  description: "List all web monitoring watches with their status, URL, task, and next check time.",
+}, async () => {
+  const { status, data } = await apiCall("GET", "/watch/jobs");
+  if (status !== 200) {
+    return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+  }
+  const d = data as any;
+  const watches = d.watches;
+  if (!watches || watches.length === 0) {
+    return { content: [{ type: "text", text: "No web watches configured." }] };
+  }
+  const header = d.timezone ? `Timezone: ${d.timezone}\n\n` : "";
+  const lines = watches.map((w: any) =>
+    `• [${w.enabled ? "ON" : "OFF"}] ${w.name} (${w.id})\n  URL: ${w.url}\n  Task: ${w.task}\n  Interval: every ${w.intervalMinutes}m\n  Next check: ${w.nextCheckAt}\n  Last check: ${w.lastCheckAt ?? "never"} (${w.lastCheckOk === null ? "n/a" : w.lastCheckOk ? "ok" : "failed"})\n  Changes: ${w.changeCount} detected in ${w.checkCount} checks${w.consecutiveErrors > 0 ? `\n  ⚠ ${w.consecutiveErrors} consecutive errors` : ""}`,
+  );
+  return { content: [{ type: "text", text: header + lines.join("\n\n") }] };
+});
+
+// --- Tool: watch_add ---
+
+server.registerTool("watch_add", {
+  title: "Create Web Watch",
+  description:
+    "Create a new web monitor that tracks a URL for changes. The system fetches the URL on the specified interval, compares content hashes, and sends AI-analyzed notifications when relevant changes are detected.",
+  inputSchema: {
+    name: z.string().describe("Short descriptive name for the watch"),
+    url: z.string().describe("The URL to monitor (must be http:// or https://)"),
+    task: z.string().describe("What to watch for — a natural language description of what changes are relevant (e.g. 'Track price changes for the main product')"),
+    interval_minutes: z.number().optional().describe("Minutes between checks (minimum 5, default 30). Use 5-15 for fast-moving pages, 30-60 for typical, 360+ for slow-changing"),
+  },
+}, async (args) => {
+  const { status, data } = await apiCall("POST", "/watch/jobs", {
+    name: args.name,
+    url: args.url,
+    task: args.task,
+    interval_minutes: args.interval_minutes ?? 30,
+  });
+  if (status === 201) {
+    const d = data as any;
+    return {
+      content: [{
+        type: "text",
+        text: `Created watch "${d.name}" (${d.id})\nURL: ${d.url}\nTask: ${d.task}\nInterval: every ${d.intervalMinutes}m\nNext check: ${d.nextCheckAt}`,
+      }],
+    };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: watch_update ---
+
+server.registerTool("watch_update", {
+  title: "Update Web Watch",
+  description: "Update an existing web watch. Only provided fields are changed; omitted fields stay the same.",
+  inputSchema: {
+    id: z.string().describe("The watch ID to update"),
+    name: z.string().optional().describe("New name"),
+    url: z.string().optional().describe("New URL to monitor"),
+    task: z.string().optional().describe("New task description"),
+    interval_minutes: z.number().optional().describe("New check interval in minutes (minimum 5)"),
+  },
+}, async (args) => {
+  const body: Record<string, unknown> = {};
+  if (args.name !== undefined) body.name = args.name;
+  if (args.url !== undefined) body.url = args.url;
+  if (args.task !== undefined) body.task = args.task;
+  if (args.interval_minutes !== undefined) body.interval_minutes = args.interval_minutes;
+
+  const { status, data } = await apiCall("PATCH", `/watch/jobs/${encodeURIComponent(args.id)}`, body);
+  if (status === 200) {
+    const d = data as any;
+    return {
+      content: [{
+        type: "text",
+        text: `Updated watch "${d.name}" (${d.id})\nURL: ${d.url}\nTask: ${d.task}\nInterval: every ${d.intervalMinutes}m\nNext check: ${d.nextCheckAt}`,
+      }],
+    };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: watch_remove ---
+
+server.registerTool("watch_remove", {
+  title: "Remove Web Watch",
+  description: "Delete a web watch by ID.",
+  inputSchema: {
+    id: z.string().describe("The watch ID to remove"),
+  },
+}, async (args) => {
+  const { status, data } = await apiCall("DELETE", `/watch/jobs/${encodeURIComponent(args.id)}`);
+  if (status === 200) {
+    return { content: [{ type: "text", text: `Watch ${args.id} removed.` }] };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: watch_toggle ---
+
+server.registerTool("watch_toggle", {
+  title: "Toggle Web Watch",
+  description: "Enable or disable a web watch without deleting it.",
+  inputSchema: {
+    id: z.string().describe("The watch ID to toggle"),
+  },
+}, async (args) => {
+  const { status, data } = await apiCall("POST", `/watch/jobs/${encodeURIComponent(args.id)}/toggle`);
+  if (status === 200) {
+    const d = data as any;
+    return {
+      content: [{
+        type: "text",
+        text: `Watch ${d.id} is now ${d.enabled ? "enabled" : "disabled"}.${d.enabled ? `\nNext check: ${d.nextCheckAt}` : ""}`,
+      }],
+    };
+  }
+  return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
+});
+
+// --- Tool: watch_run ---
+
+server.registerTool("watch_run", {
+  title: "Check Web Watch Now",
+  description: "Trigger an immediate check for a web watch, outside its regular interval. Use this to store the initial baseline or test a watch.",
+  inputSchema: {
+    id: z.string().describe("The watch ID to check"),
+  },
+}, async (args) => {
+  const { status, data } = await apiCall("POST", `/watch/jobs/${encodeURIComponent(args.id)}/run`);
+  if (status === 200) {
+    return { content: [{ type: "text", text: `Watch ${args.id} check triggered. It will run shortly.` }] };
   }
   return { content: [{ type: "text", text: `Error: ${formatError(data)}` }], isError: true };
 });

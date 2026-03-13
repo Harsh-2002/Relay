@@ -438,6 +438,78 @@ The `/cron` command also includes an **Add Job** button that walks you through c
 
 ---
 
+## Web Monitoring
+
+### `/watch`
+
+Show all web watches with inline action buttons (Enable/Disable, Check Now, Delete) and an `+ Add Watch` button to start the interactive creation flow.
+
+### `/watch <url>`
+
+Start the interactive watch creation flow with the URL pre-filled. Skips straight to the interval picker.
+
+```
+/watch https://example.com/pricing
+```
+
+The bot shows an interval picker keyboard, then prompts for a task description.
+
+### `/watch add <url> <intervalM> <Name: task>`
+
+Create a watch directly with all parameters in one command.
+
+```
+/watch add https://example.com/pricing 30 Pricing: Watch for price changes
+```
+
+### Interactive creation flow
+
+Both `/watch` → `+ Add Watch` and `/watch <url>` lead to the same interactive flow:
+
+1. **URL** — type the URL to monitor (skipped if provided via `/watch <url>`)
+2. **Interval** — pick check frequency from a keyboard (5m, 10m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 24h)
+3. **Task** — describe what changes matter (e.g., "Track price changes on the enterprise plan")
+
+The watch name is auto-derived from the URL hostname (e.g., `example.com`).
+
+### Upfront validation
+
+When creating a watch, Relay immediately fetches the URL to verify it's reachable:
+
+- **Fetch fails** (timeout, DNS, HTTP error) → watch is **not created**, error shown
+- **Content is thin** (< 50 words) → watch is created with a **warning** (possible JavaScript-rendered page or bot protection)
+- **Success** → watch is created with a baseline snapshot already stored, so the first scheduled check can detect changes immediately
+
+### How change detection works
+
+1. Plain HTTP fetch → HTML converted to readable text via `htmlToReadableText()`
+2. SHA-256 hash comparison against the previous snapshot
+3. If hash differs → AI analyzes the change in an isolated session
+4. AI checks relevance against the user's task description
+5. Relevant changes → notification sent to Telegram
+6. Irrelevant changes (timestamps, ads, layout) → silently ignored
+
+Error handling: notifies on errors #1 and #3, auto-disables the watch after 5 consecutive errors.
+
+---
+
+## Deep Research
+
+### `/research [topic]`
+
+Run deep multi-step research on a topic. Without arguments, prompts for the topic interactively.
+
+```
+/research                              # Prompts for topic
+/research quantum computing advances   # Start directly
+```
+
+The AI creates an isolated session, breaks the topic into sub-questions, gathers information from multiple sources, cross-references findings, and delivers a structured report with key findings, analysis, and sources. The session is deleted after completion.
+
+Results stream live to Telegram as they're generated.
+
+---
+
 ## Settings & Info
 
 ### `/health`

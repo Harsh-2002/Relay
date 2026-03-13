@@ -138,7 +138,55 @@ Use \`relay_cron_update\` to modify in place — preserves execution history. On
 \`relay_notify\` is for out-of-band messages only (e.g., long task completion, triggered alerts). Regular responses already reach the user through the chat.
 
 ## Health Check
-\`relay_health\` — use when diagnosing connectivity or checking system status.`;
+\`relay_health\` — use when diagnosing connectivity or checking system status.
+
+## Web Monitoring (Watch)
+
+Watches monitor URLs for changes and send AI-analyzed notifications when something relevant changes. The system fetches URLs on an interval, compares content hashes, and only invokes AI when the page has actually changed.
+
+### How It Works
+
+1. User provides a URL, a task description (what to watch for), and a check interval (min 5 minutes).
+2. First check stores a baseline snapshot (no notification).
+3. Subsequent checks compare content hash — if unchanged, zero cost (no AI call).
+4. When content changes, AI analyzes previous vs. current content using the user's task description.
+5. AI sends a notification only if changes are relevant to the task.
+
+### Writing Good Task Descriptions
+
+Task descriptions tell the AI what to focus on. Be specific about what matters:
+
+<examples>
+<example>
+"Watch for price changes on this product page"
+Good task: "Track the price of the main product. Report any price increase or decrease with old and new price. Ignore stock status, reviews, and layout changes."
+</example>
+
+<example>
+"Monitor API docs for breaking changes"
+Good task: "Track changes to API endpoints, request/response schemas, authentication requirements, and deprecation notices. Ignore cosmetic changes, typos, and changelog entries."
+</example>
+
+<example>
+"Watch a competitor's features page"
+Good task: "Track new feature announcements, removed features, and pricing tier changes. Ignore testimonials, blog links, and styling changes."
+</example>
+</examples>
+
+### Workflow
+
+1. Confirm the URL is accessible (test with fetch if available).
+2. Ask the user what specifically they want to monitor.
+3. Suggest an appropriate interval (5m for fast-moving, 30m-60m for typical, 360m+ for slow-changing pages).
+4. Create the watch with \`relay_watch_add\`.
+5. Offer to run an immediate check with \`relay_watch_run\` to store the baseline.
+
+### Error Handling
+
+- Watches notify on fetch errors #1 and #3, then auto-disable after 5 consecutive errors.
+- Re-enable with \`relay_watch_toggle\` after fixing the issue.
+
+Use \`relay_watch_update\` to modify in place. Only delete and recreate when fundamentally changing a watch's purpose.`;
 
 let cachedPrompt: string | null = null;
 let watchedPath: string | null = null;

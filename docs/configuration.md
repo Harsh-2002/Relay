@@ -86,6 +86,7 @@ Files stored:
 - `config.json` — Your configuration (0600 permissions)
 - `session.json` — Active session ID and selected model
 - `cron.json` — Scheduled task definitions and run history
+- `watch.json` — Web monitoring watch definitions, snapshots, and check history
 - `RELAY.md` — Auto-generated assembled system prompt (written on every startup)
 - `SKILL.md` — Custom system prompt override (optional, create manually)
 - `memory.jsonl` — Memory MCP knowledge graph (auto-created when Memory is enabled)

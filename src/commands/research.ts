@@ -7,18 +7,24 @@ import { formatCatchError } from "../utils/errors.js";
 import { researchLogger } from "../utils/logger.js";
 import { getProvider } from "../providers/index.js";
 
-const RESEARCH_PREFIX = `[RESEARCH MODE - Execute systematically. No disclaimers, unless critical.]
+function buildResearchPrompt(topic: string): string {
+  const now = new Date();
+  const date = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-Research topic: `;
+  return `[RESEARCH MODE - Execute systematically. No disclaimers, unless critical.]
 
-const RESEARCH_SUFFIX = `
+Current date: ${date}
+
+Research topic: ${topic}
 
 Instructions:
 - Conduct thorough, multi-step research on this topic
+- Prioritize recent and up-to-date information (${now.getFullYear()})
 - Use available tools (web search, fetch, etc.) to gather information
 - Synthesize findings into a clear, comprehensive response
 - Cite sources where possible
 - If the topic is ambiguous, make reasonable assumptions and note them`;
+}
 
 async function doResearch(topic: string, ctx: any): Promise<void> {
   const provider = getProvider();
@@ -29,7 +35,7 @@ async function doResearch(topic: string, ctx: any): Promise<void> {
     sessionId = session.id;
     researchLogger.info({ sessionId, topic }, "Created research session");
 
-    const prompt = RESEARCH_PREFIX + topic + RESEARCH_SUFFIX;
+    const prompt = buildResearchPrompt(topic);
     const model = getSelectedModel();
     const agent = getSelectedAgent();
     const system = getSystemPrompt();

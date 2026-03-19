@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { getProvider } from "../providers/index.js";
 import { escapeHtml } from "../utils/html.js";
+import { clearPendingInput, setCrossClear } from "../utils/input.js";
 import { providerLogger } from "../utils/logger.js";
 import type { StreamChunk } from "../providers/types.js";
 
@@ -23,6 +24,16 @@ const pendingTextQuestions = new Map<number, { requestId: string; msgId?: number
 
 // --- Public API ---
 
+export function clearPendingTextQuestionsForChat(chatId: number, api?: Context["api"]): void {
+  const pending = pendingTextQuestions.get(chatId);
+  if (pending) {
+    if (pending.forceReplyMsgId && api) {
+      api.deleteMessage(chatId, pending.forceReplyMsgId).catch(() => {});
+    }
+    pendingTextQuestions.delete(chatId);
+  }
+}
+
 export async function startQuestionFlow(
   ctx: Context,
   chatId: number,
@@ -41,6 +52,9 @@ export async function startQuestionFlow(
     try { await ctx.api.deleteMessage(chatId, stalePending.forceReplyMsgId); } catch {}
   }
   pendingTextQuestions.delete(chatId);
+
+  // Cross-system clear: clear any pending command input handlers
+  clearPendingInput(chatId, ctx.api);
 
   const { requestId, items } = question;
 
@@ -338,6 +352,9 @@ function formatQuestionHtml(item: { header: string; question: string; options: A
 // --- Callback handlers ---
 
 export function registerQuestionHandlers(bot: Bot): void {
+  // Register cross-system clear hook so promptForInput() can clear pending text questions
+  setCrossClear(clearPendingTextQuestionsForChat);
+
   // Single-select: pick option
   bot.callbackQuery(/^qa:([^:]+):(\d+)$/, async (ctx) => {
     const requestId = ctx.match[1];
@@ -407,6 +424,9 @@ export function registerQuestionHandlers(bot: Bot): void {
     const chatId = ctx.callbackQuery.message?.chat.id;
     const msgId = ctx.callbackQuery.message?.message_id;
     if (!chatId) return;
+
+    // Cross-system clear: clear any pending command input handlers
+    clearPendingInput(chatId, ctx.api);
 
     await ctx.answerCallbackQuery({ text: "Type your answer below" });
     const forceReplyMsg = await ctx.api.sendMessage(chatId, "Type your answer:", {
@@ -520,6 +540,9 @@ export function registerQuestionHandlers(bot: Bot): void {
       await ctx.answerCallbackQuery({ text: "Question flow expired" });
       return;
     }
+
+    // Cross-system clear: clear any pending command input handlers
+    clearPendingInput(flow.chatId, ctx.api);
 
     await ctx.answerCallbackQuery({ text: "Type your answer below" });
     const forceReplyMsg = await ctx.api.sendMessage(flow.chatId, "Type your answer:", {

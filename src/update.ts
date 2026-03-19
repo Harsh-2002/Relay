@@ -66,11 +66,18 @@ function isDaemonRunning(): boolean {
 }
 
 function restartDaemon(): void {
+  // Try restart first (works if pm2 still has the process entry)
   try {
     execCmd("pm2", ["restart", "relay"], { stdio: "ignore" });
     console.log("  Daemon restarted.\n");
+    return;
   } catch {
-    console.log("  Failed to restart daemon. Run `relay restart` manually.\n");
+    // Process entry gone (common after npm global update) — start fresh
+  }
+  try {
+    execCmd("relay", ["start"], { stdio: "inherit" });
+  } catch {
+    console.log("  Failed to restart daemon. Run `relay start` manually.\n");
   }
 }
 
@@ -128,6 +135,9 @@ export function update(): void {
     return;
   }
 
+  // Check if daemon was running BEFORE the update (update may kill/orphan the process)
+  const wasRunning = isDaemonRunning();
+
   let success: boolean;
 
   if (fromNpm) {
@@ -147,8 +157,8 @@ export function update(): void {
   const newVersion = getLocalVersion();
   console.log(`\n  Updated to v${newVersion}\n`);
 
-  if (isDaemonRunning()) {
-    console.log("  Daemon is running — restarting...");
+  if (wasRunning) {
+    console.log("  Daemon was running — restarting...");
     restartDaemon();
   }
 }

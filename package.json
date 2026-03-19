@@ -17,6 +17,8 @@
     "build": "tsc",
     "start": "node dist/cli.js",
     "dev": "tsc --watch & node --watch dist/cli.js --dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
   }
 }

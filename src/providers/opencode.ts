@@ -1047,7 +1047,7 @@ function spawnOpencodeWindows(hostname: string, port: number): Promise<string> {
 
     proc.stdout?.on("data", (chunk: Buffer) => {
       output += chunk.toString();
-      for (const line of output.split("\n")) {
+      for (const line of output.split(/\r?\n/)) {
         if (line.includes("opencode server listening")) {
           const match = line.match(/on\s+(https?:\/\/[^\s]+)/);
           if (match) {

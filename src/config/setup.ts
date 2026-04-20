@@ -493,12 +493,19 @@ export async function runSetupWizard(dataDir: string, existing?: RelayConfig): P
   if (config.fetchEnabled) {
     const hasUvx = checkCommand("uvx --version");
     if (!hasUvx) {
+      // Prefer curl, fall back to wget — some minimal Linux images (Alpine,
+      // barebones containers) ship with wget but not curl.
+      const hasCurl = checkCommand("curl --version");
+      const hasWget = !hasCurl && checkCommand("wget --version");
+      const unixInstallCmd = hasWget
+        ? "wget -qO- https://astral.sh/uv/install.sh | sh"
+        : "curl -LsSf https://astral.sh/uv/install.sh | sh";
       const uvInstallCmd = isWindows
         ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
-        : "curl -LsSf https://astral.sh/uv/install.sh | sh";
+        : unixInstallCmd;
       const uvManualHint = isWindows
         ? "irm https://astral.sh/uv/install.ps1 | iex"
-        : "curl -LsSf https://astral.sh/uv/install.sh | sh";
+        : unixInstallCmd;
 
       p.log.warn("Fetch MCP requires uvx (Python package runner).");
       const uvxChoice = await p.select({

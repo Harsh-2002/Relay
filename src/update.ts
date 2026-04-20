@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname, resolve, normalize } from "path";
 import { fileURLToPath } from "url";
@@ -102,18 +101,26 @@ function updateFromNpm(): boolean {
 function updateFromSource(): boolean {
   console.log("  Updating from source (git pull)...\n");
   const root = join(__dirname, "..");
-  try {
-    execSync("git pull && npm install && npm run build", {
-      cwd: root,
-      stdio: "inherit",
-    });
-    return true;
-  } catch {
-    console.error(
-      "\n  Update failed. Try manually:\n\n    git pull && npm install && npm run build\n"
-    );
-    return false;
+  // Run each step separately via execCmd (not `sh -c "a && b && c"`) so this
+  // works on Windows too, where there is no /bin/sh and cmd.exe uses different
+  // chaining syntax. execCmd also resolves .cmd shims for npm on Windows.
+  const steps: [string, string[]][] = [
+    ["git", ["pull"]],
+    ["npm", ["install"]],
+    ["npm", ["run", "build"]],
+  ];
+  for (const [cmd, args] of steps) {
+    try {
+      execCmd(cmd, args, { cwd: root, stdio: "inherit" });
+    } catch {
+      console.error(
+        `\n  Update failed at: ${cmd} ${args.join(" ")}\n` +
+        `  Try manually:\n\n    git pull && npm install && npm run build\n`
+      );
+      return false;
+    }
   }
+  return true;
 }
 
 export function update(): void {

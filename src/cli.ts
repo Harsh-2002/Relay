@@ -28,6 +28,7 @@ function printHelp(): void {
     relay restart               Restart the background daemon
     relay logs                  Tail daemon logs (Ctrl+C to exit)
     relay status                Show daemon status
+    relay autostart             Register pm2 with systemd (survives reboot)
     relay update                Update Relay to the latest version
     relay --help                Show this help message
     relay --version             Show version
@@ -47,7 +48,7 @@ function printHelp(): void {
 `);
 }
 
-const DAEMON_COMMANDS = new Set(["start", "stop", "restart", "logs", "status", "update"]);
+const DAEMON_COMMANDS = new Set(["start", "stop", "restart", "logs", "status", "autostart", "update"]);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -71,6 +72,9 @@ async function main() {
         break;
       case "status":
         daemon.daemonStatus();
+        break;
+      case "autostart":
+        daemon.daemonAutostart();
         break;
       case "update": {
         const { update } = await import("./update.js");

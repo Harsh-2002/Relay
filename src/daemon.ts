@@ -50,24 +50,97 @@ function pm2Save(): void {
   }
 }
 
-function printStartupHint(): void {
-  if (process.platform === "win32") return;
+function getSystemdUnitPath(): string | null {
+  const user = process.env.USER ?? process.env.LOGNAME;
+  if (!user) return null;
+  return `/etc/systemd/system/pm2-${user}.service`;
+}
 
+function isPm2SystemdConfigured(): boolean {
+  if (process.platform === "win32") return true;
+  const unitPath = getSystemdUnitPath();
+  if (!unitPath) return false;
+  return existsSync(unitPath);
+}
+
+function canUseSudoWithoutPassword(): boolean {
   try {
-    // `pm2 startup` outputs a "sudo ..." command when NOT configured.
-    // When already configured, it prints status info with no sudo line.
-    // Works cross-platform — pm2 auto-detects the init system.
-    const result = execCmd("pm2", ["startup"], {
+    execCmd("sudo", ["-n", "true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getPm2StartupSudoCommand(): string | null {
+  try {
+    const out = execCmd("pm2", ["startup"], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
     }) as string;
-    const sudoLine = result.split("\n").find(l => l.trim().startsWith("sudo "));
-    if (sudoLine) {
-      console.log(`  To survive system reboots, run:\n\n    ${sudoLine.trim()}\n`);
-    }
+    const sudoLine = out.split("\n").find(l => l.trim().startsWith("sudo "));
+    return sudoLine ? sudoLine.trim() : null;
   } catch {
-    // ignore — non-critical hint
+    return null;
   }
+}
+
+function printStartupManualHint(sudoCmd: string): void {
+  const border = "  " + "─".repeat(72);
+  console.log();
+  console.log(border);
+  console.log("  IMPORTANT: Relay will NOT survive system reboots yet.");
+  console.log();
+  console.log("  Kernel upgrades and regular reboots will silently kill the daemon");
+  console.log("  and nothing will restart it. To register pm2 with systemd so Relay");
+  console.log("  auto-starts on boot, run this one-time command:");
+  console.log();
+  console.log(`    ${sudoCmd}`);
+  console.log();
+  console.log("  After that, `pm2 save` (already done) makes the current relay");
+  console.log("  process resurrect on every boot. You can also run:");
+  console.log();
+  console.log("    relay autostart");
+  console.log();
+  console.log("  to attempt this automatically (uses passwordless sudo if available).");
+  console.log(border);
+  console.log();
+}
+
+function ensurePm2Startup(opts: { force?: boolean } = {}): void {
+  if (process.platform === "win32") return;
+
+  if (!opts.force && isPm2SystemdConfigured()) {
+    return;
+  }
+
+  const sudoCmd = getPm2StartupSudoCommand();
+  if (!sudoCmd) {
+    if (opts.force) {
+      console.log("\n  PM2 systemd service appears already configured.\n");
+    }
+    return;
+  }
+
+  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+  const canAutoRun = isRoot || canUseSudoWithoutPassword();
+
+  if (canAutoRun) {
+    try {
+      execCmd("sh", ["-c", sudoCmd], { stdio: "inherit" });
+      // Save again now that the systemd unit exists so the current process
+      // list is what gets resurrected on the first reboot.
+      pm2Save();
+      console.log(
+        "\n  PM2 systemd service registered. Relay will now auto-start on boot.\n"
+      );
+      return;
+    } catch {
+      // fall through to manual hint
+    }
+  }
+
+  printStartupManualHint(sudoCmd);
 }
 
 function ensurePm2(): void {
@@ -208,8 +281,8 @@ export function daemonStart(): void {
     console.log("\n  Daemon started. Run `relay status` to check.\n");
   }
 
-  // Hint about pm2 startup if not configured
-  printStartupHint();
+  // Register pm2 with systemd so Relay auto-starts on reboot
+  ensurePm2Startup();
 }
 
 export function daemonStop(): void {
@@ -257,10 +330,17 @@ export function daemonRestart(): void {
   // Save process list so pm2 can restore after reboot
   pm2Save();
 
+  // Safety net for existing installs that predate auto-registration
+  ensurePm2Startup();
+
   const newInfo = getProcessInfo();
   if (newInfo) {
     printStatus(newInfo);
   }
+}
+
+export function daemonAutostart(): void {
+  ensurePm2Startup({ force: true });
 }
 
 export function daemonLogs(): void {

@@ -1,4 +1,5 @@
-import { existsSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
+import { homedir } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execCmd, spawnCmd, sleepSync } from "./utils/shell.js";
@@ -50,17 +51,20 @@ function pm2Save(): void {
   }
 }
 
-function getSystemdUnitPath(): string | null {
-  const user = process.env.USER ?? process.env.LOGNAME;
-  if (!user) return null;
-  return `/etc/systemd/system/pm2-${user}.service`;
+function getStartupSentinelPath(): string {
+  return join(homedir(), ".pm2", ".relay-startup-registered");
 }
 
-function isPm2SystemdConfigured(): boolean {
-  if (process.platform === "win32") return true;
-  const unitPath = getSystemdUnitPath();
-  if (!unitPath) return false;
-  return existsSync(unitPath);
+function hasBeenRegistered(): boolean {
+  return existsSync(getStartupSentinelPath());
+}
+
+function markAsRegistered(): void {
+  try {
+    writeFileSync(getStartupSentinelPath(), new Date().toISOString() + "\n");
+  } catch {
+    // non-critical — the fast-path is an optimization, not correctness
+  }
 }
 
 function canUseSudoWithoutPassword(): boolean {
@@ -94,10 +98,13 @@ function printStartupManualHint(sudoCmd: string): void {
   console.log("  IMPORTANT: Relay will NOT survive system reboots yet.");
   console.log();
   console.log("  Kernel upgrades and regular reboots will silently kill the daemon");
-  console.log("  and nothing will restart it. To register pm2 with systemd so Relay");
-  console.log("  auto-starts on boot, run this one-time command:");
+  console.log("  and nothing will restart it. To register pm2 with your init system");
+  console.log("  so Relay auto-starts on boot, run this one-time command:");
   console.log();
   console.log(`    ${sudoCmd}`);
+  console.log();
+  console.log("  If your system uses `doas` instead of `sudo` (Alpine minimal,");
+  console.log("  some OpenBSD setups), substitute `doas` for `sudo` in the command.");
   console.log();
   console.log("  After that, `pm2 save` (already done) makes the current relay");
   console.log("  process resurrect on every boot. You can also run:");
@@ -109,17 +116,44 @@ function printStartupManualHint(sudoCmd: string): void {
   console.log();
 }
 
-function ensurePm2Startup(opts: { force?: boolean } = {}): void {
-  if (process.platform === "win32") return;
+function printWindowsStartupHint(): void {
+  const border = "  " + "─".repeat(72);
+  console.log();
+  console.log(border);
+  console.log("  Windows auto-start requires a separate tool. pm2's built-in");
+  console.log("  `pm2 startup` does not support Windows.");
+  console.log();
+  console.log("  Install pm2-windows-startup (recommended), then restart:");
+  console.log();
+  console.log("    npm install -g pm2-windows-startup");
+  console.log("    pm2-startup install");
+  console.log();
+  console.log("  Alternatively, wrap pm2 with NSSM as a Windows Service.");
+  console.log("  See: https://github.com/jblang/pm2-windows-startup");
+  console.log(border);
+  console.log();
+}
 
-  if (!opts.force && isPm2SystemdConfigured()) {
+function ensurePm2Startup(opts: { force?: boolean } = {}): void {
+  if (process.platform === "win32") {
+    // pm2 startup cannot register a Windows Service — only show guidance when
+    // the user explicitly asked via `relay autostart`, to avoid spamming on
+    // every `relay start`.
+    if (opts.force) printWindowsStartupHint();
+    return;
+  }
+
+  if (!opts.force && hasBeenRegistered()) {
     return;
   }
 
   const sudoCmd = getPm2StartupSudoCommand();
   if (!sudoCmd) {
+    // pm2 did not print a `sudo …` line, meaning the init system already has
+    // a pm2 startup unit. Record that so future starts skip the subprocess.
+    markAsRegistered();
     if (opts.force) {
-      console.log("\n  PM2 systemd service appears already configured.\n");
+      console.log("\n  pm2 startup is already configured for this init system.\n");
     }
     return;
   }
@@ -130,11 +164,12 @@ function ensurePm2Startup(opts: { force?: boolean } = {}): void {
   if (canAutoRun) {
     try {
       execCmd("sh", ["-c", sudoCmd], { stdio: "inherit" });
-      // Save again now that the systemd unit exists so the current process
-      // list is what gets resurrected on the first reboot.
+      // Save again now that the init unit exists so the current process list
+      // is what gets resurrected on the first reboot.
       pm2Save();
+      markAsRegistered();
       console.log(
-        "\n  PM2 systemd service registered. Relay will now auto-start on boot.\n"
+        "\n  pm2 startup registered. Relay will now auto-start on boot.\n"
       );
       return;
     } catch {

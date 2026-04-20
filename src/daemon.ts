@@ -73,16 +73,18 @@ function canUseSudoWithoutPassword(): boolean {
 }
 
 function getPm2StartupSudoCommand(): string | null {
-  try {
-    const out = execCmd("pm2", ["startup"], {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "ignore"],
-    }) as string;
-    const sudoLine = out.split("\n").find(l => l.trim().startsWith("sudo "));
-    return sudoLine ? sudoLine.trim() : null;
-  } catch {
-    return null;
-  }
+  // `pm2 startup` exits with code 1 when action is needed, so we can't rely
+  // on execFileSync (which throws on non-zero). Use spawnSync and read stdout
+  // regardless of exit status. The sudo command is always on stdout.
+  const result = spawnCmd("pm2", ["startup"], {
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const sudoLine = stdout
+    .split("\n")
+    .find(l => l.trim().startsWith("sudo "));
+  return sudoLine ? sudoLine.trim() : null;
 }
 
 function printStartupManualHint(sudoCmd: string): void {

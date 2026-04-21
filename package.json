@@ -1,6 +1,6 @@
 {
   "name": "@4via6/relay",
-  "version": "2.5.8",
+  "version": "2.5.9",
   "description": "Your personal AI agent — powered by Telegram.",
   "type": "module",
   "main": "dist/index.js",

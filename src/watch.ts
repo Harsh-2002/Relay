@@ -1,4 +1,4 @@
-import { InputFile, type Api, type RawApi } from "grammy";
+import { InputFile, InlineKeyboard, type Api, type RawApi } from "grammy";
 import { createHash } from "crypto";
 import { getProvider } from "./providers/index.js";
 import { getSelectedModel } from "./session.js";
@@ -28,6 +28,26 @@ export interface Snapshot {
   content: string;
 }
 
+export interface PendingReanalysis {
+  /** Content as it was just before the first failed analysis (last successful state). */
+  previousContent: string;
+  /** Latest content — updated on every subsequent tick that detects a new change. */
+  currentContent: string;
+  /** When the original change that kicked this off was first observed. */
+  detectedAt: number;
+  /** Number of attempts so far (1 = first failure). */
+  attempts: number;
+  /** Timestamp of the most recent attempt. */
+  lastAttemptAt: number;
+  /** Human-readable, classified error from the latest attempt. */
+  lastError: string;
+  /** Model id attempted, e.g. "zai-coding-plan/glm-5.1". */
+  modelTried?: string;
+  /** Telegram message id of the failure card — so retry edits in place. */
+  notificationMsgId?: number;
+  notificationChatId?: number;
+}
+
 export interface WatchJob {
   id: string;
   name: string;
@@ -44,6 +64,12 @@ export interface WatchJob {
   changeCount: number;
   consecutiveErrors: number;
   snapshots: Snapshot[];
+  /**
+   * Set when an analysis attempt fails. Preserves the diff pair so the user
+   * can manually retry (e.g. after switching model) without losing the fact
+   * that a change needs analyzing. Absent means no pending retry.
+   */
+  pendingReanalysis?: PendingReanalysis;
 }
 
 interface WatchState {
@@ -302,8 +328,23 @@ async function checkWatch(watch: WatchJob): Promise<void> {
   }
   watch.changeCount++;
   watch.lastChangedAt = Date.now();
-  persist();
 
+  // If a previous analysis is still pending retry, don't kick off a fresh one —
+  // just update the latest content so whenever the user hits Retry, the diff
+  // covers everything from the last successful state through right now.
+  // The user opted into manual-only retries; we never auto-fire a fresh attempt
+  // while pending is outstanding.
+  if (watch.pendingReanalysis) {
+    watch.pendingReanalysis.currentContent = text;
+    persist();
+    watchLogger.info(
+      { watchId: watch.id, changeCount: watch.changeCount, attempts: watch.pendingReanalysis.attempts },
+      "Change detected while retry pending — updated pendingReanalysis.currentContent",
+    );
+    return;
+  }
+
+  persist();
   watchLogger.info({ watchId: watch.id, changeCount: watch.changeCount }, "Change detected");
 
   // First snapshot = baseline, no AI analysis needed
@@ -358,45 +399,78 @@ function handleFetchError(watch: WatchJob, err: any): void {
   persist();
 }
 
-async function analyzeChange(watch: WatchJob, previousContent: string, currentContent: string): Promise<void> {
-  if (!schedulerApi || !schedulerChatId) return;
+/**
+ * Map a raw analysis error into a short, user-actionable reason string.
+ * Kept as message-based pattern matching for now; the provider does not yet
+ * tag errors with a distinct `reason` field.
+ */
+export function classifyAnalysisError(err: any): string {
+  const msg = String(err?.message ?? err ?? "").trim();
+  const lower = msg.toLowerCase();
 
-  const api = schedulerApi;
-  const chatId = schedulerChatId;
-
-  // Pre-flight: ensure server is alive
-  try {
-    await ensureServerAlive();
-  } catch (err: any) {
-    watchLogger.info({ watchId: watch.id, err: err?.message }, "Watch analysis skipped: server down");
-    try {
-      await api.sendMessage(
-        chatId,
-        `<b>Watch: ${escapeHtml(watch.name)}</b>\n\n` +
-        `Change detected but AI analysis skipped — server unreachable.`,
-        { parse_mode: "HTML" },
-      );
-    } catch {}
-    return;
+  if (lower.includes("session not found") || lower.includes("no response received")) {
+    return "Model didn't respond in 120s. Likely unavailable or rate-limited.";
+  }
+  if (lower.includes("model not found")) {
+    const match = msg.match(/Model not found:\s*([^\s.]+)/i);
+    return match ? `Model unavailable: ${match[1]}` : "Model unavailable.";
+  }
+  if (lower.includes("rate limit") || lower.includes(" 429") || lower.endsWith("429")) {
+    return "Rate limited by provider. Wait a minute, then retry.";
+  }
+  if (lower.includes("unauthorized") || lower.includes(" 401") || lower.includes("invalid api key")) {
+    return "Provider rejected the API key. Check your OpenCode auth.";
+  }
+  if (lower.includes("server unreachable") || lower.includes("econnrefused")) {
+    return "OpenCode server unreachable.";
   }
 
-  // Send header message
-  let msgId: number | null = null;
-  try {
-    const msg = await api.sendMessage(chatId, `<b>Watch: ${escapeHtml(watch.name)}</b>\n\nAnalyzing change...`, { parse_mode: "HTML" });
-    msgId = msg.message_id;
-  } catch (err: any) {
-    watchLogger.info({ watchId: watch.id, err: err?.message }, "Failed to send watch header");
-    return;
-  }
+  return msg.slice(0, 200) || "Unknown error.";
+}
 
+function buildFailureCard(watch: WatchJob, pending: PendingReanalysis): string {
   const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
-  let ok = false;
+  const model = pending.modelTried ? escapeHtml(pending.modelTried) : "(default)";
+  const reason = escapeHtml(pending.lastError);
+  return (
+    `${header}\n` +
+    `<i>Analysis failed.</i>\n\n` +
+    `Reason: ${reason}\n` +
+    `Model tried: <code>${model}</code>\n` +
+    `Attempt ${pending.attempts}. Tap ↻ Retry to try again (uses your current /model).`
+  );
+}
+
+function buildFailureKeyboard(watchId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("↻ Retry", `watch_retry:${watchId}`)
+    .text("Dismiss", `watch_dismiss:${watchId}`);
+}
+
+/**
+ * Shared inner logic for a single analysis attempt against a given before/after
+ * content pair. Handles session creation, streaming, rendering to Telegram, and
+ * file attachments. Throws on failure so the caller can decide whether the
+ * failure should populate pendingReanalysis or (on retry) update the existing
+ * one. Resolves normally on AI success.
+ *
+ * `msgId` is the Telegram message id of the "Analyzing…" header that we edit
+ * in place. Caller creates/owns that message so both first-run and retry can
+ * reuse the same card.
+ */
+async function runAnalysisAttempt(
+  watch: WatchJob,
+  previousContent: string,
+  currentContent: string,
+  api: Api<RawApi>,
+  chatId: number,
+  msgId: number,
+): Promise<{ ok: boolean; modelTried?: string }> {
+  const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
 
   // Animated dots
   let dotPhase = 0;
   const dotTimer = setInterval(() => {
-    if (!msgId) return;
     dotPhase = (dotPhase % 3) + 1;
     api.editMessageText(chatId, msgId, `${header}\n\nAnalyzing${".".repeat(dotPhase)}`, { parse_mode: "HTML" })
       .catch(() => {});
@@ -404,13 +478,14 @@ async function analyzeChange(watch: WatchJob, previousContent: string, currentCo
 
   const provider = getProvider();
   let watchSessionId: string | null = null;
+  const model = getSelectedModel();
+  const modelId = model ? `${model.providerID}/${model.modelID}` : undefined;
 
   try {
     const session = await provider.createSession(`Watch: ${watch.name}`);
     watchSessionId = session.id;
-    watchLogger.info({ watchId: watch.id, sessionId: watchSessionId }, "Created watch analysis session");
+    watchLogger.info({ watchId: watch.id, sessionId: watchSessionId, model: modelId }, "Created watch analysis session");
 
-    const model = getSelectedModel();
     const prompt = buildAnalysisPrompt(watch, previousContent, currentContent);
 
     let accumulated = "";
@@ -434,35 +509,28 @@ async function analyzeChange(watch: WatchJob, previousContent: string, currentCo
 
     clearInterval(dotTimer);
 
-    // Check if AI found relevant changes
     const trimmed = accumulated.trim();
     if (!trimmed || trimmed.toLowerCase().includes("no relevant changes")) {
       try {
-        await api.editMessageText(chatId, msgId!, `${header}\n\n<i>Change detected but not relevant to task.</i>`, { parse_mode: "HTML" });
+        await api.editMessageText(chatId, msgId, `${header}\n\n<i>Change detected but not relevant to task.</i>`, { parse_mode: "HTML" });
       } catch {}
-      ok = true;
-    } else if (trimmed) {
+    } else {
       const html = markdownToHtml(trimmed);
       const chunks = chunkMessage(html);
       const firstWithHeader = `${header}\n\n${chunks[0]}`;
       if (firstWithHeader.length <= 4096) {
         try {
-          await api.editMessageText(chatId, msgId!, firstWithHeader, { parse_mode: "HTML" });
+          await api.editMessageText(chatId, msgId, firstWithHeader, { parse_mode: "HTML" });
         } catch {
           try { await api.sendMessage(chatId, chunks[0], { parse_mode: "HTML" }); } catch {}
         }
       } else {
-        try { await api.editMessageText(chatId, msgId!, header, { parse_mode: "HTML" }); } catch {}
+        try { await api.editMessageText(chatId, msgId, header, { parse_mode: "HTML" }); } catch {}
         try { await api.sendMessage(chatId, chunks[0], { parse_mode: "HTML" }); } catch {}
       }
       for (let i = 1; i < chunks.length; i++) {
         try { await api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" }); } catch {}
       }
-      ok = true;
-    } else {
-      try {
-        await api.editMessageText(chatId, msgId!, `${header}\n\n<i>No response</i>`, { parse_mode: "HTML" });
-      } catch {}
     }
 
     // Send file attachments
@@ -479,20 +547,184 @@ async function analyzeChange(watch: WatchJob, previousContent: string, currentCo
         watchLogger.info({ watchId: watch.id, err: err?.message }, "Failed to send watch file attachment");
       }
     }
-  } catch (err: any) {
-    clearInterval(dotTimer);
-    watchLogger.info({ watchId: watch.id, err: err?.message }, "Watch analysis error");
-    const errText = (err?.message ?? "unknown").slice(0, MAX_ERROR_LEN);
-    try {
-      await api.editMessageText(chatId, msgId!, `${header}\n\n<i>Analysis error: ${escapeHtml(errText)}</i>`, { parse_mode: "HTML" });
-    } catch {}
+
+    return { ok: true, modelTried: modelId };
   } finally {
+    clearInterval(dotTimer);
     if (watchSessionId) {
       provider.deleteSession(watchSessionId).catch((err: any) => {
         watchLogger.info({ watchId: watch.id, sessionId: watchSessionId, err: err?.message }, "Failed to delete watch session");
       });
     }
   }
+}
+
+async function analyzeChange(watch: WatchJob, previousContent: string, currentContent: string): Promise<void> {
+  if (!schedulerApi || !schedulerChatId) return;
+
+  const api = schedulerApi;
+  const chatId = schedulerChatId;
+
+  // Pre-flight: ensure server is alive
+  try {
+    await ensureServerAlive();
+  } catch (err: any) {
+    watchLogger.info({ watchId: watch.id, err: err?.message }, "Watch analysis skipped: server down");
+    try {
+      await api.sendMessage(
+        chatId,
+        `<b>Watch: ${escapeHtml(watch.name)}</b>\n\n` +
+        `Change detected but AI analysis skipped — server unreachable.`,
+        { parse_mode: "HTML" },
+      );
+    } catch {}
+    return;
+  }
+
+  // Send header message (owned here; runAnalysisAttempt edits it in place)
+  let msgId: number | null = null;
+  try {
+    const msg = await api.sendMessage(chatId, `<b>Watch: ${escapeHtml(watch.name)}</b>\n\nAnalyzing change...`, { parse_mode: "HTML" });
+    msgId = msg.message_id;
+  } catch (err: any) {
+    watchLogger.info({ watchId: watch.id, err: err?.message }, "Failed to send watch header");
+    return;
+  }
+
+  const model = getSelectedModel();
+  const modelId = model ? `${model.providerID}/${model.modelID}` : undefined;
+
+  try {
+    await runAnalysisAttempt(watch, previousContent, currentContent, api, chatId, msgId);
+    // Success — clear any lingering pendingReanalysis (shouldn't normally exist here,
+    // but if the user somehow triggered a new change while pending, the success path
+    // replaces the old pending state.)
+    if (watch.pendingReanalysis) {
+      delete watch.pendingReanalysis;
+      persist();
+    }
+  } catch (err: any) {
+    const reason = classifyAnalysisError(err);
+    watchLogger.info({ watchId: watch.id, err: err?.message, reason }, "Watch analysis error — pending retry");
+
+    watch.pendingReanalysis = {
+      previousContent,
+      currentContent,
+      detectedAt: Date.now(),
+      attempts: 1,
+      lastAttemptAt: Date.now(),
+      lastError: reason,
+      modelTried: modelId,
+      notificationMsgId: msgId!,
+      notificationChatId: chatId,
+    };
+    persist();
+
+    try {
+      await api.editMessageText(
+        chatId,
+        msgId!,
+        buildFailureCard(watch, watch.pendingReanalysis),
+        { parse_mode: "HTML", reply_markup: buildFailureKeyboard(watch.id) },
+      );
+    } catch {}
+  }
+}
+
+/**
+ * Re-run analysis for a watch that has a pendingReanalysis, using the stored
+ * previous/current content pair. Uses whatever model is currently selected via
+ * /model — so the user can switch first and retry to pick up the new model.
+ *
+ * Edits the same Telegram card that the original failure was posted to. On
+ * success, clears pendingReanalysis and the result replaces the card. On
+ * failure, bumps attempts and re-renders the failure card.
+ */
+export async function retryPendingAnalysis(id: string): Promise<"ok" | "not_found" | "nothing_pending" | "no_scheduler"> {
+  const watch = watches.find(w => w.id === id);
+  if (!watch) return "not_found";
+  if (!watch.pendingReanalysis) return "nothing_pending";
+  if (!schedulerApi || !schedulerChatId) return "no_scheduler";
+
+  const api = schedulerApi;
+  const pending = watch.pendingReanalysis;
+  const chatId = pending.notificationChatId ?? schedulerChatId;
+  const msgId = pending.notificationMsgId;
+  if (!msgId) return "no_scheduler";
+
+  // Pre-flight
+  try {
+    await ensureServerAlive();
+  } catch (err: any) {
+    const reason = classifyAnalysisError(err);
+    pending.attempts++;
+    pending.lastAttemptAt = Date.now();
+    pending.lastError = reason;
+    persist();
+    try {
+      await api.editMessageText(chatId, msgId, buildFailureCard(watch, pending), {
+        parse_mode: "HTML",
+        reply_markup: buildFailureKeyboard(watch.id),
+      });
+    } catch {}
+    return "ok";
+  }
+
+  const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
+  try {
+    await api.editMessageText(chatId, msgId, `${header}\n\nAnalyzing...`, { parse_mode: "HTML" });
+  } catch {}
+
+  const model = getSelectedModel();
+  const modelId = model ? `${model.providerID}/${model.modelID}` : undefined;
+
+  try {
+    await runAnalysisAttempt(watch, pending.previousContent, pending.currentContent, api, chatId, msgId);
+    delete watch.pendingReanalysis;
+    persist();
+    watchLogger.info({ watchId: watch.id, attempts: pending.attempts, modelTried: modelId }, "Watch retry succeeded");
+  } catch (err: any) {
+    const reason = classifyAnalysisError(err);
+    pending.attempts++;
+    pending.lastAttemptAt = Date.now();
+    pending.lastError = reason;
+    pending.modelTried = modelId;
+    persist();
+    watchLogger.info({ watchId: watch.id, attempts: pending.attempts, err: err?.message, reason }, "Watch retry failed");
+    try {
+      await api.editMessageText(chatId, msgId, buildFailureCard(watch, pending), {
+        parse_mode: "HTML",
+        reply_markup: buildFailureKeyboard(watch.id),
+      });
+    } catch {}
+  }
+  return "ok";
+}
+
+/**
+ * Clear pendingReanalysis without analyzing. Edits the failure card in place
+ * to acknowledge the dismissal and removes the keyboard.
+ */
+export async function dismissPendingAnalysis(id: string): Promise<"ok" | "not_found" | "nothing_pending"> {
+  const watch = watches.find(w => w.id === id);
+  if (!watch) return "not_found";
+  if (!watch.pendingReanalysis) return "nothing_pending";
+
+  const pending = watch.pendingReanalysis;
+  const chatId = pending.notificationChatId;
+  const msgId = pending.notificationMsgId;
+
+  delete watch.pendingReanalysis;
+  persist();
+  watchLogger.info({ watchId: watch.id }, "Watch retry dismissed");
+
+  if (schedulerApi && chatId && msgId) {
+    const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
+    try {
+      await schedulerApi.editMessageText(chatId, msgId, `${header}\n\n<i>Dismissed.</i>`, { parse_mode: "HTML" });
+    } catch {}
+  }
+  return "ok";
 }
 
 function buildAnalysisPrompt(watch: WatchJob, previousContent: string, currentContent: string): string {

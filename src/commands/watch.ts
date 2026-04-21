@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
-import { listWatches, addWatch, removeWatch, toggleWatch, runWatchNow, validateWatchUrl, type WatchJob } from "../watch.js";
+import { listWatches, addWatch, removeWatch, toggleWatch, runWatchNow, validateWatchUrl, retryPendingAnalysis, dismissPendingAnalysis, type WatchJob } from "../watch.js";
 import { escapeHtml } from "../utils/html.js";
 import { promptForInput, clearPendingInput } from "../utils/input.js";
 import { getConfig } from "../config/index.js";
@@ -411,6 +411,31 @@ export function registerWatchCommands(bot: Bot): void {
     const { text, keyboard } = buildWatchList();
     await safeEdit(ctx, text, { reply_markup: keyboard });
     await ctx.answerCallbackQuery({ text: "Deleted" });
+  });
+
+  // --- Callback: Retry pending analysis ---
+
+  bot.callbackQuery(/^watch_retry:(.+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    // Ack immediately — the retry itself can take 10-120s and grammy will
+    // complain if we sit on a callback query.
+    await ctx.answerCallbackQuery({ text: "Retrying..." });
+    const result = await retryPendingAnalysis(id);
+    if (result === "not_found" || result === "nothing_pending") {
+      // The failure card button was stale. Answer already sent; nothing more to do.
+      return;
+    }
+  });
+
+  // --- Callback: Dismiss pending analysis ---
+
+  bot.callbackQuery(/^watch_dismiss:(.+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    const result = await dismissPendingAnalysis(id);
+    const text =
+      result === "ok" ? "Dismissed" :
+      result === "nothing_pending" ? "Nothing to dismiss" : "Watch not found";
+    await ctx.answerCallbackQuery({ text });
   });
 
   // --- Callback: Cancel ---

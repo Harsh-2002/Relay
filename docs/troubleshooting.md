@@ -219,17 +219,17 @@ Check that your OpenCode config has providers and models configured. Models are 
 The file watcher should detect changes automatically. If it doesn't:
 
 1. Use `/system reload` to force a reload
-2. Check that the file path is correct in `~/.relay/config.json`:
+2. Check that the file path is correct in your config (`~/.relay/config.json` for prod, `./.relay/config.json` in dev):
    ```json
    {
      "systemPromptFile": "path/to/SKILL.md"
    }
    ```
-3. Verify the file exists and is readable
+3. Verify the file exists and is readable. Note: as of v2.5.8, SKILL.md is only looked up at `{dataDir}/SKILL.md` — the cwd fallback was removed because it silently shadowed the prod file.
 
 ### "/system" shows "default prompt"
 
-No custom prompt file was found. Create `~/.relay/SKILL.md` or set `systemPromptFile` in your config to point to your prompt file.
+No custom prompt file was found. Create `{dataDir}/SKILL.md` (that's `~/.relay/SKILL.md` in prod, `./.relay/SKILL.md` in dev) or set `systemPromptFile` in your config to point to your prompt file.
 
 ---
 
@@ -249,6 +249,19 @@ On some systems you may need to fix npm's global prefix permissions instead of u
 
 1. Check if another instance is already running: `relay status`
 2. Check logs for errors: `relay logs`
+
+### Relay dies on reboot and doesn't come back
+
+Before v2.5.4, the daemon did not survive system reboots (Ubuntu kernel upgrades, manual restarts) because `pm2 startup` — the systemd/launchd/etc. registration that brings pm2 back at boot — was never run. Upgrade and enable it:
+
+```bash
+relay update
+relay autostart
+```
+
+`relay autostart` registers pm2 with your init system automatically when running as root or with passwordless sudo. Otherwise it prints the exact one-time command to paste. Works on systemd (Linux), launchd (macOS), OpenRC, upstart, rcd (BSD), smf (Solaris). Windows prints a hint pointing to `pm2-windows-startup`. Alpine users without sudo should substitute `doas` in the printed command.
+
+Once registered, verify by rebooting — `pm2 list` should show relay as `online` without you having to run anything.
 
 ### "Relay daemon is not running" but the bot was started
 

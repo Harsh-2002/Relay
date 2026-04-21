@@ -2,6 +2,8 @@
 
 Detailed guide to Relay's key features.
 
+> **Note on paths:** examples below show `~/.relay/config.json` and similar — that's the **production** location. Under `--dev` (or `npm run dev`) the same files live at `./.relay/` instead. The [Data Persistence](#data-persistence) section explains how Relay picks between them.
+
 ---
 
 ## Streaming Responses
@@ -129,7 +131,7 @@ Enable during `relay onboard` (Step 4), or set in `~/.relay/config.json`:
 }
 ```
 
-Data is stored in `~/.relay/memory.jsonl` (or `./.relay/memory.jsonl` in dev mode).
+Data is stored in `{dataDir}/memory.jsonl`.
 
 ### How it works
 
@@ -358,9 +360,10 @@ Customize the AI's behavior with a system prompt file.
 
 The bot looks for a system prompt in this order:
 1. Explicit path from `systemPromptFile` in config
-2. `~/.relay/SKILL.md` if it exists
-3. `./SKILL.md` in the current directory (backward compatibility)
-4. Built-in default prompt
+2. `{dataDir}/SKILL.md` if it exists — `~/.relay/SKILL.md` in prod, `./.relay/SKILL.md` in dev
+3. Built-in default prompt
+
+The cwd-relative `./SKILL.md` fallback was removed in v2.5.8 to avoid the dev-repo file silently shadowing the prod one.
 
 ### Custom prompt file
 

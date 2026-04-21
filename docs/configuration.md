@@ -1,6 +1,8 @@
 # Configuration Reference
 
-Relay uses a JSON config file at `~/.relay/config.json` (global). Run `relay onboard` for the interactive wizard, or pass settings via CLI flags. Use `--dev` to use `./.relay/` in the current directory for local development.
+Relay uses a JSON config file at `~/.relay/config.json` in production, or `./.relay/config.json` under `--dev`. Run `relay onboard` for the interactive wizard, or pass settings via CLI flags. See [Data Directory](#data-directory) for full precedence rules.
+
+Throughout this doc, examples show the prod path `~/.relay/config.json` — substitute `./.relay/config.json` if you're running in dev mode.
 
 Re-running `relay onboard` enters **update mode** — shows current values and lets you press Enter to keep them, or type a new value to replace.
 
@@ -23,7 +25,8 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `relay restart` | Restart the background daemon |
 | `relay logs` | Tail daemon logs (Ctrl+C to exit) |
 | `relay status` | Show daemon status (PID, uptime, memory) |
-| `relay update` | Update Relay to the latest version |
+| `relay autostart` | Register pm2 with the OS init system so the daemon auto-starts on boot |
+| `relay update` | Update Relay to the latest version and restart the daemon if running |
 
 ## CLI Flags
 
@@ -43,6 +46,13 @@ Config resolution order: **CLI flags > config file > defaults**.
 | `--data-dir` | Data directory (default: `~/.relay/`) |
 | `--system-prompt-file` | Custom system prompt file path |
 | `--timezone` | IANA timezone for cron scheduling and timestamps |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `RELAY_DATA_DIR` | Bootstrap override for the data directory. Useful for containers and CI. Lower priority than `--data-dir` and `--dev` but higher than the `~/.relay/` default. |
+| `NO_COLOR` | Respected by pino and clack. Set to disable ANSI colour in logs and the onboarding wizard. |
 
 ## Core Settings
 
@@ -163,9 +173,10 @@ Relay uses structured JSON logging via pino at `info` level. All provider intera
 
 The bot looks for a system prompt in this order:
 1. Explicit path from `systemPromptFile` config
-2. `~/.relay/SKILL.md` if it exists
-3. `./SKILL.md` in the current directory (backward compatibility)
-4. Built-in default prompt
+2. `{dataDir}/SKILL.md` if it exists (`~/.relay/SKILL.md` in prod, `./.relay/SKILL.md` in dev)
+3. Built-in default prompt
+
+The cwd `./SKILL.md` fallback was removed in v2.5.8 to prevent a dev-repo SKILL.md from silently shadowing the production one.
 
 The file is watched for changes and reloaded automatically. Use `/system reload` to force a reload.
 

@@ -36,7 +36,7 @@ from modular sections:
 |  +----------------------------------------------------------+|
 |  | Base Prompt                                               ||
 |  |-----------------------------------------------------------|
-|  | Source: ~/.relay/SKILL.md (custom)                         ||
+|  | Source: {dataDir}/SKILL.md (custom)                        ||
 |  |    OR:  DEFAULT_SYSTEM_PROMPT (built-in)                  ||
 |  |                                                           ||
 |  | Contains: identity, delivery constraints,                 ||
@@ -86,7 +86,7 @@ every LLM request:
           |                                |
           | Assembles all sections         |
           | Writes to:                     |
-          | ~/.relay/RELAY.md      |
+          | {dataDir}/RELAY.md             |
           +---------------+----------------+
                           |
                           v
@@ -96,8 +96,7 @@ every LLM request:
           | Adds path to opencode.json:    |
           | {                              |
           |   "instructions": [            |
-          |     "~/.relay/                 |
-          |       RELAY.md"        |
+          |     "{dataDir}/RELAY.md"       |
           |   ]                            |
           | }                              |
           +---------------+----------------+
@@ -161,11 +160,11 @@ every LLM request:
 
 ## Hot-Reload
 
-When the user edits `~/.relay/SKILL.md`, the system prompt file is
+When the user edits `{dataDir}/SKILL.md`, the system prompt file is
 automatically rewritten:
 
 ```
-    ~/.relay/SKILL.md edited
+    {dataDir}/SKILL.md edited
                |
                v
     fs.watchFile fires (5s poll interval)
@@ -175,13 +174,15 @@ automatically rewritten:
                +---> writeSystemPromptFile()
                           |
                           v
-                   Rewrites ~/.relay/RELAY.md
+                   Rewrites {dataDir}/RELAY.md
                    with updated base + all MCP sections
                           |
                           v
                    Next OpenCode request automatically
                    picks up the new file contents
 ```
+
+`{dataDir}` is `~/.relay/` in production or `./.relay/` in dev mode (see [Getting Started](getting-started.md#data-directory)). The SKILL.md lookup was previously also checked in the current working directory as a backward-compat fallback — that behavior was removed in v2.5.8 because it could silently shadow the prod SKILL.md when Relay was launched from its repo.
 
 No restart required. The instructions file path stays the same -- only the
 contents change.

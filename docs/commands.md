@@ -561,11 +561,11 @@ Force-reload the system prompt from the file. Useful if auto-reload didn't pick 
 
 ### `/restart`
 
-Restart the bot process. The bot sends a confirmation message before restarting via pm2.
+Restart the bot process. The bot sends an acknowledgement in Telegram before terminating so the update doesn't get replayed in a restart loop (pm2 brings it back up within a second).
 
 ### `/update`
 
-Update Relay to the latest version from npm and restart. Shows the new version number on success.
+Update Relay to the latest version from npm and restart. Auto-detects the install method (npm global vs git source) and picks the right update path. The daemon is restarted automatically if it was running.
 
 ### `/start`
 

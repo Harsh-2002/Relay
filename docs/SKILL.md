@@ -12,7 +12,7 @@ At startup, `writeSystemPromptFile()` assembles the full prompt and writes it to
 
 The prompt is built by `writeSystemPromptFile()` in `src/utils/system-prompt.ts`:
 
-1. **Base prompt** -- loaded from `~/.relay/SKILL.md` (custom) or the default below
+1. **Base prompt** -- loaded from `{dataDir}/SKILL.md` (custom) or the default below. `{dataDir}` is `~/.relay/` in production or `./.relay/` in dev mode. The cwd-relative `./SKILL.md` fallback was removed in v2.5.8.
 2. **MCP tool prompts** -- appended conditionally based on config flags:
    - `browserEnabled` → Playwright MCP prompt
    - `fetchEnabled` → Fetch MCP prompt
@@ -24,7 +24,7 @@ The prompt is built by `writeSystemPromptFile()` in `src/utils/system-prompt.ts`
 
 The timestamp is **not** included in the file -- OpenCode adds its own date/time context.
 
-Users can override the base prompt by editing `~/.relay/SKILL.md`. The MCP sections are always appended regardless of custom prompts. Changes to `SKILL.md` are hot-reloaded -- the watcher rewrites `RELAY.md` automatically.
+Users can override the base prompt by editing `{dataDir}/SKILL.md`. The MCP sections are always appended regardless of custom prompts. Changes to `SKILL.md` are hot-reloaded -- the watcher rewrites `RELAY.md` automatically.
 
 `getSystemPrompt()` still exists for internal use (e.g., cron job prompts) and appends a live timestamp in the user's configured timezone.
 

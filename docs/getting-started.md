@@ -72,9 +72,18 @@ relay status                 # Check if running (PID, uptime, memory)
 relay logs                   # Tail daemon logs (Ctrl+C to exit)
 relay restart                # Restart the daemon
 relay stop                   # Stop the daemon
+relay autostart              # Register pm2 with your init system so the daemon auto-starts on boot
 ```
 
 pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
+
+### Surviving reboots
+
+`relay autostart` registers pm2 with your OS init system — systemd (Linux), launchd (macOS), OpenRC, upstart, rcd (BSD), or smf (Solaris) — so the daemon comes back automatically after kernel upgrades or reboots. It runs pm2's startup helper with `sudo -n` when available, otherwise it prints the exact one-time command to copy.
+
+- Linux / macOS / BSD — works out of the box
+- Windows — prints a hint pointing to `pm2-windows-startup`, since pm2's native startup helper doesn't support Windows
+- Alpine minimal (no sudo) — the printed command uses `sudo`; substitute `doas` as the hint explains
 
 ### Updating
 
@@ -82,7 +91,7 @@ pm2 is auto-installed on first `relay start`. CLI flags are forwarded.
 relay update
 ```
 
-Updates to the latest version. Restarts the daemon automatically if it's running.
+Detects install method (npm global vs git source), updates to the latest version, and restarts the daemon automatically if it's running.
 
 ## First Steps
 
@@ -94,20 +103,29 @@ Updates to the latest version. Restarts the daemon automatically if it's running
 
 ## Data Directory
 
-Relay stores its data in `~/.relay/`:
+Relay stores its data in **`~/.relay/`** (production) or **`./.relay/`** (dev, when `--dev` is set or via `npm run dev`):
 
 ```
-~/.relay/
+{dataDir}/
   config.json         -- Your configuration
-  session.json        -- Active session and model
+  session.json        -- Active session, model, agent, STT provider
   cron.json           -- Scheduled task definitions and run history
   watch.json          -- Web monitoring definitions, snapshots, and check history
   SKILL.md            -- Custom system prompt (optional, create manually)
   RELAY.md            -- Auto-generated assembled system prompt (base + MCP docs)
   memory.jsonl        -- Memory MCP data (created when Memory is enabled)
+  uploads/            -- Cached Telegram downloads (auto-pruned hourly)
 ```
 
-This directory is created automatically on first run.
+Relay prints the active mode and directory on every startup so you always know which one is live:
+
+```
+  Relay [PROD] data=/home/alice/.relay
+```
+
+If you see `[DEV]`, you're running against the repo-local directory. If you see `[PROD]` with a repo path, something is wrong — run `relay status` and check the banner.
+
+Precedence for the data directory: `--data-dir <path>` > `--dev` > `RELAY_DATA_DIR` env var > `~/.relay/`.
 
 ## Next Steps
 

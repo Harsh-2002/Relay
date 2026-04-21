@@ -586,22 +586,39 @@ Relay automatically persists critical state to disk so it survives bot restarts 
 
 ### What is persisted
 
+All files live under Relay's **data directory** (`~/.relay/` in production, `./.relay/` under `--dev`). Nothing leaks to the current working directory.
+
 | Data | File | Description |
 |------|------|-------------|
-| Active session | `~/.relay/session.json` | Current session ID and selected model |
-| Scheduled tasks | `~/.relay/cron.json` | Cron job definitions, schedules, and run history |
-| Web watches | `~/.relay/watch.json` | Watch definitions, snapshots, and check history |
+| Active session | `{dataDir}/session.json` | Current session ID and selected model |
+| Scheduled tasks | `{dataDir}/cron.json` | Cron job definitions, schedules, and run history |
+| Web watches | `{dataDir}/watch.json` | Watch definitions, snapshots, and check history |
+| Uploaded media | `{dataDir}/uploads/` | Cached Telegram downloads, auto-pruned hourly |
 
 ### How it works
 
 - State is written atomically (via temp file + rename) to prevent corruption
 - Files are loaded on startup and written immediately on change
 - If a state file is missing or corrupt, the bot starts fresh with defaults
-- The `~/.relay/` directory is created automatically
+- The data directory is created automatically
 
 ### Configuration
 
-Override the data directory in `~/.relay/config.json`:
+Relay decides where to put everything by the following precedence (highest first):
+
+1. `--data-dir <path>` or `dataDir` in config
+2. `--dev` — shortcut for `./.relay/` at current directory
+3. `RELAY_DATA_DIR` environment variable
+4. `~/.relay/` (default)
+
+The active path is always printed in the startup banner:
+
+```
+  Relay [PROD] data=/home/alice/.relay
+  Relay [DEV]  data=/home/alice/src/Relay/.relay
+```
+
+Override via config:
 
 ```json
 {
@@ -609,13 +626,11 @@ Override the data directory in `~/.relay/config.json`:
 }
 ```
 
-Or via CLI flag:
+Or CLI flag:
 
 ```bash
 relay --data-dir=/path/to/custom/data
 ```
-
-Default: `~/.relay/` in the user's home directory. Use `--dev` to use `./.relay/` in the current directory.
 
 ---
 

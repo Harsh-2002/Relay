@@ -4,6 +4,52 @@ Common issues and solutions when running Relay.
 
 ---
 
+## Data is in the wrong place (dev vs prod mix-up)
+
+### "My cron jobs / sessions / watches vanished"
+
+Relay chooses one of two data directories at startup depending on how you launched it:
+
+- `relay`, `relay start`, or `relay restart` → `~/.relay/` (production)
+- `npm run dev` or `relay --dev <anything>` → `./.relay/` (current directory, for local development)
+
+Check the startup banner Relay prints — `Relay [PROD] data=…` or `Relay [DEV]  data=…`. If it points somewhere unexpected, you launched in the wrong mode.
+
+### "I was running dev and prod from the same repo and data ended up in `./.relay/`"
+
+This was a bug in Relay versions prior to **v2.5.8**. The daemon launched via pm2 inherited the user's cwd, and a handful of module-level path captures pinned the data dir to whatever cwd they happened to see at import time — usually `./.relay/` when `relay start` was run from inside the repo. Upgrade:
+
+```bash
+relay update
+relay restart
+```
+
+After the restart, verify the startup banner reads `[PROD] data=/home/<you>/.relay`. If there's recent data stuck in `./.relay/` inside the repo, you can migrate it:
+
+```bash
+# 1. Stop the daemon first
+relay stop
+
+# 2. Back up ~/.relay to be safe
+cp -a ~/.relay ~/.relay.bak
+
+# 3. Move the newer files one by one, inspecting each
+mv /path/to/Relay/.relay/cron.json   ~/.relay/cron.json
+mv /path/to/Relay/.relay/watch.json  ~/.relay/watch.json
+mv /path/to/Relay/.relay/session.json ~/.relay/session.json
+
+# 4. Restart
+relay start
+```
+
+Do not blindly `cp -a` the whole directory — you'll overwrite the prod `config.json` (the dev one may have a different bot token or user ID).
+
+### "I want to keep hacking on Relay in the repo without nuking prod data"
+
+Use `npm run dev` (or `relay --dev` for any subcommand) when you work inside the repo. The banner will read `[DEV]` and state goes to `./.relay/`. Your production `~/.relay/` stays untouched.
+
+---
+
 ## Bot won't start
 
 ### "No config found" / setup wizard starts automatically

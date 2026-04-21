@@ -1,14 +1,21 @@
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { basename, join, resolve } from "path";
+import { getDataDir } from "./store.js";
 
-const UPLOAD_DIR = join(process.cwd(), "uploads");
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 const CLEANUP_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 const CLEANUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
-function ensureUploadDir(): void {
-  if (!existsSync(UPLOAD_DIR)) {
-    mkdirSync(UPLOAD_DIR, { recursive: true, mode: 0o700 });
+// Resolved lazily on each call — setDataDir() runs in index.ts AFTER this
+// module's imports finish, so capturing the path at module load would bind
+// every upload to process.cwd()+"/uploads" instead of the real dataDir.
+function getUploadDirInternal(): string {
+  return join(getDataDir(), "uploads");
+}
+
+function ensureUploadDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -30,13 +37,14 @@ export async function downloadTelegramFile(
   filePath: string,
   fileName: string
 ): Promise<string> {
-  ensureUploadDir();
+  const uploadDir = getUploadDirInternal();
+  ensureUploadDir(uploadDir);
 
   const safeName = sanitizeFileName(fileName);
-  const localPath = join(UPLOAD_DIR, safeName);
+  const localPath = join(uploadDir, safeName);
 
-  // Verify resolved path stays under UPLOAD_DIR
-  if (!resolve(localPath).startsWith(resolve(UPLOAD_DIR))) {
+  // Verify resolved path stays under uploadDir
+  if (!resolve(localPath).startsWith(resolve(uploadDir))) {
     throw new Error("Invalid file name");
   }
 
@@ -86,17 +94,18 @@ export async function downloadTelegramFileBuffer(
 }
 
 export function getUploadDir(): string {
-  return UPLOAD_DIR;
+  return getUploadDirInternal();
 }
 
 /**
  * Remove uploaded files older than maxAgeMs.
  */
 export function cleanupUploads(maxAgeMs = CLEANUP_MAX_AGE_MS): void {
-  if (!existsSync(UPLOAD_DIR)) return;
+  const uploadDir = getUploadDirInternal();
+  if (!existsSync(uploadDir)) return;
   const now = Date.now();
-  for (const file of readdirSync(UPLOAD_DIR)) {
-    const fp = join(UPLOAD_DIR, file);
+  for (const file of readdirSync(uploadDir)) {
+    const fp = join(uploadDir, file);
     try {
       const stat = statSync(fp);
       if (now - stat.mtimeMs > maxAgeMs) unlinkSync(fp);

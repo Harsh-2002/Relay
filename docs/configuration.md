@@ -76,22 +76,41 @@ See [Providers](providers.md) for detailed setup.
 
 ## Data Persistence
 
+### Data Directory
+
+Every piece of persisted state — sessions, cron jobs, watches, uploads, custom prompts — lives inside a single directory. Relay picks which directory according to this precedence:
+
+1. **`--data-dir <path>`** (or `dataDir` in config) — an explicit path always wins.
+2. **`--dev`** — resolves to `./.relay/` at the current working directory. Intended for local development while hacking on Relay itself.
+3. **`RELAY_DATA_DIR` env var** — a bootstrap-time fallback, useful for containers.
+4. **`~/.relay/`** — the production default for installed users.
+
+Relay prints the active mode and directory at startup, so you always know which one is live:
+
+```
+  Relay [PROD] data=/home/alice/.relay
+  Relay [DEV]  data=/home/alice/src/Relay/.relay
+```
+
+Check this line before sending commands — especially if you both develop Relay and run it as a daemon from the same machine. `npm run dev` automatically passes `--dev`; bare `relay` does not, even if you launch it from inside the repo.
+
 | Config field | CLI flag | Default | Description |
 |-------------|----------|---------|-------------|
 | `dataDir` | `--data-dir` | `~/.relay/` | Directory for persisted bot state |
+| — | `--dev` | off | Shortcut for `--data-dir ./.relay/` |
 
-Relay persists session state, model selection, and provider-specific data to disk so they survive restarts. The `~/.relay/` directory is created automatically. Use `--dev` to use `./.relay/` in the current directory instead.
+### Files stored
 
-Files stored:
-- `config.json` — Your configuration (0600 permissions)
-- `session.json` — Active session ID and selected model
+- `config.json` — Your configuration (mode `0600` where the filesystem honours it)
+- `session.json` — Active session ID, selected model, agent, STT provider
 - `cron.json` — Scheduled task definitions and run history
 - `watch.json` — Web monitoring watch definitions, snapshots, and check history
 - `RELAY.md` — Auto-generated assembled system prompt (written on every startup)
 - `SKILL.md` — Custom system prompt override (optional, create manually)
 - `memory.jsonl` — Memory MCP knowledge graph (auto-created when Memory is enabled)
+- `uploads/` — Cached Telegram media, auto-pruned every 30 min (files older than 1 hour removed)
 
-The directory is excluded from git via `.gitignore`.
+The repo's `.relay/` directory is excluded from git via `.gitignore`. The home-directory `~/.relay/` is never inside the repo.
 
 ## MCP Tools
 

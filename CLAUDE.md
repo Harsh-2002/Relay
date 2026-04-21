@@ -106,14 +106,27 @@ Background process management via pm2. All pm2 interaction is isolated in this m
 
 ### Persistence (`~/.relay/` directory)
 
-State is persisted via `JsonStore` to `~/.relay/` (or `./.relay/` in dev mode):
-- `config.json` — User configuration (0600 permissions)
-- `session.json` — Active session ID and selected model
+All state is persisted through `JsonStore` (`src/utils/store.ts`) to a single **data directory** resolved by `resolveDataDir()` in `src/config/loader.ts`:
+
+- **Production** (default) → `~/.relay/`
+- **Development** (`--dev` flag, or `npm run dev`) → `./.relay/` at the current working directory
+- **Override** → `--data-dir <path>`, or `RELAY_DATA_DIR=<path>` env var (bootstrap fallback)
+
+Precedence: `--data-dir` > `--dev` > `RELAY_DATA_DIR` > `~/.relay/`.
+
+**Startup banner** — `src/index.ts` prints `Relay [PROD|DEV] data=<path>` right after config load so the active location is never ambiguous. If you see `[PROD]` and a repo path, something is wrong.
+
+**Dev/prod cwd trap (historical — fixed in v2.5.8)** — pm2 launches the daemon with whatever cwd `relay start` ran from. Before v2.5.8, a `process.cwd()+".relay"` default was captured at module-import time in `JsonStore`, `UPLOAD_DIR`, and a SKILL.md fallback. Running `relay start` from the repo silently pinned those paths to `/path/to/Relay/.relay/` even though config resolved to `~/.relay/`. The fix: every consumer of the data dir resolves it **lazily** at read/write time via `getDataDir()`. There's a regression test at `tests/unit/utils/dataDir.test.ts`.
+
+**Files inside the data dir** (same layout in prod and dev):
+- `config.json` — User configuration (mode `0600`)
+- `session.json` — Active session ID, selected model, agent, STT provider
 - `cron.json` — Scheduled task definitions and run history
-- `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
-- `SKILL.md` — Custom user system prompt override (optional). If present, replaces the default base prompt. Hot-reloaded — edits trigger `RELAY.md` regeneration
-- `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
 - `watch.json` — Web monitoring watch definitions, snapshots, and check history
+- `RELAY.md` — Auto-generated assembled system prompt (base + MCP tool docs). Written at startup, registered in OpenCode's `instructions` config. Regenerated on restart and on `SKILL.md` hot-reload
+- `SKILL.md` — Custom user system prompt override (optional). Located **only** under the data dir — there is no cwd fallback. Hot-reloaded
+- `memory.jsonl` — Memory MCP knowledge graph data (auto-created when Memory MCP is enabled)
+- `uploads/` — Downloaded Telegram media (auto-cleaned every 30 min, files older than 1 hour removed)
 
 ### Bot Modes
 

@@ -24,6 +24,14 @@ async function main() {
   const config = getConfig();
   if (config.dataDir) setDataDir(config.dataDir);
 
+  // Surface the active data dir and mode up front. This is the first thing a
+  // user should see so a prod-vs-dev mismatch is immediately obvious instead
+  // of quietly leaking data into the wrong directory.
+  const mode = config.dev ? "development" : "production";
+  const marker = config.dev ? "[DEV]" : "[PROD]";
+  console.log(`  Relay ${marker} data=${config.dataDir}`);
+  logger.info({ dataDir: config.dataDir, mode }, "data directory resolved");
+
   if (!config.botToken) {
     die("Bot token is required. Run 'relay onboard' to configure.");
   }

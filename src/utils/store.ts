@@ -21,15 +21,27 @@ function ensureDir(dir: string): void {
 /**
  * Simple JSON-file-backed persistence store.
  * Atomic writes via tmp+rename to prevent corruption on crash.
+ *
+ * DATA_DIR is resolved lazily (at every read/write), not at construction.
+ * Stores are created at module-import time in cron.ts, watch.ts, session.ts,
+ * but setDataDir() only runs later in index.ts after config has loaded. If
+ * we captured the path in the constructor, every store would point at
+ * process.cwd()+"/.relay" forever and ignore the real dataDir from config —
+ * in production that meant stores wrote to /home/dev/Relay/.relay/ while
+ * config was read from ~/.relay/.
  */
 export class JsonStore<T> {
-  private filePath: string;
+  private filename: string;
   private defaultValue: T;
 
   constructor(filename: string, defaultValue: T) {
-    ensureDir(DATA_DIR);
-    this.filePath = join(DATA_DIR, filename);
+    this.filename = filename;
     this.defaultValue = defaultValue;
+  }
+
+  private get filePath(): string {
+    ensureDir(DATA_DIR);
+    return join(DATA_DIR, this.filename);
   }
 
   /** Load current value from disk, or return default if file missing/corrupt. */
@@ -45,9 +57,10 @@ export class JsonStore<T> {
 
   /** Overwrite the file with new data (atomic write). */
   save(data: T): void {
-    const tmp = this.filePath + ".tmp";
+    const target = this.filePath;
+    const tmp = target + ".tmp";
     writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
-    renameSync(tmp, this.filePath);
+    renameSync(tmp, target);
   }
 
   /** Read-modify-write helper. */

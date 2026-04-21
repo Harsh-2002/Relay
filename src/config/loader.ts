@@ -135,6 +135,10 @@ export function loadConfig(): LoadResult {
     config.dataDir = dataDir;
   }
 
+  // Record runtime mode so index.ts can print the banner correctly even when
+  // dataDir was set via an explicit --data-dir (rather than --dev).
+  config.dev = cli.dev === true;
+
   // Detect if setup is needed (no bot token means we can't run)
   const needsSetup = !config.botToken;
 

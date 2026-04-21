@@ -58,6 +58,29 @@ relay stop                   # Stop the daemon
 relay update                 # Update to latest version + restart
 ```
 
+## Development vs Production
+
+Relay persists all state (sessions, cron jobs, watches, uploads, custom prompts) in a single **data directory**. The location depends on how you launch Relay:
+
+| Mode | How to launch | Data directory |
+|------|---------------|----------------|
+| **Production** (default) | `relay`, `relay start`, `relay restart` | `~/.relay/` |
+| **Development** | `npm run dev`, or any `relay` command with `--dev` | `./.relay/` (current directory) |
+| **Custom** | Any command with `--data-dir <path>` | Whatever you specify |
+
+Relay prints the active mode and directory at startup — for example:
+
+```
+  Relay [PROD] data=/home/alice/.relay
+  Relay [DEV]  data=/home/alice/projects/Relay/.relay
+```
+
+**Important** — if you are developing Relay inside a checkout of this repo and **also** have the production daemon installed globally, make sure you use `--dev` (or `npm run dev`, which passes it for you) whenever you intend to hit the repo's `.relay/` folder. Running bare `relay` inside the repo reads and writes your **production** data. The startup banner tells you which one is active; check it before you send commands.
+
+The same `--dev` flag works for every subcommand: `relay --dev start`, `relay --dev status`, `relay --dev onboard`, and so on. All of them route to `./.relay/`.
+
+For power users, `RELAY_DATA_DIR=/some/path` in the environment overrides all of the above — useful for containerised deployments.
+
 ## Documentation
 
 | Guide | Description |

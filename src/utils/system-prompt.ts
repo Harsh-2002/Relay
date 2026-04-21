@@ -320,14 +320,11 @@ function resolvePromptPath(): string | null {
   // 1. Explicit path from config
   if (config.systemPromptFile) return resolve(config.systemPromptFile);
 
-  // 2. .relay/SKILL.md
-  const relaySkill = join(config.dataDir || ".relay", "SKILL.md");
-  if (existsSync(relaySkill)) return resolve(relaySkill);
-
-  // 3. ./SKILL.md in cwd (backward compat)
-  const cwdSkill = resolve("SKILL.md");
-  if (existsSync(cwdSkill)) return cwdSkill;
-
-  // 4. Return the .relay/SKILL.md path anyway (for watch setup)
-  return resolve(relaySkill);
+  // 2. {dataDir}/SKILL.md — the single canonical location regardless of
+  //    whether Relay is running in dev or prod. Previously a ./SKILL.md cwd
+  //    fallback existed here, but it silently shadowed the dataDir file
+  //    when Relay was launched from the repo in prod — the exact dev/prod
+  //    cross-reference bug we are eliminating.
+  const skillPath = join(getDataDir(), "SKILL.md");
+  return resolve(skillPath);
 }

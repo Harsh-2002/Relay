@@ -44,6 +44,9 @@ export interface RelayConfig {
   // Paths
   dataDir: string;
   systemPromptFile: string;
+
+  // Runtime mode (not persisted — set from --dev CLI flag)
+  dev?: boolean;
 }
 
 export const CONFIG_DEFAULTS: RelayConfig = {

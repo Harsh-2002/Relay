@@ -649,8 +649,38 @@ export async function retryPendingAnalysis(id: string): Promise<"ok" | "not_foun
   const api = schedulerApi;
   const pending = watch.pendingReanalysis;
   const chatId = pending.notificationChatId ?? schedulerChatId;
-  const msgId = pending.notificationMsgId;
-  if (!msgId) return "no_scheduler";
+
+  // Resolve the card we edit: prefer the stored failure-card id, but if that
+  // message was deleted or we somehow lost the id, post a fresh one so the
+  // retry is still visible to the user.
+  let msgId = pending.notificationMsgId;
+  const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
+  if (!msgId) {
+    try {
+      const fresh = await api.sendMessage(chatId, `${header}\n\nAnalyzing...`, { parse_mode: "HTML" });
+      msgId = fresh.message_id;
+      pending.notificationMsgId = msgId;
+      pending.notificationChatId = chatId;
+      persist();
+    } catch {
+      return "no_scheduler";
+    }
+  } else {
+    try {
+      await api.editMessageText(chatId, msgId, `${header}\n\nAnalyzing...`, { parse_mode: "HTML" });
+    } catch {
+      // Stored msg was deleted / stale — fall back to a fresh card.
+      try {
+        const fresh = await api.sendMessage(chatId, `${header}\n\nAnalyzing...`, { parse_mode: "HTML" });
+        msgId = fresh.message_id;
+        pending.notificationMsgId = msgId;
+        pending.notificationChatId = chatId;
+        persist();
+      } catch {
+        return "no_scheduler";
+      }
+    }
+  }
 
   // Pre-flight
   try {
@@ -669,11 +699,6 @@ export async function retryPendingAnalysis(id: string): Promise<"ok" | "not_foun
     } catch {}
     return "ok";
   }
-
-  const header = `<b>Watch: ${escapeHtml(watch.name.slice(0, 100))}</b>`;
-  try {
-    await api.editMessageText(chatId, msgId, `${header}\n\nAnalyzing...`, { parse_mode: "HTML" });
-  } catch {}
 
   const model = getSelectedModel();
   const modelId = model ? `${model.providerID}/${model.modelID}` : undefined;

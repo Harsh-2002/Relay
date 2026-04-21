@@ -103,6 +103,10 @@ function buildWatchList(): { text: string; keyboard: InlineKeyboard } {
       const okStr = w.lastCheckOk ? "(ok)" : "(failed)";
       text += `   Last: ${relativeTime(w.lastCheckAt)} ${okStr}  \u00b7  ${w.checkCount} checks, ${w.changeCount} changes\n`;
     }
+    if (w.pendingReanalysis) {
+      const p = w.pendingReanalysis;
+      text += `   \u26a0 Analysis pending (attempt ${p.attempts}): ${escapeHtml(p.lastError)}\n`;
+    }
   }
 
   if (overflow) {
@@ -122,6 +126,13 @@ function buildWatchList(): { text: string; keyboard: InlineKeyboard } {
     }
     kb.text(`${num} \u25b6 Check`, `watch_run:${w.id}`);
     kb.text(`${num} \ud83d\uddd1`, `watch_del:${w.id}`);
+
+    // Extra row for watches with a failed analysis waiting on manual retry.
+    if (w.pendingReanalysis) {
+      kb.row();
+      kb.text(`${num} \u21bb Retry analysis`, `watch_retry:${w.id}`);
+      kb.text(`${num} Dismiss`, `watch_dismiss:${w.id}`);
+    }
   }
 
   return { text, keyboard: kb };
@@ -432,10 +443,20 @@ export function registerWatchCommands(bot: Bot): void {
   bot.callbackQuery(/^watch_dismiss:(.+)$/, async (ctx) => {
     const id = ctx.match[1];
     const result = await dismissPendingAnalysis(id);
-    const text =
+    const msg =
       result === "ok" ? "Dismissed" :
       result === "nothing_pending" ? "Nothing to dismiss" : "Watch not found";
-    await ctx.answerCallbackQuery({ text });
+    await ctx.answerCallbackQuery({ text: msg });
+
+    // If the callback came from the `/watch` list message (not the failure
+    // card), refresh it so the pending row re-renders without the warning /
+    // retry button. dismissPendingAnalysis already handled the failure-card
+    // case by editing that message to "Dismissed.".
+    const currentText = ctx.msg?.text ?? "";
+    if (currentText.startsWith("Web Monitors")) {
+      const { text, keyboard } = buildWatchList();
+      await safeEdit(ctx, text, { reply_markup: keyboard });
+    }
   });
 
   // --- Callback: Cancel ---
